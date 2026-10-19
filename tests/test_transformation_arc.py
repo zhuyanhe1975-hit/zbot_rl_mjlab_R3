@@ -1,4 +1,4 @@
-"""The low arc uses the target branch while retaining the standing objective."""
+"""低弧线使用目标分支，同时保留站立目标。"""
 
 import math
 from types import SimpleNamespace
@@ -12,13 +12,16 @@ from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 from zbot_rl_mjlab.experiments.transformation import SnakeToBipedArc, SnakeToBipedBeta
 from zbot_rl_mjlab.robot import DEFAULT_JOINT_POS, JOINT_NAMES, get_spec
 from zbot_rl_mjlab.tasks.transformation.actions import bounded_target
-from zbot_rl_mjlab.tasks.transformation.arc_pose import (
+from zbot_rl_mjlab.tasks.transformation.poses import (
     ARC_JOINT_POS,
     ARC_ROOT_POS,
     ARC_ROOT_QUAT,
+    SNAKE_JOINT_POS,
 )
-from zbot_rl_mjlab.tasks.transformation.snake_pose import SNAKE_JOINT_POS
-from zbot_rl_mjlab.tasks.transformation.snake_to_biped import initial_joint_pose_cost
+from zbot_rl_mjlab.tasks.transformation.snake_to_biped import (
+    SnakeToBipedEnvCfg,
+    initial_joint_pose_cost,
+)
 
 
 @pytest.mark.parametrize("play", [False, True])
@@ -51,6 +54,7 @@ def test_arc_reset_and_branch_are_separate_from_the_original_beta(play):
 @pytest.mark.parametrize("direction", [-1, 1])
 def test_repeated_extreme_commands_stay_on_target_branch(direction):
     cfg = SnakeToBipedArc().build_env()
+    assert isinstance(cfg, SnakeToBipedEnvCfg)
     limits = torch.tensor([cfg.actions["joint_pos"].joint_target_bounds[name] for name in JOINT_NAMES])
     command = torch.tensor(ARC_JOINT_POS)
     action = torch.full((6,), direction, dtype=torch.float32)

@@ -1,4 +1,4 @@
-"""Warm-start isolation and physical force/torque scheduling checks."""
+"""热启动隔离与物理力／力矩调度检查。"""
 
 import json
 import math
@@ -14,13 +14,14 @@ from zbot_rl_mjlab.experiments.transformation import (
     SnakeToBipedBeta,
     SnakeToBipedRobust,
 )
-from zbot_rl_mjlab.tasks.transformation import robust
-from zbot_rl_mjlab.tasks.transformation import snake_to_biped as reverse
-from zbot_rl_mjlab.tasks.transformation.hot_rewards import (
+from zbot_rl_mjlab.rl import (
     HotRewardController,
+    RobustSnakeToBipedRunner,
     SnakeToBipedHotRewardRunner,
 )
-from zbot_rl_mjlab.tasks.transformation.mirror_actions import (
+from zbot_rl_mjlab.tasks.transformation import robust
+from zbot_rl_mjlab.tasks.transformation import snake_to_biped as reverse
+from zbot_rl_mjlab.tasks.transformation.actions import (
     MirroredJointTargetRateActionCfg,
     expand_mirror,
     mirrored_last_action,
@@ -29,7 +30,6 @@ from zbot_rl_mjlab.tasks.transformation.robust import (
     ROBUST_TASK_ID,
     RampedBaseImpulse,
     RobustSnakeToBipedEnvCfg,
-    RobustSnakeToBipedRunner,
     disturbance_scale,
 )
 
@@ -103,6 +103,7 @@ def test_disturbance_ramp_is_monotone_and_capped(step, expected):
 @pytest.mark.parametrize("field,value", [("disturbance_initial_scale", float("nan")), ("disturbance_initial_scale", 1.1), ("disturbance_ramp_steps", -1), ("disturbance_warmup_steps", -1)])
 def test_invalid_disturbance_schedule_is_rejected(field, value):
     cfg = SnakeToBipedRobust().build_env()
+    assert isinstance(cfg, RobustSnakeToBipedEnvCfg)
     setattr(cfg, field, value)
     with pytest.raises(ValueError):
         disturbance_scale(SimpleNamespace(cfg=cfg, common_step_counter=0))
@@ -117,9 +118,10 @@ def test_impulses_apply_both_wrench_parts_preserve_quiet_worlds_and_reset():
         wrench[env_ids, :, 3:] = torques
 
     cfg = SnakeToBipedRobust().build_env()
+    assert isinstance(cfg, RobustSnakeToBipedEnvCfg)
     cfg.disturbance_initial_scale = 1.0
     params = dict(cfg.events["base_disturbance"].params)
-    # Exercise the retained engine explicitly; the active experiment has no pushes.
+    # 显式测试保留的引擎；当前实验未施加推力。
     params.update(force_range=(-3.0, 3.0), torque_range=(-0.15, 0.15), disturbed_fraction=0.75)
     params["asset_cfg"] = SimpleNamespace(name="robot", body_ids=[0])
     body_quats = torch.tensor([1.0, 0.0, 0.0, 0.0]).expand(16, 1, 4)
@@ -162,6 +164,7 @@ def test_pretrained_load_is_a_fresh_weight_transfer_and_resume_never_reinitializ
 ):
     calls = []
     cfg = SnakeToBipedRobust().build_env()
+    assert isinstance(cfg, RobustSnakeToBipedEnvCfg)
     source = tmp_path / "source.pt"
     source.write_bytes(b"test checkpoint")
     cfg.pretrained_checkpoint = str(source) if source_enabled else None
@@ -188,6 +191,7 @@ def test_pretrained_load_is_a_fresh_weight_transfer_and_resume_never_reinitializ
 
 def test_default_training_never_loads_a_prior_model(tmp_path, monkeypatch):
     cfg = SnakeToBipedRobust().build_env()
+    assert isinstance(cfg, RobustSnakeToBipedEnvCfg)
     assert cfg.pretrained_checkpoint is None
     assert not SnakeToBipedRobust().build_ppo().resume
     monkeypatch.setattr(SnakeToBipedHotRewardRunner, "__init__", lambda *args: None)
@@ -309,6 +313,7 @@ def test_recovery_action_moves_targets_slowly_without_writing_joint_state(monkey
 
     monkeypatch.setattr(JointPositionAction, "__init__", initialize)
     cfg = SnakeToBipedRobust().build_env()
+    assert isinstance(cfg, RobustSnakeToBipedEnvCfg)
     data = SimpleNamespace(default_joint_pos=expand_mirror(torch.full((2, 3), 0.6)), joint_pos=torch.full((2, 6), 0.4), joint_pos_limits=torch.tensor([-6.28, 6.28]).expand(2, 6, 2).clone())
     env = SimpleNamespace(cfg=cfg, data=data, num_envs=2, device="cpu", step_dt=0.02)
     action = robust.RecoveryJointTargetRateActionCfg(**asdict(cfg.actions["joint_pos"])).build(env)
@@ -327,6 +332,7 @@ def test_recovery_action_moves_targets_slowly_without_writing_joint_state(monkey
 
 def test_base_upward_speed_and_height_reward_do_not_require_any_sole_data():
     cfg = SnakeToBipedRobust().build_env()
+    assert isinstance(cfg, RobustSnakeToBipedEnvCfg)
     positions = torch.zeros(3, 1, 3)
     positions[:, 0, 2] = torch.tensor([0.0525, 0.15, 0.264])
     velocities = torch.zeros(3, 1, 3)
@@ -347,6 +353,7 @@ def test_base_upward_speed_and_height_reward_do_not_require_any_sole_data():
 
 def fixed_reward_env():
     cfg = SnakeToBipedRobust().build_env()
+    assert isinstance(cfg, RobustSnakeToBipedEnvCfg)
     return SimpleNamespace(cfg=cfg, common_step_counter=0, reward_manager=SimpleNamespace(active_terms=list(cfg.rewards), get_term_cfg=cfg.rewards.__getitem__))
 
 
@@ -423,6 +430,7 @@ def test_compact_goal_counter_matches_original_without_support_collection():
 
     old, compact = _standing_env(), _standing_env()
     compact.cfg = SnakeToBipedRobust().build_env()
+    assert isinstance(compact.cfg, RobustSnakeToBipedEnvCfg)
     for step in range(104):
         old.common_step_counter = compact.common_step_counter = step
         if step == 102:
@@ -442,6 +450,7 @@ def test_robust_sole_reward_is_steepest_near_flat_and_independent_of_height():
     angles = torch.tensor([0., 1., 5., 10., 20., 45., 90., 180.], dtype=torch.float64)
     env = _standing_env(num_envs=len(angles))
     env.cfg = SnakeToBipedRobust().build_env()
+    assert isinstance(env.cfg, RobustSnakeToBipedEnvCfg)
     halves = torch.deg2rad(angles[:, None] + torch.tensor([0., 180.])) / 2
     quaternions = torch.zeros(len(angles), 2, 4, dtype=torch.float64)
     quaternions[..., 0] = halves.cos()
@@ -461,7 +470,7 @@ def test_robust_sole_reward_is_steepest_near_flat_and_independent_of_height():
     assert score[0] - score[1] > 4 * (legacy[0] - legacy[1])
     env.scene["robot"].data.site_pos_w[..., 2] = 0.5
     torch.testing.assert_close(term.func(env, **term.params), score)
-    # A single tilted sole still matters more than the two-foot average alone.
+    # 单只脚底倾斜的影响仍应大于仅考虑双脚平均值时的影响。
     env.scene["robot"].data.site_quat_w[:, 0] = quaternions[0, 0].clone()
     mixed = term.func(env, **term.params)
     torch.testing.assert_close(mixed, 0.25 + 0.75 * expected)
@@ -472,6 +481,7 @@ def test_signed_sole_reward_assigns_zero_to_invalid_orientations():
 
     env = _standing_env()
     env.cfg = SnakeToBipedRobust().build_env()
+    assert isinstance(env.cfg, RobustSnakeToBipedEnvCfg)
     env.scene["robot"].data.site_quat_w[0] = float("nan")
     env.scene["robot"].data.site_quat_w[1] = float("inf")
     term = env.cfg.rewards["sole_ground_alignment"]
@@ -484,9 +494,10 @@ def test_velocity_reward_fades_for_every_joint_near_pose_goal(velocity):
 
     env = _standing_env(num_envs=5)
     env.cfg = SnakeToBipedRobust().build_env()
+    assert isinstance(env.cfg, RobustSnakeToBipedEnvCfg)
     data = env.scene["robot"].data
     data.body_link_pos_w[:, 6, 2] = 0.15
-    # Only one joint differs: max error must prevent the other five hiding it.
+    # 只有一个关节不同：最大误差必须防止其余五个关节掩盖该误差。
     data.joint_pos[:, 0] += torch.tensor([0., 0.2, 0.35, 0.5, 0.8])
     data.body_link_lin_vel_w[:, 6, 2] = velocity
     term = env.cfg.rewards["base_ascent_velocity"]
@@ -494,7 +505,7 @@ def test_velocity_reward_fades_for_every_joint_near_pose_goal(velocity):
     ungated = reverse.base_ascent_velocity_reward(env, target_speed=0.15)
     torch.testing.assert_close(score, ungated * torch.tensor([0., 0., 0.15625, 0.5, 1.]))
     assert torch.isfinite(score).all()
-    # This is independent of sole support and does not weaken pose feedback.
+    # 此项独立于脚底支撑，不会削弱姿态反馈。
     assert env.cfg.rewards["joint_standing"].weight == 12
     pose = reverse.joint_standing_reward(env)
     assert (pose[1:] < pose[:-1]).all()
@@ -513,6 +524,7 @@ def test_ascent_reward_stays_off_after_first_rise_until_partial_reset(monkeypatc
 
     env = _standing_env()
     env.cfg = SnakeToBipedRobust().build_env()
+    assert isinstance(env.cfg, RobustSnakeToBipedEnvCfg)
     env.reward_manager = SimpleNamespace(get_term_cfg=env.cfg.rewards.__getitem__)
     data = env.scene["robot"].data
     data.joint_pos += 1.0
@@ -523,7 +535,7 @@ def test_ascent_reward_stays_off_after_first_rise_until_partial_reset(monkeypatc
     data.body_link_pos_w[0, 6, 2] = env.cfg.ascent_reward_stop_height
     torch.testing.assert_close(term.func(env, **term.params), torch.tensor([0., 0.75]))
     data.body_link_pos_w[:, 6, 2] = 0.15
-    data.joint_pos += 1.0  # Neither descending nor spoiling the pose re-enables it.
+    data.joint_pos += 1.0  # 下降或破坏姿态均不得重新启用该项。
     torch.testing.assert_close(term.func(env, **term.params), torch.tensor([0., 0.75]))
     data.body_link_pos_w[1, 6, 2] = 0.24
     term.func(env, **term.params)

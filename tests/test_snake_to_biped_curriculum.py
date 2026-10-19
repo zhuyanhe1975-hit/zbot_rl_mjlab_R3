@@ -1,4 +1,4 @@
-"""Episode-gated global reward curriculum using the actual MJLab managers."""
+"""使用真实 MJLab 管理器、以回合为门控的全局奖励课程。"""
 
 from types import SimpleNamespace
 
@@ -12,7 +12,7 @@ from zbot_rl_mjlab.tasks.transformation import snake_to_biped as reverse
 
 def _env(play=False, ramp_steps=0, num_envs=2):
     cfg = reverse.snake_to_biped_env_cfg(play=play)
-    # Test curriculum mechanics with fixed values, independent of live tuning.
+    # 使用固定值测试课程机制，不受实时调参影响。
     cfg.sole_alignment_stage_threshold = 1.0
     cfg.first_stage_joint_weight = 0.1
     cfg.standing_stage_joint_weight = 1.0
@@ -34,7 +34,7 @@ def _env(play=False, ramp_steps=0, num_envs=2):
         max_episode_length_s=cfg.episode_length_s,
         termination_manager=SimpleNamespace(terminated=torch.zeros(num_envs, dtype=torch.bool)),
     )
-    # Most tests isolate the alignment gate; readiness is tested independently.
+    # 大多数测试单独检查对齐门控；就绪条件另行测试。
     reverse.support_protection_state(env).support_hold_s[:] = cfg.curriculum_support_hold_s
     env.reward_manager = RewardManager(cfg.rewards, env)
     env.curriculum_manager = CurriculumManager(cfg.curriculum, env)
@@ -80,7 +80,7 @@ def test_promotion_uses_average_of_reset_worlds_and_persists_after_partial_reset
     sums = env.reward_manager._episode_sums["sole_ground_alignment"]
     sums[:] = torch.tensor([0.5, 1.5]) * 16.0
     env.curriculum_manager.compute()
-    assert _weights(env) == (0.1, 0.0, 0.0)  # Mean equals one, not greater.
+    assert _weights(env) == (0.1, 0.0, 0.0)  # 均值等于 1，并未大于 1。
     env.curriculum_manager.compute(torch.tensor([1]))
     assert _weights(env) == (1.0, 3.0, 1.0)
     env.reward_manager.reset(torch.tensor([1]))
@@ -88,7 +88,7 @@ def test_promotion_uses_average_of_reset_worlds_and_persists_after_partial_reset
     env.curriculum_manager.compute(torch.tensor([1]))
     env.curriculum_manager.compute(torch.tensor([0]))
     assert _weights(env) == (1.0, 3.0, 1.0)
-    # Mutating the live manager must not alter fresh environment configs.
+    # 修改运行中的管理器不得改变新建环境配置。
     assert env.cfg.rewards["joint_standing"].weight == 0.1
     assert _weights(_env()) == (0.1, 0.0, 0.0)
 
@@ -206,7 +206,7 @@ def test_promotion_requires_eighty_percent_with_continuous_support(ready_count, 
     assert env._standing_curriculum_stage == (2 if promoted else 1)
     logs = env.curriculum_manager.reset()
     assert logs["Curriculum/alignment_to_standing/support_ready_fraction"] == pytest.approx(ready_count / 5)
-    # The targeted flip penalty stays active even at the instant of promotion.
+    # 即使在课程升级瞬间，定向翻转惩罚也应保持启用。
     assert env.reward_manager.get_term_cfg("end_joint_flip").weight == env.cfg.end_joint_flip_weight
 
 
@@ -249,7 +249,7 @@ def test_invalid_support_curriculum_parameters_are_rejected(field, value):
 def test_hot_alignment_change_waits_full_episode_but_updates_support_history(tmp_path):
     import json
 
-    from zbot_rl_mjlab.tasks.transformation.hot_rewards import HotRewardController
+    from zbot_rl_mjlab.rl import HotRewardController
 
     env = _env()
     env.max_episode_length = 800
@@ -259,8 +259,8 @@ def test_hot_alignment_change_waits_full_episode_but_updates_support_history(tmp
     path.write_text(json.dumps({"rewards": {"sole_ground_alignment": 3.0}}))
     assert HotRewardController(env).poll(1)
     env.episode_length_buf[:] = 800
-    # An otherwise qualifying score must not promote while mixed-weight
-    # episodes can still be in flight.
+    # 即使得分满足其他条件，只要仍可能有混合权重的回合
+    # 尚未结束，就不得升级。
     env.reward_manager._episode_sums["sole_ground_alignment"][:] = 32.0
     logs = reverse.alignment_to_standing_curriculum(env, None)
     assert logs["stage"] == 1
@@ -299,7 +299,7 @@ def _pose_gate_env(num_envs=5, threshold=1.0):
 
 def test_r3_wrong_fold_cannot_promote_despite_aligned_supported_feet():
     env = _pose_gate_env()
-    # Measured terminal pose of R3/model_1198; q3/q4 remain on the wrong branch.
+    # R3/model_1198 的实测终止姿态；q3/q4 仍处于错误分支。
     env.scene["robot"].data.joint_pos[:] = torch.tensor(
         [1.298926, -0.762142, 0.272485, -0.189076, 0.713332, -1.356197]
     )
@@ -315,10 +315,10 @@ def test_coarse_pose_and_support_must_qualify_together_at_episode_end():
     positions += 0.5
     reverse.support_protection_state(env).support_hold_s[:] = 0.0
     assert reverse.alignment_to_standing_curriculum(env, None)["stage"] == 1
-    # A near-target pose alone is insufficient; qualifying support is required.
+    # 仅接近目标姿态仍不足够；还必须满足支撑条件。
     reverse.support_protection_state(env).support_hold_s[:] = env.cfg.curriculum_support_hold_s
     assert reverse.alignment_to_standing_curriculum(env, None)["stage"] == 2
-    # Once promoted, even a later badly folded pose never demotes the run.
+    # 一旦升级，即使后续出现严重折叠姿态，也不应降级。
     positions += 3.0
     assert reverse.alignment_to_standing_curriculum(env, None)["stage"] == 2
 
@@ -329,7 +329,7 @@ def test_coarse_pose_gate_counts_latest_completed_outcomes_over_all_worlds():
     reverse.alignment_to_standing_curriculum(env, torch.tensor([0]))
     assert env._standing_curriculum_stage == 1
     assert support.last_episode_ready.tolist() == [True, False, False, False, False]
-    # Re-completing world zero with a bad pose overwrites its old ready outcome.
+    # 环境 0 以不良姿态再次结束时，会覆盖先前的就绪结果。
     env.scene["robot"].data.joint_pos[0] += 2.0
     reverse.alignment_to_standing_curriculum(env, torch.tensor([0, 1, 2, 3]))
     assert support.last_episode_ready.tolist() == [False, True, True, True, False]

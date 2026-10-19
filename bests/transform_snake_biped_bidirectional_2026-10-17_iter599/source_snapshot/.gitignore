@@ -1,9 +1,0 @@
-__pycache__/
-*.pyc
-.ruff_cache/
-.pytest_cache/
-MUJOCO_LOG.TXT
-logs/
-outputs/
-work/
-.omx/

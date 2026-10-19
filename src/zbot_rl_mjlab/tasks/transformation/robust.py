@@ -1,9 +1,6 @@
-"""Checkpoint-compatible force/torque fine-tuning of snake-to-biped."""
+"""与检查点兼容的蛇形转双足力／力矩扰动微调。"""
 
-import hashlib
-import json
 import math
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
@@ -11,16 +8,14 @@ from typing import ClassVar
 import torch
 from mjlab.envs import mdp as common_mdp
 
-from ...mdp import PartialBaseImpulse
+from ..common import PartialBaseImpulse
 from . import mdp as transformation_mdp
-from .hot_rewards import SnakeToBipedHotRewardRunner
-from .mdp import commanded_target
-from .mdp import final_condition as snake_final_condition
-from .mirror_actions import (
+from .actions import (
     MirroredJointTargetRateAction,
     MirroredJointTargetRateActionCfg,
-    migrate_beta_mirror_head,
 )
+from .mdp import commanded_target
+from .mdp import final_condition as snake_final_condition
 from .roll_reset import randomize_initial_snake_roll
 from .snake_to_biped import (
     BETA_TASK_ID,
@@ -88,6 +83,23 @@ class FallRetryState:
         self.still_time = torch.zeros(env.num_envs, device=env.device)
         self.still_last_step = torch.full((env.num_envs,), -1, device=env.device, dtype=torch.long)
 
+    def reset(self, env_ids=None, step=-1):
+        """清除跌倒、接触、恢复与停滞历史，不写入物理状态。"""
+        ids = slice(None) if env_ids is None else env_ids
+        self.armed[ids] = False
+        self.low_time[ids] = 0
+        self.last_step[ids] = step
+        self.recovering[ids] = False
+        self.snake_time[ids] = 0
+        self.motion_started[ids] = False
+        self.had_base_contact[ids] = False
+        self.base_left_ground[ids] = False
+        self.early_base_fallen[ids] = False
+        self.peak_base_height[ids] = -math.inf
+        self.contact_last_step[ids] = step
+        self.still_time[ids] = 0
+        self.still_last_step[ids] = step
+
 
 def fall_retry_state(env):
     if not hasattr(env, "_fall_retry_state"):
@@ -96,7 +108,7 @@ def fall_retry_state(env):
 
 
 def fallen_after_standing(env):
-    """Latch a risen base before detecting a sustained low base, without foot gates."""
+    """先锁存基座已升起状态，再检测持续低位，不使用足部条件门控。"""
     cfg = env.cfg
     if not (math.isfinite(cfg.fall_retry_arm_height) and math.isfinite(cfg.fall_retry_height)
             and 0 < cfg.fall_retry_height < cfg.fall_retry_arm_height):
@@ -120,11 +132,10 @@ def base_ground_contact(env):
 
 
 def early_base_ground_contact(env):
-    """Reset a small early drop/contact without requiring a prior high stand.
+    """无需此前达到高位站立，即可在早期小幅下落／接触时重置。
 
-    Initial settling is not a fall. After commanded motion starts, an observed
-    contact -> separation -> contact sequence is a fall at any lift height.
-    A small downward impact is also detected when soft contact never separates.
+    初始沉降不算跌倒。指令运动开始后，观测到接触→分离→接触序列，
+    无论抬升高度多少均判定跌倒。软接触始终未分离时，也检测轻微向下冲击。
     """
     cfg = env.cfg
     for name in ("early_contact_motion_threshold", "early_contact_drop_threshold", "early_contact_min_down_speed"):
@@ -155,7 +166,7 @@ def early_base_ground_contact(env):
 
 
 def abandoned_exploration(env):
-    """End a quiet/stuck attempt unless both height and joint pose are near goal."""
+    """除非高度和关节姿态均接近目标，否则终止静止／卡住的尝试。"""
     cfg = env.cfg
     for name in ("stagnation_height_tolerance", "stagnation_joint_tolerance", "stagnation_joint_speed", "stagnation_base_speed", "stagnation_angular_speed", "stagnation_hold_s"):
         if not math.isfinite(getattr(cfg, name)) or getattr(cfg, name) <= 0:
@@ -209,7 +220,7 @@ def update_recovery_phase(env):
     state.snake_time[complete] = 0
     ids = complete.nonzero(as_tuple=False).flatten()
     if ids.numel():
-        # Logical counters only: this helper never writes robot/root state.
+        # 仅处理逻辑计数器：此辅助函数不写入机器人／根部状态。
         reset_reverse_transition(env, ids)
         env.episode_length_buf[ids] = 0
 
@@ -261,19 +272,7 @@ def reset_fall_retry(env, env_ids):
     apply_fixed_standing_weights(env)
     state = fall_retry_state(env)
     ids = slice(None) if env_ids is None else env_ids
-    state.armed[ids] = False
-    state.low_time[ids] = 0
-    state.last_step[ids] = env.common_step_counter
-    state.recovering[ids] = False
-    state.snake_time[ids] = 0
-    state.motion_started[ids] = False
-    state.had_base_contact[ids] = False
-    state.base_left_ground[ids] = False
-    state.early_base_fallen[ids] = False
-    state.peak_base_height[ids] = -math.inf
-    state.contact_last_step[ids] = env.common_step_counter
-    state.still_time[ids] = 0
-    state.still_last_step[ids] = env.common_step_counter
+    state.reset(ids, env.common_step_counter)
     if hasattr(env, "_standing_goal_valid"):
         env._standing_goal_valid[ids] = False
 
@@ -294,7 +293,7 @@ def disturbance_scale_metric(env):
 
 
 def initial_ascent_velocity_reward(env, target_speed=0.15, pose_error_range=None):
-    """Pay for the first rise only; peak-height memory prevents reactivation."""
+    """仅奖励首次上升；峰值高度记忆防止奖励再次激活。"""
     threshold = env.cfg.ascent_reward_stop_height
     if not math.isfinite(threshold) or not 0 < threshold <= env.cfg.standing_base_height:
         raise ValueError("ascent_reward_stop_height must be positive and no higher than the standing goal")
@@ -305,7 +304,7 @@ def initial_ascent_velocity_reward(env, target_speed=0.15, pose_error_range=None
 
 
 def apply_fixed_standing_weights(env):
-    """Only the three core dense terms; failure weight remains independently editable."""
+    """仅包含三个核心稠密奖励项；失败权重仍可独立调整。"""
     for name, field in (
         ("joint_standing", "standing_stage_joint_weight"),
         ("base_height_progress", "standing_stage_height_weight"),
@@ -316,11 +315,8 @@ def apply_fixed_standing_weights(env):
 
 def update_fixed_standing_state(env):
     task = transformation_mdp.state(env)
-    fresh = task.last_step != env.common_step_counter
     valid = standing_final_condition(env)
-    held = torch.where(valid, task.hold_time + env.step_dt, 0.0)
-    task.hold_time.copy_(torch.where(fresh, held, task.hold_time))
-    task.last_step.fill_(env.common_step_counter)
+    task.advance_hold(valid, env.common_step_counter, env.step_dt)
     env._standing_goal_valid = valid
     env._standing_goal_step = env.common_step_counter
     return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
@@ -334,7 +330,7 @@ def standing_success_metric(env):
 
 
 class RampedBaseImpulse(PartialBaseImpulse):
-    """Reuse the impulse engine with scaled amplitudes and clean episode resets."""
+    """复用冲量引擎，并缩放幅值、清理回合重置状态。"""
 
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
@@ -375,69 +371,3 @@ class RampedBaseImpulse(PartialBaseImpulse):
         self._interval_time_left[ids] = self._sample_cooldown(len(ids))
         zeros = torch.zeros((len(ids), self._num_bodies, 3), device=self._device)
         self._asset.write_external_wrench_to_sim(zeros, zeros, env_ids=ids, body_ids=self._body_ids)
-
-
-class RobustSnakeToBipedRunner(SnakeToBipedHotRewardRunner):
-    """Warm-start a new run; regular --agent.resume uses full checkpoint restore."""
-
-    def load(self, path, load_cfg=None, strict=True, map_location=None):
-        full_load = load_cfg is None or all(load_cfg.get(key, False) for key in ("actor", "critic", "optimizer", "iteration"))
-        env = self.env.unwrapped
-        if not isinstance(env.cfg, RobustSnakeToBipedEnvCfg):
-            raise TypeError("robust runner requires RobustSnakeToBipedEnvCfg")
-        # A resumed older run must not restore the superseded foot-first recipe.
-        recipe_config = {name: getattr(env.cfg, name) for name in (
-            "standing_stage_joint_weight", "standing_stage_height_weight", "standing_stage_velocity_weight",
-        )}
-        recipe_rewards = {name: env.reward_manager.get_term_cfg(name).weight for name in ("reset_failure", "sole_ground_alignment")}
-        payload = torch.load(path, map_location=map_location or self.device, weights_only=False) if Path(path).is_file() else None
-        migrated = False
-        if payload is not None:
-            actor, migrated = migrate_beta_mirror_head(payload["actor_state_dict"])
-            if migrated:
-                payload["actor_state_dict"] = actor
-        if migrated:
-            # Optimizer tensors and iteration schedules from a six-action run are
-            # incompatible with this new policy. Transfer weights as a fresh run.
-            effective_load = {"actor": True, "critic": full_load or bool(load_cfg and load_cfg.get("critic")), "optimizer": False, "iteration": False}
-            with tempfile.TemporaryDirectory(prefix="zbot-mirror-") as temporary:
-                converted = Path(temporary) / "checkpoint.pt"
-                torch.save(payload, converted)
-                infos = super().load(str(converted), effective_load, strict, map_location)
-            self._mirror_migration = {"source": str(Path(path).resolve()), "old_action_dim": 6, "new_action_dim": 3, "optimizer_and_iteration_restored": False}
-            print("[INFO] Migrated six-action Beta head to three mirrored actions; optimizer and iteration remain fresh.")
-        else:
-            infos = super().load(path, load_cfg, strict, map_location)
-        if full_load:
-            for name, value in recipe_config.items():
-                setattr(env.cfg, name, value)
-            for name, weight in recipe_rewards.items():
-                env.reward_manager.get_term_cfg(name).weight = weight
-            apply_fixed_standing_weights(env)
-        return infos
-
-    def __init__(self, env, train_cfg, log_dir=None, device="cpu"):
-        super().__init__(env, train_cfg, log_dir, device)
-        cfg = env.unwrapped.cfg
-        if not isinstance(cfg, RobustSnakeToBipedEnvCfg):
-            raise TypeError("robust runner requires RobustSnakeToBipedEnvCfg")
-        source = cfg.pretrained_checkpoint
-        if log_dir is None or train_cfg.get("resume", False) or source is None:
-            return
-        path = Path(source).expanduser().resolve()
-        if not path.is_file():
-            raise FileNotFoundError(f"Pretrained snake-to-biped checkpoint not found: {path}")
-        load_cfg = {"actor": True, "critic": True, "optimizer": False, "iteration": False}
-        self.load(str(path), load_cfg=load_cfg, strict=True, map_location=device)
-        record = {
-            "source": str(path),
-            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-            "load_cfg": load_cfg,
-            "initial_iteration": self.current_learning_iteration,
-            "initial_common_step_counter": env.unwrapped.common_step_counter,
-            "learning_rate": self.alg.learning_rate,
-            "mirror_migration": getattr(self, "_mirror_migration", None),
-        }
-        Path(log_dir).mkdir(parents=True, exist_ok=True)
-        (Path(log_dir) / "pretrained_initialization.json").write_text(json.dumps(record, indent=2) + "\n")
-        print(f"[INFO] Warm-started actor/critic from {path}; optimizer and training counters are fresh.")

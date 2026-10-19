@@ -1,4 +1,4 @@
-"""Initial-roll axis, collision clearance, and selective-reset coverage."""
+"""初始横滚轴、碰撞间隙与选择性重置的测试覆盖。"""
 
 import math
 from types import SimpleNamespace
@@ -13,14 +13,11 @@ from zbot_rl_mjlab.experiments.transformation import (
     SnakeToBipedTeacher,
 )
 from zbot_rl_mjlab.robot import get_spec
+from zbot_rl_mjlab.tasks.transformation.poses import SNAKE_ROOT_POS, SNAKE_ROOT_QUAT
 from zbot_rl_mjlab.tasks.transformation.roll_reset import (
     collision_radial_envelope,
     randomize_initial_snake_roll,
     rolled_root_states,
-)
-from zbot_rl_mjlab.tasks.transformation.snake_pose import (
-    SNAKE_ROOT_POS,
-    SNAKE_ROOT_QUAT,
 )
 
 

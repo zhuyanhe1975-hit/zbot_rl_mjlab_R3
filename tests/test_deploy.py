@@ -6,11 +6,12 @@ from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 from mjlab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
 import zbot_rl_mjlab  # noqa: F401
-from zbot_rl_mjlab.actions import (
+from zbot_rl_mjlab.experiments import addons
+from zbot_rl_mjlab.experiments import variants as deploy
+from zbot_rl_mjlab.tasks.walking.actions import (
     DelayedJointPositionAction,
     DelayedJointPositionActionCfg,
 )
-from zbot_rl_mjlab.experiments import addons, deploy
 
 TASKS = [deploy.DEPLOY_WALKING_TASK_ID, deploy.DEPLOY_FLAT_FOOT_TASK_ID]
 ACTOR_TERMS = [
@@ -78,7 +79,7 @@ def test_randomization_events_are_present_and_mass_comes_before_com(task):
             "randomize_base_com",
         ):
             assert name in events
-        # pseudo_inertia rewrites body_ipos from the defaults, so it must run first.
+        # pseudo_inertia 会根据默认值重写 body_ipos，因此必须先执行。
         assert events.index("randomize_mass_inertia") < events.index(
             "randomize_base_com"
         )
@@ -117,7 +118,7 @@ def test_experiment_names_schedule_and_curriculum():
 
 
 def _delayed_action(lags):
-    """A DelayedJointPositionAction without an environment, one env per lag."""
+    """不依赖环境的 DelayedJointPositionAction，每个延迟值对应一个环境。"""
     action = object.__new__(DelayedJointPositionAction)
     action.cfg = SimpleNamespace(max_lag=2, clip=None)
     action._scale = 1.0
@@ -135,7 +136,7 @@ def test_delay_applies_the_action_from_lag_steps_ago():
     for value in (1.0, 2.0, 3.0, 4.0):
         action.process_actions(torch.full((3, 1), value))
         seen.append(action._processed_actions[:, 0].tolist())
-    # lag 0 follows the command, lag 1 and 2 trail it (zeros before any history).
+    # 延迟 0 跟随命令，延迟 1 和 2 滞后于命令（尚无历史记录时为零）。
     assert seen[0] == [1.0, 0.0, 0.0]
     assert seen[1] == [2.0, 1.0, 0.0]
     assert seen[2] == [3.0, 2.0, 1.0]

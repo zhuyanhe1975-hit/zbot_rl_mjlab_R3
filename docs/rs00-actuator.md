@@ -1,61 +1,56 @@
-# RobStride RS00 actuator
+# RobStride RS00 执行器
 
-Source: *RS00使用说明书* (260713), Lingzu Times (RobStride Dynamics). Page numbers below are the
-PDF's own. Constants live in `src/zbot_rl_mjlab/robot.py`.
+来源：灵足时代（RobStride Dynamics）《RS00使用说明书》（260713）。下列页码采用 PDF 自身页码。
+仿真常量定义在 `src/zbot_rl_mjlab/robot.py`。
 
-## What the manual says
+## 手册参数
 
-| Item | Value | Page |
+| 项目 | 数值 | 页码 |
 |---|---|---|
-| Rated voltage / range | 48 V / 24-60 V | 6 |
-| No-load speed | 315 rpm +/-10 % (about 33 rad/s), no-load current 0.5 Arms | 6 |
-| Rated load | 5 N*m, measured at 100 rpm on a 90x85 mm aluminium heatsink | 6 |
-| Peak load | 14 N*m (rated phase current 4.7 Apk, maximum 15.5 Apk) | 7 |
-| Back-EMF / torque constant | 9.5 Vrms/krpm, 1.48 N*m/Arms | 7 |
-| T-N curve at 48 V | 14 N*m at 100 rpm, about 12 at 150, 9.5 at 200, 6.5 at 250, 4 at 280, 2 at 300, 0.5 at 315 rpm (read off the figure, +/-0.5 N*m) | 7 |
-| Rotating overload | 14 N*m for 3 s, 13 for 7 s, 12 for 10 s, 10 for 20 s, 8 for 53 s, 7 for 94 s, 6 for 285 s, 5 continuous | 8 |
-| Stalled overload | 14 N*m for 1.5 s ... 5 N*m for 110 s, 3.6 N*m continuous | 9 |
-| Gear ratio, mass | 10:1, 310 g +/-3 g | 9 |
-| Encoder | 14 bit single-turn absolute | 10 |
-| MIT ("运控") control law | `t_ref = Kd*(v_set - v) + Kp*(p_set - p) + t_ff`, summed into a reference current and tracked by a current loop | 41 |
-| MIT command ranges | angle +/-12.57 rad, speed +/-33 rad/s, torque +/-14 N*m, **Kp 0-500, Kd 0-5** (16-bit) | 32 |
+| 额定电压／电压范围 | 48 V／24–60 V | 6 |
+| 空载转速 | 315 rpm ±10%（约 33 rad/s），空载电流 0.5 Arms | 6 |
+| 额定负载 | 5 N·m，在 90 × 85 mm 铝散热板、100 rpm 下测得 | 6 |
+| 峰值负载 | 14 N·m（额定相电流 4.7 Apk，最大 15.5 Apk） | 7 |
+| 反电动势／转矩常数 | 9.5 Vrms/krpm，1.48 N·m/Arms | 7 |
+| 48 V 转矩—转速曲线 | 100 rpm 时 14 N·m；150、200、250、280、300、315 rpm 时约为 12、9.5、6.5、4、2、0.5 N·m（由图读取，误差约 ±0.5 N·m） | 7 |
+| 转动过载 | 14 N·m 持续 3 s，13 持续 7 s，12 持续 10 s，10 持续 20 s，8 持续 53 s，7 持续 94 s，6 持续 285 s，5 可连续运行 | 8 |
+| 堵转过载 | 14 N·m 持续 1.5 s，至 5 N·m 持续 110 s；3.6 N·m 可连续运行 | 9 |
+| 减速比、质量 | 10:1，310 g ±3 g | 9 |
+| 编码器 | 14 位单圈绝对值编码器 | 10 |
+| MIT（运控）控制律 | `t_ref = Kd*(v_set - v) + Kp*(p_set - p) + t_ff`，合成为参考电流后由电流环跟踪 | 41 |
+| MIT 命令范围 | 角度 ±12.57 rad，速度 ±33 rad/s，转矩 ±14 N·m，**Kp 0–500，Kd 0–5**（16 位） | 32 |
 
-Not in the manual: rotor / reflected inertia, gearbox friction, backlash, current-loop bandwidth.
+手册未提供转子／折算惯量、减速器摩擦、回程间隙或电流环带宽。
 
-## What the simulation uses
+## 仿真采用的参数
 
-`robot_cfg()` uses mjlab's `BuiltinPositionActuatorCfg`: an implicit-integration position servo,
-`kp = 15 N*m/rad`, `kd = 1.5 N*m*s/rad`, `armature = 0.001`, **torque limit 20 N*m**. This is the
-actuator every archived checkpoint was trained with, and it is kept so they keep replaying.
+`robot_cfg()` 使用 MJLab 的 `BuiltinPositionActuatorCfg`，即采用隐式积分的位置伺服：
+`kp = 15 N·m/rad`、`kd = 1.5 N·m·s/rad`、`armature = 0.001`、**转矩上限 20 N·m**。
+已有归档检查点均在此执行器配置下训练；为维持回放兼容性，目前保留此定义。
 
-* The gains are inside the MIT range, and so is the deploy tasks' +/-30 % gain randomization.
-* The simulator therefore allows 43 % more torque than the hardware peak (14 N*m) and has **no speed
-  limit**: it does not apply the falling T-N curve. Real motors give 14 N*m only up to about 100 rpm
-  (10.5 rad/s) and nothing at 315 rpm (33 rad/s). A gait that works in simulation may therefore ask
-  for torque or speed the module cannot deliver.
-* `actuator_usage.py` measures exactly that for a given checkpoint: per joint, torque peak / rms
-  against the 14 and 5 N*m limits, joint speed against 100 and 315 rpm, the share of samples where
-  the torque in the direction of motion exceeds the datasheet curve, and a thermal check against the
-  rotating-overload table. Run it before trusting a gait on hardware.
+- 增益及部署任务中 ±30% 的增益随机化均在 MIT 范围内。
+- 仿真转矩上限比硬件峰值（14 N·m）高约 43%，且**没有速度上限**，也未应用随转速下降的转矩曲线。
+  实际电机只能在约 100 rpm（10.5 rad/s）以内提供 14 N·m，到 315 rpm（33 rad/s）时可用转矩接近零。
+  因此，仿真可行的步态可能要求硬件无法提供的转矩或速度。
+- `scripts/actuator_usage.py` 可针对给定检查点，逐关节统计峰值／均方根转矩与 14／5 N·m 上限的关系，
+  关节速度与 100／315 rpm 的关系、运动方向转矩超过手册曲线的样本比例，以及基于转动过载表的热负荷检查。
+  部署实机前应核对这些结果。
 
-## What was tried and did not work
+## 已尝试并回退的方案
 
-Two datasheet-faithful actuators were tried and reverted:
+曾尝试两类更贴近手册的执行器，之后均已回退：
 
-1. `DcMotorActuatorCfg` (explicit Python PD, 14 N*m, fitted T-N line): a policy trained under the old
-   actuator fell within about 20 steps at every speed (807-883 falls in 16 environments x 1000 steps).
-   The explicit PD is evaluated once per 5 ms step, which the real servo (far faster) is not. A stability
-   estimate suggests `kd*dt/I` may exceed 2, but the effective inertia was not measured.
-2. `BuiltinPdActuatorCfg` (implicit PD with 12 control inputs) and `BuiltinDcMotorActuatorCfg`:
-   `play.py` stopped with `size of tensor a (12) must match size of tensor b (6)`. The traceback was
-   not obtained, so the cause is unknown; the 12-wide control vector is the likely trigger.
+1. `DcMotorActuatorCfg`：显式 Python PD、14 N·m 上限、拟合转矩—转速直线。
+   旧执行器下训练的策略在各速度下约 20 步内跌倒（16 环境 × 1000 步中记录 807–883 次跌倒）。
+   显式 PD 每 5 ms 执行一次，与实机更快的伺服周期不同。稳定性估算提示 `kd*dt/I` 可能超过 2，
+   但有效惯量尚未测量。
+2. `BuiltinPdActuatorCfg`（隐式 PD、12 维控制输入）和 `BuiltinDcMotorActuatorCfg`：
+   `play.py` 因张量维度 12 与 6 不匹配而停止。未保留异常堆栈，因此原因未确认；12 维控制向量可能是触发因素。
 
-Both changes made the existing models impossible to replay. Do not switch the actuator again without
-checking `play.py` on the archived checkpoints, and expect to retrain afterwards.
+上述改动都使已有模型无法回放。再次更换执行器前，必须用 `play.py` 检查归档检查点，并做好重新训练的准备。
 
-## Not modeled
+## 尚未建模的因素
 
-* The falling T-N curve and the 14 N*m peak (see above), the +/-10 % spread on no-load speed.
-* Reflected rotor inertia (`armature` is a guess), gearbox friction, backlash, current-loop dynamics,
-  supply-voltage sag.
-* Encoder quantization (14 bit is about 0.0004 rad) and the MIT feedback speed clip at +/-33 rad/s.
+- 随转速下降的转矩曲线、14 N·m 峰值上限、空载速度 ±10% 的分散范围。
+- 折算转子惯量（当前 `armature` 为估计值）、减速器摩擦、回程间隙、电流环动态及电源压降。
+- 编码器量化（14 位约为 0.0004 rad）及 MIT 反馈速度的 ±33 rad/s 截断。

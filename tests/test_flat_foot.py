@@ -4,8 +4,8 @@ from types import SimpleNamespace
 import torch
 from mjlab.utils.lab_api.math import quat_apply
 
-from zbot_rl_mjlab import mdp
 from zbot_rl_mjlab.experiments import flat_foot_velocity_energy as flat
+from zbot_rl_mjlab.tasks.walking import mdp
 
 
 def axis_quat(axis, deg):
@@ -27,13 +27,13 @@ def test_tilt_matches_a_real_rotation_and_ignores_normal_direction():
                 torch.tensor(math.sin(math.radians(deg)) ** 2),
                 atol=1e-6,
             )
-    # foot_1's sole normal points out of the foot: a 180 degree flip is still flat.
+    # foot_1 的脚底法向指向脚外：翻转 180 度后仍视为平坦。
     assert mdp.tilt_sq_from_quat(axis_quat([1, 0, 0], 180.0)) < 1e-6
     assert mdp.tilt_sq_from_quat(axis_quat([1, 0, 0], 183.0)) > 1e-3
 
 
 class FakeEnv:
-    """Two feet: foot 0 loaded and tilted by deg0, foot 1 airborne at height h1."""
+    """双脚状态：脚 0 承重并倾斜 deg0，脚 1 离地且高度为 h1。"""
 
     def __init__(self, deg0, deg1, contact, heights, first):
         quats = torch.stack([axis_quat([0, 1, 0], deg0), axis_quat([0, 1, 0], deg1)])
@@ -64,7 +64,7 @@ def test_penalties_apply_only_in_their_own_phase():
     tilted = 3.0
     full = 1.0 - math.exp(-(math.sin(math.radians(tilted)) ** 2) / sigma**2)
 
-    # Foot 0 loaded and tilted, foot 1 flat in the air and high.
+    # 脚 0 承重且倾斜，脚 1 保持平坦并高高离地。
     env = FakeEnv(tilted, 0.0, [1, 0], [0.0, 0.10], [False, False])
     assert torch.isclose(
         mdp.stance_flat_penalty(env, sigma), torch.tensor([full]), atol=1e-5
@@ -72,13 +72,13 @@ def test_penalties_apply_only_in_their_own_phase():
     assert mdp.touchdown_flat_penalty(env, sigma).item() == 0.0
     assert mdp.pre_landing_flat_penalty(env, sigma, 0.03).item() == 0.0
 
-    # Same foot, first-contact step: touchdown now counts it.
+    # 同一只脚处于首次接触时间步：落地时应将其计入。
     env = FakeEnv(tilted, 0.0, [1, 0], [0.0, 0.10], [True, False])
     assert torch.isclose(
         mdp.touchdown_flat_penalty(env, sigma), torch.tensor([full]), atol=1e-5
     )
 
-    # Airborne tilted foot: ignored when high, penalized once below the height.
+    # 离地且倾斜的脚：高度较高时忽略，低于阈值后开始惩罚。
     env = FakeEnv(0.0, tilted, [1, 0], [0.0, 0.10], [False, False])
     assert mdp.pre_landing_flat_penalty(env, sigma, 0.03).item() == 0.0
     env = FakeEnv(0.0, tilted, [1, 0], [0.0, 0.02], [False, False])

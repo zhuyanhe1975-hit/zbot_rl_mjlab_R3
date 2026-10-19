@@ -1,9 +1,9 @@
-"""Mjlab training CLI plus the Zbot add-on switches (see ``zbot_rl_mjlab/cli.py``).
+"""MJLab 训练命令行，附加 Zbot 专用开关（见 ``zbot_rl_mjlab/cli.py``）。
 
     python train.py Mjlab-Zbot-6dof-Deploy-Walking --disturbance --domain-randomization \\
         --env.scene.num-envs 4096 --agent.max-iterations 500
 
-Every other argument is mjlab's own and is passed through unchanged.
+其余参数由 mjlab 原样接收。
 """
 
 import sys

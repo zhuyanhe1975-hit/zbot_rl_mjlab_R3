@@ -1,24 +1,21 @@
-"""Optional add-ons that make any experiment robust or deployment-oriented.
+"""提升实验鲁棒性或面向部署训练的可选扩展。
 
-An add-on is a small object with parameters.  An experiment lists the ones it wants in its
-``addons`` attribute and they are applied after every inherited reward and environment edit,
-so the same add-on works on any experiment:
+扩展是带参数的小对象。实验在 ``addons`` 属性中列出所需扩展；所有继承的奖励和
+环境改动完成后，再应用扩展，因此同一扩展适用于任意实验：
 
     class DisturbedWalking(FlatWalking):
-        addons = DISTURBED                       # a preset: disturbance + randomization
+        addons = DISTURBED                       # 预设：扰动与随机化
 
     class MyOmni(OmniVelocityEnergy):
         addons = (BaseDisturbance(disturbed_fraction=1.0), ActionDelay(max_lag=3))
 
-Add-ons accumulate down the inheritance chain.  If a subclass lists an add-on of a type its
-parent already has, the subclass's one replaces it, so a child can retune a parent's
-disturbance without repeating the rest.  Each add-on has a fixed ``order``, so the result
-never depends on how they are listed.  The order matters in one place: ``MassRandomization``
-rewrites the body COM from its defaults, so it runs before ``DomainRandomization``, which
-shifts the base COM.
+扩展沿继承链累积。若子类声明的扩展类型已在父类中存在，则以子类为准，使子类能够
+单独调整父类的扰动配置而无需重复其他扩展。每个扩展都有固定 ``order``，因此结果
+不依赖声明顺序。顺序影响的一处是：``MassRandomization`` 会从默认值重写刚体质心，
+故它先于移动基座质心的 ``DomainRandomization`` 执行。
 
-Training-only effects (observation noise, action delay) are switched off in the play
-configuration, like ``enable_corruption`` does for the actor observations.
+仅训练生效的效果（观测噪声、动作延迟）在回放配置中关闭，与策略观测的
+``enable_corruption`` 开关保持一致。
 """
 
 from dataclasses import dataclass, field, replace
@@ -32,36 +29,36 @@ from mjlab.utils.noise import (
     UniformNoiseCfg,
 )
 
-from ..actions import DelayedJointPositionActionCfg
+from ..tasks.walking.actions import DelayedJointPositionActionCfg
 from .common import add_base_disturbance, add_domain_randomization
 
-# Observation terms a real robot cannot measure directly; only the critic may see them.
+# 实机不能直接测量的观测项，仅向价值网络提供。
 PRIVILEGED_TERMS = ("base_lin_vel", "yaw_error")
 
-# Per-step Gaussian noise std on actor observations.
+# 策略观测的逐步高斯噪声标准差。
 NOISE_STD = {
-    "base_ang_vel": 0.05,  # rad/s, gyro
-    "projected_gravity": 0.02,  # unit vector components, accelerometer / filter
-    "joint_pos": 0.01,  # rad, encoder
-    "joint_vel": 0.15,  # rad/s, differentiated encoder
+    "base_ang_vel": 0.05,  # rad/s，陀螺仪
+    "projected_gravity": 0.02,  # 单位向量分量，加速度计／滤波器
+    "joint_pos": 0.01,  # rad，编码器
+    "joint_vel": 0.15,  # rad/s，编码器差分
 }
-# Bias drawn once per episode, uniform in +/- value.
+# 每个回合采样一次偏置，在 +/- 指定值内均匀分布。
 NOISE_BIAS = {
-    "base_ang_vel": 0.02,  # rad/s, gyro zero offset
-    "projected_gravity": 0.05,  # ~3 degrees of IMU tilt on each axis
+    "base_ang_vel": 0.02,  # rad/s，陀螺仪零偏
+    "projected_gravity": 0.05,  # 各轴约 3 度的 IMU 倾斜
 }
 
-MAX_ACTION_LAG = 2  # control steps (20 ms each)
-GAIN_SCALE = (0.7, 1.3)  # PD stiffness and damping, per environment per episode
-MASS_ALPHA = (-0.07, 0.07)  # mass and inertia scale by exp(2 * alpha), about +/-15 %
+MAX_ACTION_LAG = 2  # 控制步数（每步 20 ms）
+GAIN_SCALE = (0.7, 1.3)  # 逐环境、逐回合的 PD 刚度与阻尼
+MASS_ALPHA = (-0.07, 0.07)  # 质量和惯量按 exp(2 * alpha) 缩放，约 +/-15 %
 
 
 @dataclass(frozen=True)
 class Addon:
-    """One optional change to an experiment's environment configuration."""
+    """对实验环境配置的一项可选改动。"""
 
     order: ClassVar[int]
-    """Position in the fixed application order (lower first)."""
+    """固定应用顺序中的位置（数值越小越先应用）。"""
 
     def apply(self, cfg, play):
         raise NotImplementedError
@@ -69,7 +66,7 @@ class Addon:
 
 @dataclass(frozen=True)
 class BlindActor(Addon):
-    """Hide measurements a real robot lacks from the actor; the critic keeps them."""
+    """不向策略网络提供实机无法测量的量；价值网络仍保留这些量。"""
 
     order: ClassVar[int] = 10
     hidden: tuple[str, ...] = PRIVILEGED_TERMS
@@ -83,7 +80,7 @@ class BlindActor(Addon):
 
 @dataclass(frozen=True)
 class ObservationNoise(Addon):
-    """Gaussian noise on actor observations, plus a per-episode bias for some terms."""
+    """策略观测的高斯噪声，并为部分观测项添加逐回合偏置。"""
 
     order: ClassVar[int] = 20
     std: dict[str, float] = field(default_factory=lambda: dict(NOISE_STD))
@@ -116,7 +113,7 @@ class ObservationNoise(Addon):
 
 @dataclass(frozen=True)
 class ActionDelay(Addon):
-    """Joint position targets reach the actuators 0..max_lag control steps late."""
+    """关节位置目标延迟 0..max_lag 个控制步后到达执行器。"""
 
     order: ClassVar[int] = 30
     max_lag: int = MAX_ACTION_LAG
@@ -136,7 +133,7 @@ class ActionDelay(Addon):
 
 @dataclass(frozen=True)
 class MassRandomization(Addon):
-    """Link mass and inertia scaled together (physically consistent) at startup."""
+    """启动时同步缩放连杆质量与惯量，以保持物理一致性。"""
 
     order: ClassVar[int] = 40
     alpha_range: tuple[float, float] = MASS_ALPHA
@@ -151,7 +148,7 @@ class MassRandomization(Addon):
 
 @dataclass(frozen=True)
 class GainRandomization(Addon):
-    """PD stiffness and damping scaled per environment at every reset."""
+    """每次重置时，逐环境缩放 PD 刚度和阻尼。"""
 
     order: ClassVar[int] = 45
     scale: tuple[float, float] = GAIN_SCALE
@@ -170,7 +167,7 @@ class GainRandomization(Addon):
 
 @dataclass(frozen=True)
 class BaseDisturbance(Addon):
-    """Random force and torque impulses on the base, for a fraction of the environments."""
+    """对部分环境的基座施加随机力和力矩冲量。"""
 
     order: ClassVar[int] = 50
     force_range: tuple[float, float] = (-5.0, 5.0)  # N
@@ -192,31 +189,33 @@ class BaseDisturbance(Addon):
 
 @dataclass(frozen=True)
 class DomainRandomization(Addon):
-    """Startup randomization of foot friction, encoder zero offset and base COM."""
+    """启动时随机化足部摩擦、编码器零偏与基座质心。"""
 
     order: ClassVar[int] = 60
     friction_range: tuple[float, float] = (0.3, 1.2)
-    encoder_bias_range: tuple[float, float] = (-0.015, 0.015)  # rad
+    geom_names: tuple[str, ...] = ("a1_geom", "b6_geom")
+    encoder_bias_range: tuple[float, float] | None = (-0.015, 0.015)  # rad
     base_com_ranges: dict[int, tuple[float, float]] = field(
         default_factory=lambda: {
             0: (-0.025, 0.025),
             1: (-0.025, 0.025),
             2: (-0.03, 0.03),
         }
-    )  # m, along x, y, z of the base body
+    )  # m，沿基座刚体 x、y、z 轴
 
     def apply(self, cfg, play):
         add_domain_randomization(
             cfg,
             friction_range=self.friction_range,
+            geom_names=self.geom_names,
             encoder_bias_range=self.encoder_bias_range,
             base_com_ranges=self.base_com_ranges,
         )
 
 
-# Presets.
+# 预设。
 DISTURBED = (BaseDisturbance(), DomainRandomization())
-"""Random pushes and startup randomization, the setup of the ``*-Disturbed-*`` tasks."""
+"""随机冲击与启动随机化，即 ``*-Disturbed-*`` 任务采用的配置。"""
 
 DEPLOYMENT = (
     BlindActor(),
@@ -227,6 +226,5 @@ DEPLOYMENT = (
     BaseDisturbance(),
     DomainRandomization(),
 )
-"""Everything that narrows the sim-to-real gap: a blind noisy actor, control latency and
-full randomization.  The actor input shrinks, so such a task cannot warm-start from a
-checkpoint of the same experiment without it."""
+"""缩小仿真到实机差距的完整配置：受限且带噪声的策略观测、控制延迟和全面随机化。
+策略网络输入维度减少，因此此任务无法从未使用该配置的同一实验检查点热启动。"""

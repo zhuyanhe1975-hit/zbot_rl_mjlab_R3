@@ -1,4 +1,4 @@
-"""Small direction-specific reward increments without changing the base recipe."""
+"""在不改变基础配方的前提下，为不同变形方向增加少量奖励。"""
 
 from types import SimpleNamespace
 
@@ -83,7 +83,7 @@ def test_impact_normalization_uses_configured_gravity():
     term._command.fill_(-1)
     env.cfg.sim.mujoco.gravity = (0., 0., -5.)
     history = torch.zeros(2, 12, env.cfg.decimation, 3)
-    history[..., 2] = 180  # 3 body weights for twelve 1 kg bodies at g=5.
+    history[..., 2] = 180  # 在 g=5 时，十二个 1 kg 刚体总重的 3 倍。
     env.scene["transform_ground_contact"] = SimpleNamespace(data=SimpleNamespace(force_history=history))
     torch.testing.assert_close(commanded.descent_ground_impact_cost(env), torch.ones(2))
 

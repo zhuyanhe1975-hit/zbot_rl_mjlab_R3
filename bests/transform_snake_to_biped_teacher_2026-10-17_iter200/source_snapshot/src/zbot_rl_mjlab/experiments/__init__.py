@@ -1,1 +1,0 @@
-"""Locomotion experiment recipes."""

@@ -1,8 +1,9 @@
-"""Reverse task: rise from a grounded straight snake into the standing joint pose."""
+"""反向任务：从贴地直蛇形升起到站立关节姿态。"""
 
 import math
-from dataclasses import dataclass, fields, replace
+from dataclasses import dataclass, replace
 from functools import lru_cache
+from typing import cast
 
 import mujoco
 import torch
@@ -17,9 +18,9 @@ from mjlab.utils.lab_api.math import quat_apply, quat_apply_inverse
 from ...robot import DEFAULT_JOINT_POS, JOINT_NAMES, get_spec
 from . import mdp
 from .actions import JointTargetRateActionCfg
-from .env_cfg import TransformationEnvCfg, transformation_env_cfg
+from .env_cfg import TransformationEnvCfg, transformation_scene_cfg
+from .poses import SNAKE_JOINT_POS, SNAKE_ROOT_POS, SNAKE_ROOT_QUAT
 from .reverse_observations import reserved_hold_observation, support_observation
-from .snake_pose import SNAKE_JOINT_POS, SNAKE_ROOT_POS, SNAKE_ROOT_QUAT
 
 TASK_ID = "Mjlab-Zbot-6dof-Transform-Snake-To-Biped"
 BETA_TASK_ID = TASK_ID + "-Beta"
@@ -73,7 +74,7 @@ def _joint_error(env):
 
 
 def initial_joint_pose_cost(env):
-    """Mean squared displacement from this experiment's reset joint pose."""
+    """相对本实验重置关节姿态的均方位移。"""
     positions = env.scene["robot"].data.joint_pos
     initial = positions.new_tensor(env.cfg.initial_joint_pos)
     cost = (positions - initial).square().mean(-1)
@@ -81,7 +82,7 @@ def initial_joint_pose_cost(env):
 
 
 def end_joint_flip_cost(env):
-    """Discourage the +/-pi end-joint shortcut without restricting middle joints."""
+    """抑制末端关节绕到 +/-pi 的捷径，不限制中间关节。"""
     if not math.isfinite(env.cfg.end_joint_allowed_error) or env.cfg.end_joint_allowed_error <= 0:
         raise ValueError("end_joint_allowed_error must be finite and positive")
     excess = (_joint_error(env)[:, (0, 5)].abs() - env.cfg.end_joint_allowed_error).clamp_min(0.0)
@@ -89,7 +90,7 @@ def end_joint_flip_cost(env):
 
 
 def axial_roll_rate_cost(env):
-    """Squared actual base angular speed about its longitudinal local Z axis."""
+    """基座绕纵向局部 Z 轴的实际角速度平方。"""
     robot = env.scene["robot"]
     base_id = robot.find_bodies("base")[0][0]
     velocity = robot.data.body_link_ang_vel_w[:, base_id]
@@ -102,9 +103,9 @@ def axial_roll_rate_cost(env):
 
 @lru_cache(maxsize=16)
 def standing_roll_reference(standing_joint_pos):
-    """Base roll in the upright-root standing target, derived from native FK."""
+    """由原生 FK 推导根部直立站立目标中的基座滚转角。"""
     model = get_spec().compile()
-    # MuJoCo's runtime exports are missing from the installed typing metadata.
+    # 当前安装版本的类型元数据未包含 MuJoCo 的运行时导出。
     data = mujoco.MjData(model)  # pyright: ignore[reportAttributeAccessIssue]
     data.qpos[3:7] = (1.0, 0.0, 0.0, 0.0)
     for name, position in zip(JOINT_NAMES, standing_joint_pos, strict=True):
@@ -116,7 +117,7 @@ def standing_roll_reference(standing_joint_pos):
 
 @lru_cache(maxsize=16)
 def standing_gravity_reference(standing_joint_pos):
-    """Full local gravity direction in the upright-root target, from CPU FK."""
+    """通过 CPU FK 计算根部直立目标中的完整局部重力方向。"""
     model = get_spec().compile()
     data = mujoco.MjData(model)  # pyright: ignore[reportAttributeAccessIssue]
     data.qpos[3:7] = (1.0, 0.0, 0.0, 0.0)
@@ -128,7 +129,7 @@ def standing_gravity_reference(standing_joint_pos):
 
 
 def base_gravity_alignment_cost(env):
-    """Full gravity mismatch, including the component omitted by axial roll."""
+    """完整重力偏差，包括轴向滚转省略的分量。"""
     robot = env.scene["robot"]
     base_id = robot.find_bodies("base")[0][0]
     quaternion = robot.data.body_link_quat_w[:, base_id]
@@ -148,11 +149,11 @@ def base_gravity_alignment_cost(env):
 
 
 def axial_roll_angle(base_quat, reference_angle=0.0):
-    """Actual base roll about local Z, with local -Y down at zero roll.
+    """基座绕局部 Z 的实际滚转角；零滚转时局部 -Y 朝下。
 
-    The zero-joint snake reset of ZBOT6.xml has gravity along base -Y.
-    Projecting gravity into base XY removes world yaw without cancelling any
-    rotation caused by joints. A vertical base Z has undefined axial roll.
+    ZBOT6.xml 中关节归零的蛇形重置姿态，其重力沿基座 -Y 方向。
+    将重力投影到基座 XY 平面可以消除世界偏航，同时保留关节造成的旋转。
+    基座 Z 轴竖直时，轴向滚转未定义。
     """
     gravity = torch.zeros_like(base_quat[..., :3])
     gravity[..., 2] = -1.0
@@ -191,21 +192,21 @@ def base_z_roll_degrees(env):
 
 
 def reset_failure_cost(env):
-    # TerminationManager runs before rewards; its union mask charges once even
-    # when several safety conditions trigger. Compensate RewardManager's dt.
+    # TerminationManager 在奖励前运行；即使触发多个安全条件，
+    # 其联合掩码也只计费一次。补偿 RewardManager 的 dt 缩放。
     return env.termination_manager.terminated.float() / env.step_dt
 
 
 def survival_reward(env):
-    """Constant normal-step offset; genuine failures receive no survival reward."""
+    """正常控制步的恒定偏移；真正失败时不给生存奖励。"""
     return (~env.termination_manager.terminated).float()
 
 
 def joint_standing_reward(env):
-    """Negative Smooth L1 pose error, with linear feedback for distant joints.
+    """负的 Smooth L1 姿态误差，为远离目标的关节提供线性反馈。
 
-    Positive curriculum weights scale this penalty. Support loss never masks
-    its negative feedback; foot support protection remains enforced separately.
+    正课程权重用于缩放此惩罚。支撑丢失时不屏蔽该负反馈；
+    足部支撑保护仍单独执行。
     """
     scale = env.cfg.joint_standing_error_scale
     if not math.isfinite(scale) or scale <= 0:
@@ -216,13 +217,13 @@ def joint_standing_reward(env):
 
 
 def base_height(env):
-    """Base coordinate origin height above the task's flat ground plane."""
+    """基座坐标原点相对任务平地的高度。"""
     data, base_id = mdp._base(env)
     return data.body_link_pos_w[:, base_id, 2] - env.scene.env_origins[:, 2]
 
 
 def base_height_progress_reward(env):
-    """Base origin height progress, subject to stage-two foot support protection."""
+    """基座原点的高度进展，受第二阶段足部支撑保护约束。"""
     initial_height = SNAKE_ROOT_POS[2]
     span = env.cfg.standing_base_height - initial_height
     if span <= 0:
@@ -232,7 +233,7 @@ def base_height_progress_reward(env):
 
 
 def sole_height_cost(env):
-    """Mean absolute distance of both sole sites to the task's flat ground plane."""
+    """两个足底位点到任务平地的绝对距离平均值。"""
     if env.cfg.sole_alignment_height_std <= 0:
         raise ValueError("sole_alignment_height_std must be positive")
     robot = env.scene["robot"]
@@ -243,7 +244,7 @@ def sole_height_cost(env):
 
 
 def base_support_distance(env):
-    """Horizontal distance from the base coordinate origin to the sole segment."""
+    """基座坐标原点到足底线段的水平距离。"""
     robot = env.scene["robot"]
     ids, _ = robot.find_sites(("foot_0_sole", "foot_1_sole"), preserve_order=True)
     base_id = robot.find_bodies("base")[0][0]
@@ -259,7 +260,7 @@ def base_support_distance(env):
 
 
 def base_support_distance_cost(env):
-    """Normalized support-segment distance cost; use a negative reward weight."""
+    """归一化支撑线段距离代价；应使用负奖励权重。"""
     if not math.isfinite(env.cfg.base_support_distance_std) or env.cfg.base_support_distance_std <= 0:
         raise ValueError("base_support_distance_std must be finite and positive")
     distance = base_support_distance(env)
@@ -272,13 +273,13 @@ def _sole_direction_cosine(env):
     ids, _ = robot.find_sites(("foot_0_sole", "foot_1_sole"), preserve_order=True)
     quat = robot.data.site_quat_w[:, ids]
     normal_z = 1.0 - 2.0 * (quat[..., 1].square() + quat[..., 2].square())
-    # foot_0's physical outward sole normal is -site_Z; foot_1's is +site_Z.
+    # foot_0 的物理足底向外法向为 -site_Z；foot_1 为 +site_Z。
     cosine = (normal_z * quat.new_tensor([1.0, -1.0])).clamp(-1.0, 1.0)
     return torch.where(torch.isfinite(quat).all(-1), cosine, float("nan"))
 
 
 def _sole_ground_alignment(env, angle_power: float = 2.0):
-    """Per-foot signed sole direction score, independent of foot height."""
+    """各足有符号足底方向得分，与足部高度无关。"""
     if env.cfg.sole_alignment_angle_std_deg <= 0:
         raise ValueError("sole_alignment_angle_std_deg must be positive")
     if not math.isfinite(angle_power) or angle_power <= 0:
@@ -286,19 +287,19 @@ def _sole_ground_alignment(env, angle_power: float = 2.0):
     cosine = _sole_direction_cosine(env)
     angle = torch.acos(cosine)
     sigma = math.radians(env.cfg.sole_alignment_angle_std_deg)
-    # Power 1 retains a nonzero one-sided slope at flat; power 2 is legacy.
+    # 指数 1 在足底水平处保留非零单侧斜率；指数 2 为旧版行为。
     score = 0.5 * (cosine - 1.0) + torch.exp(-(angle / sigma).pow(angle_power))
     return torch.nan_to_num(score, nan=0.0)
 
 
 def sole_ground_alignment_reward(env, angle_power: float = 2.0):
-    # Keep feedback from both feet while giving the worse foot extra influence.
+    # 保留双足反馈，同时提高较差一足的影响。
     scores = _sole_ground_alignment(env, angle_power=angle_power)
     return 0.5 * (scores.mean(-1) + scores.amin(-1))
 
 
 def sole_angles_degrees(env):
-    """Per-foot angle from downward; invalid orientations count as 180 degrees."""
+    """各足相对朝下方向的夹角；无效方向记为 180 度。"""
     cosine = _sole_direction_cosine(env)
     return torch.nan_to_num(torch.rad2deg(torch.acos(cosine)), nan=180.0)
 
@@ -312,7 +313,7 @@ def both_soles_within_10deg(env):
 
 
 def sole_support_valid(env):
-    """Both sole sites must face down and remain near the ground plane."""
+    """两个足底位点均须朝下且靠近地面。"""
     cfg = env.cfg
     if not math.isfinite(cfg.support_angle_limit_deg) or not 0 < cfg.support_angle_limit_deg < 90:
         raise ValueError("support_angle_limit_deg must be between 0 and 90")
@@ -332,7 +333,7 @@ def sole_support_valid(env):
 
 
 def both_feet_ground_contact(env):
-    """Actual foot-body contacts against terrain, independently for both feet."""
+    """分别检测两足刚体与地形的实际接触。"""
     found = env.scene["feet_ground_contact"].data.found
     if found is None:
         raise ValueError("feet_ground_contact sensor must provide found data")
@@ -349,7 +350,7 @@ def constrain_standing_reward(env, reward):
     stage = getattr(env, "_standing_curriculum_stage", env.cfg.curriculum_start_stage)
     if stage == 1:
         return reward
-    # Preserve every negative term when support is lost; gate only positive gain.
+    # 支撑丢失时保留全部负奖励项；仅门控正向增益。
     return torch.where(sole_support_valid(env), reward, reward.clamp(max=0.0))
 
 
@@ -412,7 +413,7 @@ def sole_support_valid_metric(env):
 
 
 def base_vertical_velocity(env):
-    """World Z linear velocity of the base coordinate origin, not its COM."""
+    """基座坐标原点沿世界 Z 轴的线速度，并非其质心速度。"""
     data, base_id = mdp._base(env)
     return data.body_link_lin_vel_w[:, base_id, 2]
 
@@ -421,7 +422,7 @@ def base_ascent_velocity_reward(env, target_speed=0.03, pose_error_range: tuple[
     if target_speed <= 0:
         raise ValueError("target_speed must be positive")
     velocity = base_vertical_velocity(env)
-    # Saturate upward progress at the target speed, without an overspeed penalty.
+    # 向上进展在目标速度处饱和，不惩罚超速。
     score = 1.0 - ((velocity / target_speed).clamp(max=1.0) - 1.0).square()
     score = torch.where(torch.isfinite(velocity), score, -4.0)
     score = torch.nan_to_num(score, nan=-4.0, posinf=-4.0, neginf=-4.0).clamp(-4.0, 1.0)
@@ -431,7 +432,7 @@ def base_ascent_velocity_reward(env, target_speed=0.03, pose_error_range: tuple[
             raise ValueError("pose_error_range must satisfy 0 <= zero < full, both finite")
         error = torch.nan_to_num(_joint_error(env).abs(), nan=math.inf).amax(-1)
         fraction = ((error - zero_error) / (full_error - zero_error)).clamp(0.0, 1.0)
-        # Smoothstep cancels both ascent gain and descent cost near the pose goal.
+        # Smoothstep 在接近目标姿态时同时消除上升增益和下降代价。
         score = score * fraction.square() * (3.0 - 2.0 * fraction)
     return constrain_standing_reward(env, score)
 
@@ -467,9 +468,7 @@ def advance(env):
     task = mdp.state(env)
     fresh = task.last_step != env.common_step_counter
     update_support_protection(env, fresh)
-    held = torch.where(final_condition(env), task.hold_time + env.step_dt, 0.0)
-    task.hold_time.copy_(torch.where(fresh, held, task.hold_time))
-    task.last_step.fill_(env.common_step_counter)
+    task.advance_hold(final_condition(env), env.common_step_counter, env.step_dt)
 
 
 def update_state(env):
@@ -488,7 +487,7 @@ def joint_standing_error_metric(env):
 
 
 def apply_standing_stage_weights(env):
-    """Ramp live reward weights every control step after promotion."""
+    """阶段提升后，每个控制步渐变调整实际奖励权重。"""
     cfg = env.cfg
     if cfg.standing_stage_ramp_steps < 0:
         raise ValueError("standing_stage_ramp_steps must be nonnegative")
@@ -530,12 +529,11 @@ def apply_standing_stage_weights(env):
 
 
 def alignment_to_standing_curriculum(env, env_ids):
-    """Promote the whole run once completed episodes exceed the alignment gate.
+    """已结束回合达到对齐门槛后，将整次训练提升到下一阶段。
 
-    Called before reset clears RewardManager's dt-integrated episode sums.
-    The gate uses exactly the normalization of Episode_Reward logs, not the
-    unweighted score (which cannot exceed one) or the dt-scaled step reward.
-    Stage two stays active across all subsequent episode resets.
+    在 reset 清除 RewardManager 按 dt 积分的回合累计量之前调用。
+    门槛严格采用 Episode_Reward 日志的归一化方式，而非未加权得分
+    （其不超过 1）或按 dt 缩放后的单步奖励。第二阶段在后续所有回合重置中持续生效。
     """
     cfg = env.cfg
     if cfg.curriculum_start_stage not in (1, 2):
@@ -557,8 +555,8 @@ def alignment_to_standing_curriculum(env, env_ids):
     stage = getattr(env, "_standing_curriculum_stage", cfg.curriculum_start_stage)
     ids = slice(None) if env_ids is None else env_ids
     completed = env.episode_length_buf[ids] > 0
-    # RewardManager exposes no public accessor for episode sums. Keep this
-    # dependency local and read it before the manager's reset() clears it.
+    # RewardManager 未提供回合累计量的公共访问接口；将此依赖
+    # 限制在局部，并在管理器 reset() 清除之前读取。
     scores = env.reward_manager._episode_sums["sole_ground_alignment"][ids]
     scores = scores[completed] / env.max_episode_length_s
     alignment = scores.mean().item() if scores.numel() else 0.0
@@ -569,8 +567,8 @@ def alignment_to_standing_curriculum(env, env_ids):
     if pose_threshold is not None:
         ready &= _joint_error(env)[ids].abs().amax(-1) < pose_threshold
     support.last_episode_ready[ids] = torch.where(completed, ready, support.last_episode_ready[ids])
-    # Keep the latest completed outcome for every world. A tiny asynchronous
-    # reset batch must not promote all worlds based on a single lucky episode.
+    # 保留每个环境最近已结束回合的结果。异步重置的小批次
+    # 不应仅凭一次幸运回合就提升所有环境的阶段。
     ready_fraction = support.last_episode_ready.float().mean().item()
     alignment_wait_steps = 0
     changed_step = getattr(env, "_standing_alignment_hot_changed_step", None)
@@ -588,7 +586,7 @@ def alignment_to_standing_curriculum(env, env_ids):
         stage = 2
         env._standing_stage_start_step = env.common_step_counter
     elif stage == 2 and not hasattr(env, "_standing_stage_start_step"):
-        # Explicit stage-two starts (including playback) use the full objective.
+        # 显式从第二阶段开始（包括回放）时使用完整目标。
         env._standing_stage_start_step = env.common_step_counter - cfg.standing_stage_ramp_steps
     env._standing_curriculum_stage = stage
     ramp = apply_standing_stage_weights(env)
@@ -599,12 +597,17 @@ def alignment_to_standing_curriculum(env, env_ids):
             "alignment_hot_wait_steps": float(alignment_wait_steps)}
 
 
-def snake_to_biped_env_cfg(play=False):
-    base = transformation_env_cfg(play=play)
-    cfg = SnakeToBipedEnvCfg(
-        **{f.name: getattr(base, f.name) for f in fields(base) if f.init}
-    )
-    # Playback evaluates the full standing objective; training starts at stage 1.
+def snake_to_biped_env_cfg(play=False, cfg_cls=SnakeToBipedEnvCfg, action_cfg_cls=JointTargetRateActionCfg, compact=False):
+    """直接创建最终起立配置类型，再装配方向相关的行为。"""
+    cfg = cast(SnakeToBipedEnvCfg, transformation_scene_cfg(
+        play=play, cfg_cls=cfg_cls, action_cfg_cls=action_cfg_cls,
+    ))
+    cfg.metrics = {
+        "joint_error": MetricsTermCfg(func=joint_standing_error_metric),
+        "com_height": MetricsTermCfg(func=mdp.com_height),
+        "success": MetricsTermCfg(func=success, reduce="last"),
+    }
+    # 回放评估完整站立目标；训练从第一阶段开始。
     cfg.curriculum_start_stage = 2 if play else 1
     for group in cfg.observations.values():
         group.terms["hold_time"] = ObservationTermCfg(func=reserved_hold_observation)
@@ -635,6 +638,8 @@ def snake_to_biped_env_cfg(play=False):
                          cfg.standing_joint_pos[i] + cfg.end_joint_allowed_error)
         for i in (0, 5)
     }
+    if compact:
+        return cfg
     cfg.rewards = {
         "end_joint_flip": RewardTermCfg(
             func=end_joint_flip_cost,

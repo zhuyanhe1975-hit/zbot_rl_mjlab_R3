@@ -1,4 +1,4 @@
-"""Early base-ground contact and continuous (not accumulated) stagnation resets."""
+"""基座提前触地，以及连续停滞（而非累计停滞）触发的重置。"""
 
 from types import SimpleNamespace
 

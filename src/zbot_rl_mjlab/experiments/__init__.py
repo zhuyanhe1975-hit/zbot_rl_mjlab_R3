@@ -1,1 +1,1 @@
-"""Locomotion experiment recipes."""
+"""运动实验配方。"""

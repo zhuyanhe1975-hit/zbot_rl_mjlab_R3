@@ -1,14 +1,18 @@
-"""Bidirectional goal routing, observation commands, and reset-free switches."""
+"""双向目标路由、观测命令及无重置切换。"""
 
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 import torch
+from mjlab.rl import RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
 
 from zbot_rl_mjlab.experiments.bidirectional import SnakeBipedBidirectional
+from zbot_rl_mjlab.rl import RobustSnakeToBipedRunner
 from zbot_rl_mjlab.tasks.transformation import commanded, mdp, robust
 from zbot_rl_mjlab.tasks.transformation import snake_to_biped as standing
+from zbot_rl_mjlab.tasks.transformation.commanded import BidirectionalEnvCfg
 
 
 def environment():
@@ -16,6 +20,7 @@ def environment():
 
     env = _standing_env()
     env.cfg = SnakeBipedBidirectional().build_env()
+    assert isinstance(env.cfg, BidirectionalEnvCfg)
     env._transform_initial_standing = torch.tensor([False, True])
     env.episode_length_buf = torch.zeros(2, dtype=torch.long)
     env.scene["base_ground_contact"] = SimpleNamespace(data=SimpleNamespace(found=torch.ones(2, 1)))
@@ -44,7 +49,7 @@ def test_command_task_is_registered_and_preserves_archive_contract(play):
     assert cfg.rewards["joint_standing"].weight == 12
     assert len(cfg.rewards) == 7
     assert "goal_motion" not in cfg.rewards
-    assert load_runner_cls(commanded.TASK_ID) is robust.RobustSnakeToBipedRunner
+    assert load_runner_cls(commanded.TASK_ID) is RobustSnakeToBipedRunner
 
 
 def test_initial_commands_match_source_pose_then_switch_without_teleport():
@@ -166,7 +171,7 @@ def test_native_play_keys_queue_and_apply_commands_without_pose_reset():
     observation_updates = []
     env.observation_manager = SimpleNamespace(compute=lambda **kwargs: observation_updates.append(kwargs))
     instance = object.__new__(viewer.FollowCameraViewer)
-    instance.env = SimpleNamespace(unwrapped=env)
+    instance.env = cast(RslRlVecEnvWrapper, SimpleNamespace(unwrapped=env))
     instance._actions = deque()
     joints = env.scene["robot"].data.joint_pos.clone()
     for key, expected in ((ord("]"), 1), (ord("["), -1)):
@@ -200,7 +205,7 @@ def test_partial_reset_handles_goal_mask_from_inference_without_affecting_others
     commanded.reset_command_transition(env, torch.tensor([0]))
     assert env._standing_goal_valid.tolist() == [False, True]
     assert not mdp.state(env).hold_time.is_inference()
-    mdp.state(env).hold_time[:] = 1  # Persistent buffers remain writable by normal calls.
+    mdp.state(env).hold_time[:] = 1  # 持久缓冲区仍可由常规调用写入。
     assert env._transform_initial_standing.tolist() == [False, True]
 
 
@@ -213,8 +218,8 @@ def test_frequent_stand_resets_cannot_starve_live_stand_samples():
     env._transform_initial_standing[ids] = commanded.sample_initial_standing(env, ids)
     term._command[:, 0] = torch.where(env._transform_initial_standing, -1., 1.)
     assert env._transform_initial_standing.sum() == 64
-    # Stand fails at ~0.12 s while descent lasts 16 s: reproduce many resets
-    # from only the snake-source half. The training frames must stay 50/50.
+    # 站立约在 0.12 s 时失败，而下降持续 16 s：复现仅蛇形初始状态
+    # 对应的一半环境频繁重置的情况。训练帧必须保持各占 50%。
     for _ in range(150):
         ids = (~env._transform_initial_standing).nonzero().flatten()
         env._transform_initial_standing[ids] = commanded.sample_initial_standing(env, ids)
@@ -264,7 +269,7 @@ def test_play_keyboard_holds_command_past_timeout_until_reset():
     env.episode_length_buf[:] = 800
     term.reset(torch.arange(2))
     assert commanded.play_time_out(env).tolist() == [True, True]
-    # Repeating the current command still intentionally enters manual mode.
+    # 重复当前命令时，仍应按设计进入手动模式。
     term.set_target("stand", torch.tensor([0]))
     assert commanded.play_time_out(env).tolist() == [False, True]
     env.episode_length_buf[:] = 10000
@@ -277,7 +282,9 @@ def test_play_keyboard_holds_command_past_timeout_until_reset():
 
 def test_manual_timeout_override_only_applies_to_play():
     training = SnakeBipedBidirectional().build_env()
+    assert isinstance(training, BidirectionalEnvCfg)
     playback = SnakeBipedBidirectional().build_env(play=True)
+    assert isinstance(playback, BidirectionalEnvCfg)
     assert training.terminations["time_out"].func is commanded.common_mdp.time_out
     assert playback.terminations["time_out"].func is commanded.play_time_out
     assert len(training.rewards) == len(playback.rewards) == 7
@@ -288,7 +295,9 @@ def test_play_manual_commands_mask_every_failure_without_changing_training(name)
     env, term = environment()
     term.reset(torch.arange(2))
     playback = SnakeBipedBidirectional().build_env(play=True)
+    assert isinstance(playback, BidirectionalEnvCfg)
     training = SnakeBipedBidirectional().build_env()
+    assert isinstance(training, BidirectionalEnvCfg)
     entry = playback.terminations[name]
     assert entry.func is commanded.play_failure
     assert entry.params["condition"] is training.terminations[name].func
@@ -347,7 +356,7 @@ def test_early_fall_requires_both_height_and_drop_then_latches():
     data.body_link_pos_w[:, 6, 2] = torch.tensor([0.035, 0.060])
     contact[:] = True
     data.body_link_lin_vel_w[:, 6, 2] = -0.05
-    assert not commanded.early_contact(env).any()  # Below arm / drop only 5 mm.
+    assert not commanded.early_contact(env).any()  # 低于启用阈值，下降仅 5 mm。
     env.common_step_counter += 1
     data.body_link_pos_w[:, 6, 2] = 0.035
     assert commanded.early_contact(env).tolist() == [False, True]
@@ -386,7 +395,7 @@ def test_low_height_fall_protection_arms_at_five_cm_without_resetting_initial_ro
         env.common_step_counter = step
         data.body_link_pos_w[:, 6, 2] = height
         assert not commanded.fallen(env).any()
-        assert not commanded.fallen(env).any()  # Repeated calls do not advance time.
+        assert not commanded.fallen(env).any()  # 重复调用不会推进时间。
     assert robust.fall_retry_state(env).armed.all()
     assert robust.fall_retry_state(env).low_time.eq(0).all()
 
@@ -415,6 +424,7 @@ def test_standing_pose_requires_world_gravity_alignment_not_just_joint_angles():
     for root in ((1., 0., 0., 0.), standing.SNAKE_ROOT_QUAT):
         env = fk_environment(root=root)
         env.cfg = SnakeBipedBidirectional().build_env()
+        assert isinstance(env.cfg, BidirectionalEnvCfg)
         env.scene["robot"].data.joint_pos = torch.tensor([env.cfg.standing_joint_pos], dtype=torch.float64)
         env.command_manager = SimpleNamespace(get_command=lambda name: torch.ones(1, 1))
         values.append(commanded.pose_reward(env).item())
@@ -450,7 +460,7 @@ def test_lying_target_joints_keep_ascent_drive_and_height_latch_still_stops_it()
     full = standing.base_ascent_velocity_reward(env, target_speed=0.15)
     value = commanded.velocity_reward(env)
     assert (value > 0).all()
-    assert (value > 0.75 * full).all()  # Folding while lying cannot zero it.
+    assert (value > 0.75 * full).all()  # 躺卧时折叠不能将其归零。
     data.body_link_pos_w[:, 6, 2] = 0.23
     torch.testing.assert_close(commanded.velocity_reward(env), torch.zeros(2))
     data.body_link_pos_w[:, 6, 2] = 0.136

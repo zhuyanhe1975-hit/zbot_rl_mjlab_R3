@@ -54,6 +54,21 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
 #   --env.scene.num-envs 16 \
 
 # 12、蛇足双向变形：随机蛇形/双足初态，+1站立 / -1爬下，37/45维观测。
-python play.py Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional \
-  --env.scene.num-envs 1 \
-  --checkpoint-file bests/transform_snake_biped_bidirectional_2026-10-17_iter599/model_599.pt
+# python play.py Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional \
+#   --env.scene.num-envs 1 \
+#   --checkpoint-file bests/transform_snake_biped_bidirectional_2026-10-17_iter599/model_599.pt
+
+# 13、综合运动：多教师蒸馏预热，随后联合强化学习。
+# python play.py Mjlab-Zbot-6dof-Universal-Locomotion \
+#   --checkpoint-file logs/rsl_rl/zbot_universal_locomotion/2026-10-18_11-34-33/model_897.pt \
+#   --env.scene.num-envs 1
+
+# 14、综合运动：多教师蒸馏预热，随后联合强化学习。
+# python play.py Mjlab-Zbot-6dof-Universal-Locomotion-Deploy \
+#   --env.scene.num-envs 1
+
+# 15、蛇形运动：覆盖前进、后退、左右侧移、双向转动及组合运动
+  python play.py Mjlab-Zbot-6dof-Snake-Omni-Teacher \
+  --env.scene.num-envs 16 \
+  # --stochastic True
+  

@@ -1,92 +1,41 @@
-# Best checkpoints
+# 已保存模型
 
-Layout: `bests/<experiment>_<date>_iter<N>/{model_<N>.pt, env.yaml, agent.yaml, SHA256SUMS}`.
+本目录保留十个可供加载检查的模型、训练启动配置及简要结果。完整源码快照、训练日志和大型评估明细已移到项目外；位置见 [归档位置.json](归档位置.json)。原始归档中的文件和校验和保持原样。
 
-A checkpoint should load strictly into its current task. Walking validation uses
-a full 20 s episode without falling (16 parallel envs); transformation validation
-uses its own 16 s episode and joint-zeroing/grounded-hold success criteria.
-Explicitly requested archives with incomplete validation are labeled below.
-When the environment, observations or robot parameters change, re-check every
-entry and delete the ones that no longer replay.
+## 播放与校验
 
-**Sensor note (2026-10-11):** every checkpoint below except `deploy_walking_*` was trained while the
-foot height scan was attached to the foot *bodies*. foot_1's body origin sits ~54 mm above its sole,
-so its `swing_clearance` / `swing_foot_excess_height` readings were offset and the two feet were
-rewarded asymmetrically. The scan now starts at the sole sites (`src/zbot_rl_mjlab/env_cfg.py`).
-Replay is unaffected (height is not an observation), but new training runs are not directly
-comparable with the older entries.
+```bash
+./bests/test.sh                         # 列出模型
+./bests/test.sh 1                       # 按序号播放
+./bests/test.sh transform_snake_biped_bidirectional_2026-10-17_iter599 --env.scene.num-envs 1
+./scripts/python.sh -m pytest -q tests/test_bests.py
+```
 
-**Which one to deploy:** `deploy_walking_2026-10-11_iter1499` (see the scorecard below). It is the
-only entry whose actor does not read `base_lin_vel` / `yaw_error`; the others cannot run on hardware
-without a velocity estimator.
+每个模型目录只保存一个 `model_*.pt`。`env.yaml`、`agent.yaml` 是训练启动时的配置；`final_effective_weights.json`（如有）记录模型保存时的奖励状态，两者可能对应不同训练阶段。目录内 `SHA256SUMS` 覆盖当前保留文件，自身不参与校验：
 
-| Directory | Task | Notes |
-|---|---|---|
-| `transform_snake_biped_bidirectional_2026-10-17_iter599` | `Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional` | Replaced with latest run 2026-10-17_21-39-14, iter599/600 from scratch. Seven rewards: stand finish −0.02, descent impact −2; automatic switching tolerance 0.15 rad. User reports improvement. Strict load + 8-env/18-s headless smoke: 23 automatic transitions; full comparative success-rate and hardware validation not assessed. Configs, final weights, source/assets, tests, logs and checksums archived. |
-| `transform_snake_to_biped_teacher_2026-10-17_iter200` | `Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Robust-Teacher` | Random snake-axis roll ±90°, Actor36/Critic44, 3 mirrored Beta actions. Independent 16-env/16-s evaluation: strict success 16/16, final sole tilt ≤0.069°, max joint error ≤0.037 rad, hold ≥13.78 s. First-rise speed reward shuts off at base peak 0.23 m. No external disturbances. Configs, source/assets snapshot, logs and checksums included. |
-| `transform_snake_to_biped_beta_2026-10-17_iter2550` | `Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta` | Native Beta, 30-dim actor and 6 actions. Supplied 4-env/16-s evaluation: strict success 4/4. Trained with manual reward hot updates; new automatic preparation course is regression tested but not cold-start retrained. Startup configs and final effective weights are separate; native task final check pending. |
-| `transform_biped_to_snake_2026-10-16_iter199` | `Mjlab-Zbot-6dof-Transform-Biped-To-Snake` | Requested checkpoint from run `2026-10-16_15-43-07`; independent 6-dim actions, 30-dim actor. Strict actor load passed; 16 envs completed 16 s with no unsafe termination, final COM ≈0.0544 m. Strict zero-angle/hold success: 0/16. Configs, checksums, evaluation and provenance included. |
-| `deploy_walking_2026-10-11_iter1499` | `Mjlab-Zbot-6dof-Deploy-Walking` | 1500 iterations, 8192 envs. 28-dim actor without base_lin_vel / yaw_error; trained with observation noise and IMU bias, 0-2 step action delay, PD gain, mass/inertia, friction, COM and base-push randomization. 0 falls in every scorecard scenario (scorecard was run by the user; this checkpoint is assumed to be the one scored). **Not yet tried on hardware.** |
-| `velocity_energy_disturbed_2026-10-10_iter499` | `Mjlab-Zbot-6dof-Velocity-Energy-Disturbed-Walking` | 500 iterations, 8192 envs. Also replays in `...Velocity-Energy-Tracking-Walking`. 0 falls in 16 envs x 1000 steps. |
-| `velocity_energy_tracking_2026-10-10_iter499` | `Mjlab-Zbot-6dof-Velocity-Energy-Tracking-Walking` | 500 iterations. 0 falls in 16 envs x 1000 steps. |
-| `omni_velocity_energy_2026-10-10_iter499` | `Mjlab-Zbot-6dof-Omni-Velocity-Energy-Walking` | 500 iterations. 0 falls under 6 fixed commands, 16 envs x 1000 steps. Tracks vx/vy well; **pure yaw is weak** (see below). |
-| `flat_foot_velocity_energy_2026-10-10_iter499` | `Mjlab-Zbot-6dof-Flat-Foot-Velocity-Energy-Walking` | 500 iterations, 8192 envs. **Fall check not run yet** (`python fall_check.py <TASK> <ckpt>`); archived on request. Did **not** flatten the feet (see below). |
+```bash
+(cd bests/transform_snake_biped_bidirectional_2026-10-17_iter599 && sha256sum -c SHA256SUMS)
+```
 
-## Deployment scorecard (forward 0.25 m/s, `python deploy_scorecard.py`, 16 envs x 1000 steps)
+## 模型用途与已有证据
 
-`baseline` = `velocity_energy_tracking_2026-10-10_iter499`, `deploy` = the deploy_walking entry,
-`deploy_flat` = `Deploy-Flat-Foot-Walking` (same randomization plus flat-foot penalties; not archived,
-it was worse on every axis below).
-
-| nominal | baseline | deploy | deploy_flat |
-|---|---|---|---|
-| falls | 0 | 0 | 0 |
-| speed (cmd 0.25) | 0.247 | 0.249 | 0.247 |
-| action rate rms (lower = smoother) | 0.154 | 0.181 | 0.215 |
-| joint acc rms rad/s2 | 110.1 | 113.3 | 118.9 |
-| mechanical power W | 2.01 | 2.07 | 2.18 |
-| cost of transport | 0.19 | 0.20 | 0.21 |
-| step period cv | 0.054 | 0.032 | 0.041 |
-| alternation phase (0.50 ideal) | 0.50 | 0.51 | 0.61 |
-
-| falls / speed under perturbation | baseline | deploy | deploy_flat |
-|---|---|---|---|
-| IMU tilt +x (0.05, ~3 deg) | **127** / 0.16 | 0 / 0.25 | 0 / 0.24 |
-| IMU tilt -y | 5 / 0.23 | 0 / 0.26 | 0 / 0.25 |
-| base_lin_vel withheld | **464** / - | n/a | n/a |
-| action delay 3 steps | 0 / 0.26 | 0 / 0.22 | 0 / 0.19 |
-| base COM +-3 cm x, y | 0 | 0 | 0 |
-| sensor noise, PD gains x0.7 / x1.3, delay 1-2 steps | 0 | 0 | 0 |
-
-The scorecard is a simulation proxy at 0.25 m/s forward; it does not cover in-place stepping, the case
-that failed on hardware.
-
-## Flat-foot checkpoint gait metrics (vx = 0.25, `python gait_metrics.py`)
-
-| Metric | velocity-energy-tracking (baseline) | flat-foot |
-|---|---|---|
-| foot0 pitch / roll, mean (p90) deg | 3.4 (7.5) / 3.9 (6.8) | 2.9 (8.9) / 3.4 (7.8) |
-| foot1 pitch / roll, mean (p90) deg | 3.2 (6.8) / 3.7 (6.5) | 3.1 (8.6) / 2.7 (6.2) |
-| period / cv | 1.08 s / 0.05 | 1.25 s / 0.05 |
-| alternation phase (0.50 ideal) | 0.50, std 0.02 | 0.46, std 0.01 |
-| mirror error joint1/6, 2/5, 3/4 | 0.68, 0.34, 0.29 | 1.28, 0.18, 0.68 |
-
-Sole tilt p90 did not improve (6.5-7.5 deg to 6.2-8.9 deg) and the joint1/6 mirror error got worse.
-The added flatness penalties at weights -0.1 / -0.4 / -0.1 were too weak to change the stance, while
-the earlier -0.5 / -2.0 / -0.5 run collapsed (episode length ~30 steps).
-
-## Omni checkpoint tracking (mean over steps 250-1000, 16 envs, `(vx, vy, wz)` command)
-
-| Command | Measured |
+| 目录 | 用途与验证边界 |
 |---|---|
-| (+0.30, 0, 0) | (+0.294, +0.005, -0.037) |
-| (-0.20, 0, 0) | (-0.197, -0.002, +0.036) |
-| (0, +0.15, 0) | (-0.010, +0.119, -0.004) |
-| (0, 0, +0.40) | (-0.002, -0.001, +0.005) |
-| (+0.30, +0.10, +0.30) | (+0.293, +0.085, +0.190) |
-| (0, 0, 0) | (+0.000, +0.000, -0.008) |
+| `transform_snake_biped_bidirectional_2026-10-17_iter599` | 蛇形／双足双向变形，37/45 维观测、3 维镜像 Beta 动作。此前严格加载及 8 环境、18 秒回放通过，发生 23 次自动切换；未统计完整严格成功率或实机表现。 |
+| `transform_snake_to_biped_teacher_2026-10-17_iter200` | 随机纵轴滚转 ±90° 的蛇形起立教师，36/44 维观测、3 维镜像 Beta 动作。此前 16 环境、16 秒评估严格成功 16/16，无外部扰动。 |
+| `transform_snake_to_biped_beta_2026-10-17_iter2550` | 30 维 Actor、6 维 Beta 动作。此前原生任务 4 环境、16 秒评估严格成功 4/4；训练中手动热更新奖励，自动准备课程未完成从头训练验证。 |
+| `transform_biped_to_snake_2026-10-16_iter199` | 双足趴成蛇形，6 维独立动作。此前 16 环境完成 16 秒且无不安全终止，但严格零角度／保持成功为 0/16。 |
+| `deploy_walking_2026-10-11_iter1499` | 面向部署的前向行走，28 维 Actor 不读取基座线速度和偏航误差；此前仿真评分场景均无跌倒，尚未实机验证。 |
+| `velocity_energy_tracking_2026-10-10_iter499` | 节能前向速度跟踪；此前 16 环境、1000 步无跌倒。 |
+| `velocity_energy_disturbed_2026-10-10_iter499` | 节能速度跟踪加扰动；此前 16 环境、1000 步无跌倒。 |
+| `omni_velocity_energy_2026-10-10_iter499` | 全向速度指令，平移跟踪较好；纯偏航较弱，不能视为转向已解决。 |
+| `zbot_walking` | 按指定频率平地行走的旧基线，具体任务映射见 `test.sh`。 |
+| `zbot_disturbed_walking` | 带扰动的频率行走旧基线，具体任务映射见 `test.sh`。 |
 
-A pure yaw command alone barely turns the robot; yaw only appears when combined with forward motion.
+以上是既有实验记录，不代表此次清理重新完成了仿真评估。完整评分表和逐步轨迹可在项目外的原始 `bests-original/README.md` 及对应模型目录查阅。未列入的旧平足模型不在当前归档中。
 
-Replay: `python play.py <TASK> --checkpoint-file bests/<dir>/model_<N>.pt`
-Sim-to-sim: `./sim2sim.sh --checkpoint bests/<dir>/model_<N>.pt`
+## 兼容性注意事项
+
+除 `deploy_walking_*` 外，早期行走模型训练时足部高度扫描附着于脚体原点，后续代码改为足底站点。高度不是策略观测，旧模型仍可加载，但新旧训练奖励不宜直接比较。
+
+模型不能随意跨任务播放：观测顺序、动作维度、分布、控制周期和执行器参数均须匹配。`tests/test_bests.py` 检查这些配置及严格加载；修改物理参数后，还应运行 `scripts/fall_check.py` 或相应变形评估工具验证实际回放。

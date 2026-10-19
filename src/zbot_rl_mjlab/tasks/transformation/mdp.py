@@ -1,6 +1,6 @@
-"""Two objectives: gentle whole-body COM descent and zero joint angles.
+"""两个目标：全身质心平缓下降与关节角归零。
 
-Joint symmetry is a soft regularizer; all six policy actions remain independent.
+关节对称仅作为软正则约束；六个策略动作仍彼此独立。
 """
 
 import torch
@@ -16,6 +16,15 @@ class TransformationState:
         ids = slice(None) if env_ids is None else env_ids
         self.hold_time[ids] = 0.0
         self.last_step[ids] = step
+
+    def advance_hold(self, valid, step, dt, *, commit=True):
+        """每个控制步仅累计一次满足目标的保持时间。"""
+        fresh = self.last_step != step
+        held = torch.where(valid, self.hold_time + dt, 0.0)
+        self.hold_time.copy_(torch.where(fresh, held, self.hold_time))
+        if commit:
+            self.last_step.fill_(step)
+        return fresh
 
 
 def state(env):
@@ -82,10 +91,7 @@ def final_condition(env, joint_tolerance=None):
 
 def advance(env):
     task = state(env)
-    fresh = task.last_step != env.common_step_counter
-    held = torch.where(final_condition(env), task.hold_time + env.step_dt, 0.0)
-    task.hold_time.copy_(torch.where(fresh, held, task.hold_time))
-    task.last_step.fill_(env.common_step_counter)
+    task.advance_hold(final_condition(env), env.common_step_counter, env.step_dt)
 
 
 def update_state(env):
@@ -122,7 +128,7 @@ def joint_zero_reward(env):
 
 
 def com_descent_velocity_reward(env, target_speed=0.03):
-    """Zero at rest, positive near gentle descent, negative on ascent/fast falls."""
+    """静止时为零，接近平缓下降时为正，上升或快速跌落时为负。"""
     if target_speed <= 0:
         raise ValueError("target_speed must be positive")
     score = 1.0 - ((com_state(env)[:, 1] + target_speed) / target_speed).square()

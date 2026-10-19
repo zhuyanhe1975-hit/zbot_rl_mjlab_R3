@@ -1,4 +1,4 @@
-"""Use actual RSL Gaussian distributions and torch optimizers on the CPU."""
+"""在 CPU 上使用真实 RSL 高斯分布和 torch 优化器。"""
 
 import math
 

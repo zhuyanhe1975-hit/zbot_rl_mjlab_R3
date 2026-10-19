@@ -1,37 +1,36 @@
-# Gait metrics
+# 步态指标
 
-`python gait_metrics.py <TASK> <checkpoint.pt> [--speed 0.25]` rolls out 16 environments for
-1000 control steps (20 s) at a fixed forward command, drops the first 250 steps, and prints:
+`./scripts/python.sh scripts/gait_metrics.py <任务ID> <检查点.pt> [--speed 0.25]`
+以固定前进速度指令在 16 个环境中运行 1000 个控制步（20 s），舍弃前 250 步后输出：
 
-| Metric | Meaning | Ideal |
+| 指标 | 含义 | 理想值 |
 |---|---|---|
-| `foot{0,1} pitch/roll mean, p90` | sole tilt (deg) while that foot is loaded, in the Zbot forward/left frame | small; p90 under about 2 for a full-sole landing |
-| `double-support`, `flight` | fraction of steps with both feet down / both feet up | walking: small, 0 |
-| `period`, `cv` | mean time between touchdowns of one foot (s) and its coefficient of variation | cv under about 0.05 |
-| `alternation phase` | when foot 1 lands after foot 0, as a fraction of the period; std over strides | 0.50, std near 0 |
-| `mirror error joint i/(7-i)` | RMS of q_i(t) + q_(7-i)(t + T/2), divided by std of q_i | 0 perfect, about 1.4 unrelated |
+| `foot{0,1} pitch/roll mean, p90` | 脚承重时，在 Zbot 前进／左向坐标系中的脚底倾角（度），分别统计均值和第 90 百分位 | 越小越好；全脚底落地时第 90 百分位约小于 2 度 |
+| `double-support`, `flight` | 双脚同时落地／双脚同时离地的时间比例 | 行走时前者较小，后者为 0 |
+| `period`, `cv` | 单脚相邻两次触地间隔均值（秒）及变异系数 | 变异系数约小于 0.05 |
+| `alternation phase` | 脚 0 触地后脚 1 触地的相位，占周期比例；同时统计跨步标准差 | 0.50，标准差接近 0 |
+| `mirror error joint i/(7-i)` | `q_i(t) + q_(7-i)(t + T/2)` 的均方根，除以 `q_i` 的标准差 | 完全镜像时为 0，无关时约为 1.4 |
 
-The sole normal is taken from the `foot_0_sole` / `foot_1_sole` sites. foot_1's site z-axis points out of
-the foot; the tilt uses the absolute normal so this does not matter. Both soles are a flat
-105 x 105 mm face (8621 mm^2), so a tilt of 5 degrees already reduces ground contact to an edge or corner.
+脚底法线取自 `foot_0_sole` / `foot_1_sole` 位点。脚 1 位点的 Z 轴朝脚外，
+倾角使用法线绝对值，因此不受符号影响。两个脚底均为 105 × 105 mm 的平面（面积 8621 mm²），
+倾斜 5 度就已可能仅靠边缘或角部接触地面。
 
-## Reference: velocity-energy-tracking, 500 iterations, vx = 0.25 m/s
+## 参考记录：速度与能耗跟踪，训练 500 轮，前进速度 0.25 m/s
 
-Checkpoint `bests/velocity_energy_tracking_2026-10-10_iter499`:
+历史检查点目录：`bests/velocity_energy_tracking_2026-10-10_iter499`。
 
-| Metric | Value |
+| 指标 | 数值 |
 |---|---|
-| foot0 pitch / roll, mean (p90) | 3.4 (7.5) / 3.9 (6.8) deg |
-| foot1 pitch / roll, mean (p90) | 3.2 (6.8) / 3.7 (6.5) deg |
-| double-support / flight | 0.02 / 0.00 |
-| period / cv | 1.08 s / 0.05 |
-| alternation phase | 0.50, std 0.02 |
-| mirror error joint1/6, 2/5, 3/4 | 0.68, 0.34, 0.29 |
+| 脚 0 俯仰／横滚，均值（第 90 百分位） | 3.4（7.5）／3.9（6.8）度 |
+| 脚 1 俯仰／横滚，均值（第 90 百分位） | 3.2（6.8）／3.7（6.5）度 |
+| 双支撑／腾空比例 | 0.02／0.00 |
+| 周期／变异系数 | 1.08 s／0.05 |
+| 交替相位 | 0.50，标准差 0.02 |
+| 关节 1/6、2/5、3/4 镜像误差 | 0.68、0.34、0.29 |
 
-## Caveats
+## 使用边界
 
-- Metrics are only meaningful when the policy does not fall. The script does not check this itself:
-  after a fall the environment resets inside the window and the numbers mix several episodes. Check the
-  training log's mean episode length (should be near 1000) before trusting them.
-- Contact is counted from the ground-contact sensor; a bouncing foot can register extra touchdowns, so
-  absolute step frequency is approximate. Compare models with each other, not against a physical value.
+- 仅在策略不跌倒时才有意义。脚本本身不检查跌倒：跌倒后环境会在统计窗口内重置，
+  数值可能混入多个回合。使用前应检查训练日志平均回合长度是否接近 1000。
+- 触地事件来自地面接触传感器，脚底弹跳可能被统计为多次触地，绝对步频仅为近似值。
+  更适合用于模型间比较，不宜直接当作实机测量值。

@@ -1,4 +1,4 @@
-"""Mirror-constrained exploration and real pretrained Beta-head migration."""
+"""镜像约束探索与真实预训练 Beta 输出头的迁移。"""
 
 from types import SimpleNamespace
 
@@ -10,7 +10,7 @@ from rsl_rl.models import MLPModel
 from tensordict import TensorDict
 
 from zbot_rl_mjlab.robot import DEFAULT_JOINT_POS
-from zbot_rl_mjlab.tasks.transformation.mirror_actions import (
+from zbot_rl_mjlab.tasks.transformation.actions import (
     MirroredJointTargetRateAction,
     MirroredJointTargetRateActionCfg,
     expand_mirror,

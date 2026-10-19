@@ -1,4 +1,4 @@
-"""Optional reverse-task observations expose current support without mutating it."""
+"""反向任务的可选观测提供当前支撑状态，且不修改该状态。"""
 
 from types import SimpleNamespace
 
@@ -185,7 +185,7 @@ def test_configuration_isolation_preserves_forward_task_and_fresh_defaults():
 def test_eval_flag_selects_support_observation_config_without_starting_simulator(
     monkeypatch,
 ):
-    import transformation_eval
+    from scripts import transformation_eval
 
     class CapturedConfig(Exception):
         pass
@@ -202,7 +202,7 @@ def test_eval_flag_selects_support_observation_config_without_starting_simulator
 
 
 def test_eval_coarse_pose_flag_is_forwarded_without_starting_simulator(monkeypatch):
-    import transformation_eval
+    from scripts import transformation_eval
 
     class CapturedConfig(Exception):
         pass

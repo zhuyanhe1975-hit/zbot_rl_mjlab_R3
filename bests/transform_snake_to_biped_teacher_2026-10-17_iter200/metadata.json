@@ -4,7 +4,7 @@
   "source_run": "logs/rsl_rl/zbot_transform_snake_to_biped_teacher/2026-10-17_17-24-59",
   "source_checkpoint": "logs/rsl_rl/zbot_transform_snake_to_biped_teacher/2026-10-17_17-24-59/model_200.pt",
   "iteration": 200,
-  "user_assessment": "User observed successful recovery from randomized longitudinal roll and requested archival.",
+  "user_assessment": "用户观察到机器人能够从随机纵向横滚姿态成功恢复，并要求归档。",
   "architecture": {
     "actor_observations": 36,
     "critic_observations": 44,
@@ -61,7 +61,7 @@
       3.830498218536377
     ]
   },
-  "source_snapshot": "source_snapshot/src, source_snapshot/assets/zbot_6dof, play.py and transformation_eval.py; current code at archival, not a complete environment or history. Play default seed changed to -1 after training; evaluation explicitly uses seed 42.",
+  "source_snapshot": "原始源码、机器人资源及播放与评估入口已保存在项目外完整归档；这些是归档时的代码，不包含完整运行环境或历史。训练后，回放的默认随机种子改为 -1；评估明确使用种子 42。",
   "dependencies": {
     "torch": "2.14.0",
     "mujoco": "3.11.0",
@@ -73,9 +73,9 @@
   "git_head": "4c1be1464c0c798bd9a1ad6261ea405443a40839",
   "working_tree_dirty": true,
   "not_tested": [
-    "Hardware",
-    "External force/torque robustness",
-    "Longer than 16 seconds",
-    "Seeds beyond the saved 16-environment evaluation"
+    "硬件",
+    "外力／外力矩鲁棒性",
+    "超过 16 秒的运行",
+    "已保存的 16 环境评估之外的随机种子"
   ]
 }

@@ -1,4 +1,4 @@
-"""Explicit native-Beta production entry remains separate from Gaussian tasks."""
+"""显式的原生 Beta 正式入口与高斯任务保持分离。"""
 
 import io
 
@@ -15,8 +15,8 @@ from zbot_rl_mjlab.experiments.transformation import (
     SnakeToBiped,
     SnakeToBipedBeta,
 )
+from zbot_rl_mjlab.rl import SnakeToBipedHotRewardRunner
 from zbot_rl_mjlab.tasks.transformation import snake_to_biped as reverse
-from zbot_rl_mjlab.tasks.transformation.hot_rewards import SnakeToBipedHotRewardRunner
 from zbot_rl_mjlab.tasks.transformation.reverse_observations import (
     reserved_hold_observation,
 )
@@ -118,7 +118,7 @@ def test_real_cpu_beta_actor_strict_checkpoint_load_returns_six_bounded_actions(
     assert result.shape == (3, 6)
     assert torch.isfinite(result).all() and result.abs().le(1).all()
     torch.testing.assert_close(result, actor(obs))
-    # Native export retains the Beta mean conversion, not the 12-value raw head.
+    # 原生导出保留 Beta 均值转换，不直接输出含 12 个值的原始输出头。
     torch.testing.assert_close(restored.as_onnx(verbose=False)(obs["actor"]), result)
     gaussian, _ = make_actor(reverse.TASK_ID)
     assert isinstance(gaussian.distribution, GaussianDistribution)
@@ -127,7 +127,7 @@ def test_real_cpu_beta_actor_strict_checkpoint_load_returns_six_bounded_actions(
 
 
 def test_beta_eval_uses_native_task_configuration_and_reverse_options(monkeypatch):
-    import transformation_eval
+    from scripts import transformation_eval
 
     class CapturedConfig(Exception):
         pass

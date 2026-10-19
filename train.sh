@@ -78,6 +78,46 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
 #   --agent.max-iterations 200
 
 # 12、蛇足双向变形：随机蛇形/双足初态，+1站立 / -1爬下，37/45维观测。
-python train.py Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional \
+# python train.py Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 600
+
+# 13、综合运动：多教师蒸馏预热，随后联合强化学习。
+# python train.py Mjlab-Zbot-6dof-Universal-Locomotion \
+#   --agent.resume True \
+#   --agent.load-run 2026-10-18_11-17-41_final_objective_check \
+#   --agent.load-checkpoint model_698.pt \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 1200
+
+# 14、综合运动：多教师蒸馏预热，随后联合强化学习。
+# python train.py Mjlab-Zbot-6dof-Universal-Locomotion-Deploy \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 3000
+
+# python train.py Mjlab-Zbot-6dof-Universal-Locomotion-Deploy \
+#   --agent.resume True \
+#   --agent.load-run 2026-10-18_12-45-51_final_student_straighten_relearn \
+#   --agent.load-checkpoint model_500.pt \
+#   --agent.run-name speed_course \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 3000
+
+# python train.py Mjlab-Zbot-6dof-Universal-Locomotion-Deploy \
+#   --agent.resume True \
+#   --agent.load-run 2026-10-18_13-23-48_speed_course \
+#   --agent.load-checkpoint model_1000.pt \
+#   --agent.run-name directional_course_v2 \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 300
+
+# 15、蛇形运动：覆盖前进、后退、左右侧移、双向转动及组合运动
+# python train.py Mjlab-Zbot-6dof-Snake-Omni-Teacher \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 500 \
+#   --agent.run-name translation_stall_v2
+
+python train.py Mjlab-Zbot-6dof-Snake-Omni-Teacher \
   --env.scene.num-envs 8192 \
-  --agent.max-iterations 600
+  --agent.max-iterations 500 \
+  --agent.run-name beta_body_v3

@@ -1,53 +1,50 @@
-"""Walking with commanded stepping frequency, as its own experiment for reward tuning.
+"""将指令步频行走独立为实验，便于调整奖励。
 
-This derives from ``FlatWalking`` (same observations, rewards and weights) but is
-registered as a separate task with its own experiment name, so editing the table below only
-changes this task and never the checkpoints, logs or recipes of ``Mjlab-Zbot-6dof-Walking``.
+继承 ``FlatWalking``（观测、奖励及权重相同），但使用独立任务和实验名注册，
+因此修改下表仅影响本任务，不影响 ``Mjlab-Zbot-6dof-Walking`` 的检查点、日志或配方。
 
-Every reward weight and every reward parameter lives in ``REWARD_WEIGHTS`` / ``REWARD_PARAMS``.
-The values are the ones ``Walking`` has now; ``tests/test_walking_tuning.py`` checks that this
-task starts identical to ``Walking`` apart from the frequency range and the training schedule,
-so a failing test after you edit the tables just means you have tuned something on purpose.
+全部奖励权重和参数均位于 ``REWARD_WEIGHTS``／``REWARD_PARAMS``。
+当前值与 ``Walking`` 相同；``tests/test_walking_tuning.py`` 验证本任务初始配置除
+步频范围和训练计划外均与 ``Walking`` 一致，因此改表后测试失败可能是主动调参的结果。
 
-The stepping frequency is the commanded one: the policy sees the phase (sin, cos) and the
-frequency, and ``frequency_tracking`` rewards matching the left/right support force to that
-phase.  The frequency range below replaces the 0.5-1.5 Hz of the base recipe with the
-0.25-1.0 Hz range that ``train.sh`` passes on the command line.
+这里的步频由指令指定：策略可见相位（sin、cos）和频率，``frequency_tracking`` 奖励
+左右支撑力与该相位一致。下方步频范围将基础配方的 0.5–1.5 Hz 替换为
+``train.sh`` 命令行使用的 0.25–1.0 Hz。
 """
 
 from .base import RewardEdit
-from .flat_walking import FlatWalking
+from .walking import FlatWalking
 
 WALKING_TUNING_TASK_ID = "Mjlab-Zbot-6dof-Walking-Tuning"
 
-# Commanded stepping frequency range (Hz) and the training schedule.
+# 指令步频范围（Hz）与训练计划。
 STEP_FREQUENCY_RANGE = (0.25, 1.0)
 NUM_ENVS = 8192
 MAX_ITERATIONS = 600
 
-# Reward weights.  Positive terms are rewards, negative terms are penalties.
+# 奖励权重：正数为奖励，负数为惩罚。
 REWARD_WEIGHTS = {
-    "frequency_tracking": 1.5,  # left/right support force follows the commanded phase
-    "swing_clearance": 0.5,  # swing foot reaches the target height
-    "forward_velocity": 2.0,  # bounded "go forward" reward, no target speed
-    "lateral_velocity": -0.2,  # sideways speed
-    "upright": 0.2,  # body stays upright
-    "yaw_drift": -0.2,  # heading drift from the start direction
-    "support_foot_slip": -5.0,  # a loaded foot sliding or twisting
-    "soft_landing": -0.02,  # peak landing force
-    "foot_nonparallel_ground": -5.0,  # loaded sole not parallel to the ground
-    "action_rate": -0.05,  # change of action between steps
-    "joint_limits": -0.1,  # joint position limit violations
-    "joint_acceleration": -0.0005,  # sum of absolute joint accelerations
+    "frequency_tracking": 1.5,  # 左右支撑力跟随指令相位
+    "swing_clearance": 0.5,  # 摆动足达到目标高度
+    "forward_velocity": 2.0,  # 有界前进奖励，不指定目标速度
+    "lateral_velocity": -0.2,  # 横向速度
+    "upright": 0.2,  # 身体保持直立
+    "yaw_drift": -0.2,  # 相对初始方向的航向漂移
+    "support_foot_slip": -5.0,  # 承重足滑动或扭转
+    "soft_landing": -0.02,  # 着地峰值力
+    "foot_nonparallel_ground": -5.0,  # 承重足底不平行于地面
+    "action_rate": -0.05,  # 相邻控制步的动作变化
+    "joint_limits": -0.1,  # 关节位置超限
+    "joint_acceleration": -0.0005,  # 关节加速度绝对值之和
 }
 
-# Reward shaping parameters, only for terms that have tunable ones.  The values written
-# here equal the function defaults, so listing them does not change behaviour; terms not
-# listed keep the parameters of the base recipe.
+# 奖励塑形参数，仅列出可调参数的项。此处取值与函数默认值相同，
+# 因此显式列出不会改变行为；未列出的奖励项
+# 沿用基础配方参数。
 REWARD_PARAMS = {
-    "forward_velocity": {"scale": 0.2},  # speed (m/s) at which the reward reaches 63 %
-    "swing_clearance": {"target": 0.05},  # swing foot target height (m), width 0.04 m
-    "foot_nonparallel_ground": {"std": 0.1},  # tilt tolerance of the flatness penalty
+    "forward_velocity": {"scale": 0.2},  # 奖励达到 63 % 时的速度（m/s）
+    "swing_clearance": {"target": 0.05},  # 摆动足目标高度（m），宽度为 0.04 m
+    "foot_nonparallel_ground": {"std": 0.1},  # 平足惩罚的倾角容差
 }
 
 
@@ -59,7 +56,7 @@ class WalkingTuning(FlatWalking):
     max_iterations = MAX_ITERATIONS
 
     def reward_edit(self):
-        # Applied after FlatWalking's own edit, so these tables have the last word.
+        # 在 FlatWalking 自身改动之后应用，因此这些表最终生效。
         return RewardEdit(weights=REWARD_WEIGHTS, params=REWARD_PARAMS)
 
     def edit(self, cfg, play):

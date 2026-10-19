@@ -1,4 +1,4 @@
-"""Teacher schema, base-vs-CoM semantics, and privileged-critic isolation."""
+"""教师策略结构、基座与质心语义，以及特权价值网络的隔离性。"""
 
 import math
 from types import SimpleNamespace
@@ -12,6 +12,7 @@ from zbot_rl_mjlab.experiments.transformation import (
     SnakeToBipedTeacher,
 )
 from zbot_rl_mjlab.tasks.transformation import teacher_observations as obs
+from zbot_rl_mjlab.tasks.transformation.robust import RobustSnakeToBipedEnvCfg
 
 
 def assemble(group, env):
@@ -32,6 +33,7 @@ def teacher_env():
         pass
 
     cfg = SnakeToBipedTeacher().build_env()
+    assert isinstance(cfg, RobustSnakeToBipedEnvCfg)
     origins = torch.tensor([[10.0, 20.0, 1.0], [30.0, 40.0, 2.0]])
     position = origins[:, None, :].expand(2, 3, 3).clone()
     position[:, 1, 2] += torch.tensor([0.2, 0.264])
@@ -56,6 +58,7 @@ def teacher_env():
 def test_teacher_is_separate_from_legacy_robust_and_preserves_objective(play):
     cfg = load_env_cfg(obs.TEACHER_TASK_ID, play=play)
     original = SnakeToBipedRobust().build_env(play=play)
+    assert isinstance(original, RobustSnakeToBipedEnvCfg)
     assert cfg.pretrained_checkpoint is None
     assert cfg.rewards == original.rewards and cfg.terminations == original.terminations
     assert cfg.initial_roll_range_deg == original.initial_roll_range_deg

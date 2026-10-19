@@ -1,32 +1,7 @@
-"""Base class of every Zbot training experiment.
+"""中性实验模板：创建任务配置、依次应用配方与扩展，再统一注册。
 
-An experiment is a class.  The shared part (the Zbot environment and PPO configuration from
-``env_cfg.py``) lives here; a subclass states only what it changes relative to its parent:
-
-* ``reward_edit()``: the rewards it removes, re-weights, re-parameterizes, adds or replaces
-  (see :class:`RewardEdit`);
-* ``edit(cfg, play)``: anything else in the environment (commands, observations, events,
-  curriculum, actions...);
-* class attributes ``task_id``, ``experiment_name``, ``train_envs``, ``step_frequency``,
-  ``max_iterations``;
-* ``addons``: optional add-ons from ``addons.py`` (disturbance, domain randomization,
-  observation noise, action delay, ...), which work on any experiment.
-
-Building a configuration walks the inheritance chain from the most basic class to the most
-derived one and applies each class's own ``reward_edit`` then ``edit``, so a subclass sees
-exactly what its parents produced.  The add-ons of the whole chain are applied last, in a
-fixed order.  A subclass never repeats its parents' edits.
-
-    class VelocityEnergyTracking(VelocityTracking):
-        task_id = "Mjlab-Zbot-6dof-Velocity-Energy-Tracking-Walking"
-        experiment_name = "zbot_velocity_energy_tracking"
-
-        def reward_edit(self):
-            return RewardEdit(
-                remove=("frequency_tracking",),
-                weights={"lateral_velocity": -0.5},
-                terms={"joint_energy": RewardTermCfg(...)},
-            )
+每个类仅通过自身的 reward_edit/edit 声明增量，基类按 MRO 自动执行一次，
+钩子内部不再调用 super().edit()。任务工厂负责环境行为，实验负责训练方案。
 """
 
 from dataclasses import dataclass, field
@@ -35,21 +10,19 @@ from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.tasks.registry import register_mjlab_task
 
-from ..env_cfg import env_cfg, ppo_cfg
-
 
 @dataclass
 class RewardEdit:
-    """Changes one experiment makes to the rewards it inherits, applied in this order."""
+    """实验对继承奖励所作的改动，按以下顺序应用。"""
 
     remove: tuple[str, ...] = ()
-    """Reward names to delete."""
+    """需要删除的奖励名称。"""
     weights: dict[str, float] = field(default_factory=dict)
-    """New weight for an inherited reward."""
+    """继承奖励的新权重。"""
     params: dict[str, dict] = field(default_factory=dict)
-    """Keyword arguments to merge into an inherited reward's parameters."""
+    """合并到继承奖励参数中的关键字参数。"""
     terms: dict[str, RewardTermCfg] = field(default_factory=dict)
-    """Rewards to add; a name that already exists is replaced in its place."""
+    """需要添加的奖励；名称已存在时原位替换。"""
 
     def apply(self, rewards):
         for name in self.remove:
@@ -72,23 +45,23 @@ class RewardEdit:
 
 
 class Experiment:
-    """One registered training task: the shared Zbot setup plus a subclass's edits."""
+    """一个已注册训练任务：公共 Zbot 配置叠加子类改动。"""
 
     task_id: str
     experiment_name: str
     train_envs: int | None = None
-    """Parallel environments for training (playback always uses 1); None keeps env_cfg's."""
-    step_frequency: tuple[float, float] | None = None
-    """Commanded stepping frequency range in Hz; None keeps env_cfg's."""
+    """训练并行环境数（回放始终为 1）；None 表示沿用 env_cfg 的设置。"""
     max_iterations: int | None = None
-    """PPO iterations; None keeps the shared default."""
+    """PPO 迭代数；None 表示沿用公共默认值。"""
+    runner_cls: type | None = None
+    """注册时选用的训练运行器；None 表示使用 MJLab 默认值。"""
     addons: tuple = ()
-    """Optional add-ons (``addons.py``) this class adds on top of its parents' ones."""
+    """本类在父类基础上添加的可选扩展（``addons.py``）。"""
 
     def collected_addons(self):
-        """Add-ons of this class and its parents, one per type, in their fixed order.
+        """本类及父类的扩展，每种类型保留一个，并按固定顺序排列。
 
-        A class listing an add-on of a type a parent already has replaces the parent's.
+        子类声明与父类同类型的扩展时，将替换父类的对应扩展。
         """
         chosen = {}
         for cls in reversed(type(self).__mro__):
@@ -96,13 +69,15 @@ class Experiment:
                 chosen[type(addon)] = addon
         return sorted(chosen.values(), key=lambda addon: addon.order)
 
+    def create_env(self, play=False) -> ManagerBasedRlEnvCfg:
+        """由任务族提供正确配置类型的基础环境。"""
+        raise NotImplementedError("实验必须提供任务环境工厂")
+
     def build_env(self, play=False) -> ManagerBasedRlEnvCfg:
-        cfg = env_cfg(play=play)
+        cfg = self.create_env(play=play)
         if self.train_envs is not None and not play:
             cfg.scene.num_envs = self.train_envs
-        if self.step_frequency is not None:
-            cfg.step_frequency_min, cfg.step_frequency_max = self.step_frequency
-        # Base first: each class applies only its own hooks (not inherited ones).
+        # 先应用基类：每个类仅执行自身钩子，不执行继承钩子。
         for cls in reversed(type(self).__mro__):
             reward_edit = cls.__dict__.get("reward_edit")
             if reward_edit is not None:
@@ -110,12 +85,14 @@ class Experiment:
             edit = cls.__dict__.get("edit")
             if edit is not None:
                 edit(self, cfg, play)
-        # Add-ons last, so they act on the finished experiment whatever it is.
+        # 最后应用扩展，使其作用于完整构建的实验。
         for addon in self.collected_addons():
             addon.apply(cfg, play)
         return cfg
 
     def build_ppo(self):
+        from ..rl import ppo_cfg
+
         cfg = ppo_cfg()
         cfg.experiment_name = self.experiment_name
         if self.max_iterations is not None:
@@ -128,14 +105,29 @@ class Experiment:
             env_cfg=self.build_env(),
             play_env_cfg=self.build_env(play=True),
             rl_cfg=self.build_ppo(),
+            runner_cls=self.runner_cls,
         )
 
 
-def variant(base, task_id, experiment_name, *addons, **attributes):
-    """A new experiment: ``base`` plus add-ons, under its own task id and experiment name.
+class WalkingExperiment(Experiment):
+    """行走任务族仅负责创建基础环境和设置指令步频。"""
 
-    Any experiment can become a disturbed or deployment-oriented one without a new class
-    or file; ``attributes`` overrides class attributes such as ``max_iterations``.
+    step_frequency: tuple[float, float] | None = None
+
+    def create_env(self, play=False):
+        from ..tasks.walking.env_cfg import env_cfg
+
+        cfg = env_cfg(play=play)
+        if self.step_frequency is not None:
+            cfg.step_frequency_min, cfg.step_frequency_max = self.step_frequency
+        return cfg
+
+
+def variant(base, task_id, experiment_name, *addons, **attributes):
+    """新实验：在 ``base`` 上叠加扩展，并使用独立的任务 ID 和实验名。
+
+    无需新建类或文件，即可将任意实验改为受扰动或面向部署的实验；
+    ``attributes`` 可覆盖 ``max_iterations`` 等类属性。
 
         variant(OmniVelocityEnergy, "Mjlab-Zbot-6dof-Omni-Disturbed-Walking",
                 "zbot_omni_disturbed", *DISTURBED)

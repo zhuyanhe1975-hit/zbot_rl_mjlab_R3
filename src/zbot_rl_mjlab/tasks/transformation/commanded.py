@@ -1,4 +1,4 @@
-"""A single mirrored teacher controlled by stand (+1) / snake (-1) commands."""
+"""由站立（+1）／蛇形（-1）指令控制的单个镜像教师策略。"""
 
 import math
 from dataclasses import dataclass
@@ -7,6 +7,10 @@ from typing import Any
 import torch
 from mjlab.envs import mdp as common_mdp
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
+from mjlab.managers.metrics_manager import MetricsTermCfg
+from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
+from mjlab.managers.reward_manager import RewardTermCfg
+from mjlab.sensor import ContactMatch, ContactSensorCfg
 
 from . import mdp, robust
 from . import snake_to_biped as standing
@@ -29,7 +33,7 @@ class BidirectionalEnvCfg(robust.RobustSnakeToBipedEnvCfg):
 
 @dataclass(kw_only=True)
 class TransformCommandCfg(CommandTermCfg):
-    # Start opposite the sampled source; automatically alternate after success.
+    # 从采样起始姿态的相反目标开始；成功后自动交替目标。
     mode: str = "source"
     auto_switch_on_success: bool = True
     auto_switch_joint_tolerance: float = 0.15
@@ -39,7 +43,7 @@ class TransformCommandCfg(CommandTermCfg):
 
 
 class TransformCommand(CommandTerm):
-    _env: Any  # Environment carries this task's lazily allocated reset state.
+    _env: Any  # 环境保存本任务按需分配的重置状态。
     cfg: TransformCommandCfg
 
     def __init__(self, cfg: TransformCommandCfg, env):
@@ -75,8 +79,8 @@ class TransformCommand(CommandTerm):
         pass
 
     def _update_command(self, env_ids):
-        # MJLab calls this after rewards/metrics and before the new observation.
-        # Reset-scoped updates must never advance other environments.
+        # MJLab 在奖励／指标计算之后、新观测生成之前调用。
+        # 仅针对重置环境的更新绝不能推进其他环境。
         if env_ids is not None or not self.cfg.auto_switch_on_success or self.cfg.mode != "source":
             return
         ready = (self.switch_hold_time >= self._env.cfg.success_hold_s - 1e-5)
@@ -95,7 +99,7 @@ class TransformCommand(CommandTerm):
         clear_command_memory(self._env, ids)
 
     def set_target(self, target: str, env_ids=None):
-        """Change the target in place, without writing robot poses or action targets."""
+        """原地切换目标，不写入机器人姿态或动作目标。"""
         if target not in ("stand", "snake"):
             raise ValueError("target must be stand or snake")
         ids = torch.arange(self.num_envs, device=self.device) if env_ids is None else env_ids
@@ -110,14 +114,14 @@ class TransformCommand(CommandTerm):
 
 
 def play_time_out(env):
-    """Keep automatic demos until a keyboard command starts manual control."""
+    """键盘指令开始手动控制之前，保持自动演示。"""
     term = env.command_manager.get_term("transform")
     return common_mdp.time_out(env) & ~term.manual_control
 
 
 
 def play_failure(env, condition):
-    """Keyboard commands preserve the physical trajectory even after a fall."""
+    """键盘指令即使在倒下后也保留连续的物理轨迹。"""
     triggered = condition(env)
     term = env.command_manager.get_term("transform")
     return triggered & ~term.manual_control
@@ -137,34 +141,27 @@ def goal_joints(env):
 
 
 def clear_command_memory(env, ids):
-    """Clear target-specific history while preserving the actual dynamic state."""
+    """清除目标相关历史，同时保留实际动力学状态。"""
     if not len(ids):
         return
     task = robust.fall_retry_state(env)
     transition = mdp.state(env)
     with torch.inference_mode():
-        for name in ("armed", "recovering", "motion_started", "had_base_contact", "base_left_ground", "early_base_fallen"):
-            getattr(task, name)[ids] = False
-        for name in ("low_time", "snake_time", "still_time"):
-            getattr(task, name)[ids] = 0
-        for name in ("last_step", "contact_last_step", "still_last_step"):
-            getattr(task, name)[ids] = env.common_step_counter
-        task.peak_base_height[ids] = -math.inf
+        task.reset(ids, env.common_step_counter)
         transition.reset(ids, env.common_step_counter)
         env.command_manager.get_term("transform").switch_hold_time[ids] = 0
         if hasattr(env, "_standing_goal_valid"):
             env._standing_goal_valid[ids] = False
-        # Command changes can happen between physics frames in interactive play.
+        # 交互回放时，指令可能在两个物理帧之间改变。
         env._observation_generation = getattr(env, "_observation_generation", 0) + 1
 
 
 
 def sample_initial_standing(env, ids):
-    """Fill reset slots using the actual live target directions.
+    """根据当前实际目标方向分配重置名额。
 
-    A short failing stand episode must not turn into a long descent episode and
-    progressively remove stand examples from the rollout buffer. Random ranks
-    choose which resetting worlds fill the currently vacant direction slots.
+    失败的短站立回合不应变成长下降回合，进而逐步挤掉采样缓冲区中的站立样本。
+    通过随机排序，选择需要重置的环境来填补当前空缺的方向名额。
     """
     fraction = env.cfg.initial_standing_fraction
     if not math.isfinite(fraction) or not 0 <= fraction <= 1:
@@ -174,8 +171,8 @@ def sample_initial_standing(env, ids):
         return torch.full((len(ids),), mode == "snake", dtype=torch.bool, device=env.device)
     if env.num_envs == 1:
         return torch.rand(len(ids), device=env.device) < fraction
-    # Source flags describe reset poses and become stale after successful flips.
-    # A standing source receives the snake target, so count current snake goals.
+    # 起始标志描述重置姿态，成功翻转后便会过时。
+    # 站立起始姿态对应蛇形目标，因此统计当前蛇形目标数。
     current = command(env)[:, 0] < 0
     remaining = current.sum() - current[ids].sum()
     desired = int(env.num_envs * fraction + 0.5)
@@ -184,13 +181,13 @@ def sample_initial_standing(env, ids):
 
 
 def reset_command_transition(env, env_ids):
-    """Mix source poses; command manager samples the opposite goal afterwards."""
+    """混合起始姿态；随后由指令管理器采样相反目标。"""
     fraction = env.cfg.initial_standing_fraction
     if not math.isfinite(fraction) or not 0 <= fraction <= 1:
         raise ValueError("initial_standing_fraction must be in [0, 1]")
     ids = torch.arange(env.num_envs, device=env.device) if env_ids is None else env_ids
-    # Allocate persistent buffers in the caller's context before allowing writes
-    # to goal masks that may have been produced by inference-only policy steps.
+    # 先在调用方上下文中分配持久缓冲区，再允许写入目标掩码；
+    # 这些掩码可能由仅推理的策略步生成。
     robust.fall_retry_state(env)
     mdp.state(env)
     with torch.inference_mode():
@@ -204,7 +201,7 @@ def reset_command_transition(env, env_ids):
         return
     robot = env.scene["robot"]
     root = robot.data.default_root_state[standing_ids].clone()
-    # The root is foot_0: identity is the archived upright standing orientation.
+    # 根部为 foot_0：单位四元数对应归档中的直立站立方向。
     root[:, :3] = env.scene.env_origins[standing_ids] + root.new_tensor([0, -0.06, 0])
     if not hasattr(env, "_standing_reset_min_z"):
         env._standing_reset_min_z = collision_radial_envelope(tuple(env.cfg.standing_joint_pos))[1]
@@ -219,12 +216,12 @@ def reset_command_transition(env, env_ids):
 
 
 def actor_state(env):
-    # Existing 36 columns stay identical, including the fixed standing reference.
+    # 原有 36 列保持不变，包括固定站立参考。
     return torch.cat((teacher_actor_state(env), command(env)), dim=-1)
 
 
 def critic_state(env):
-    # Keep the shared teacher state order; append the explicit direction command.
+    # 保留公共教师状态顺序；末尾追加显式方向指令。
     return torch.cat((teacher_critic_state(env), command(env)), dim=-1)
 
 
@@ -238,20 +235,20 @@ def pose_reward(env):
         raise ValueError("standing_pose_gravity_scale must be finite and nonnegative")
     cost = torch.where(error < scale, 0.5 * error.square() / scale, error - 0.5 * scale)
     joint_cost = torch.nan_to_num(cost, nan=100., posinf=100.).mean(-1)
-    # Joint angles alone cannot distinguish an upright biped from one lying down.
+    # 仅靠关节角无法区分直立双足与躺倒姿态。
     gravity_cost = standing.base_gravity_alignment_cost(env)
     return -(joint_cost + torch.where(wants_stand(env), gravity_scale * gravity_cost, 0.0))
 
 
 def height_reward(env):
     progress = standing.base_height_progress_reward(env)
-    # Stand at full height; snake at the existing low snake height.
+    # 站立采用完整高度；蛇形采用既有低位蛇形高度。
     return torch.where(wants_stand(env), progress, (1 - progress).clamp(-1, 1))
 
 
 def velocity_reward(env, target_speed=0.15, pose_error_range=(0.2, 0.8)):
-    # Preserve the one-shot height latch, but do not let folded lying poses
-    # cancel the drive to rise merely by matching the target joint angles.
+    # 保留一次性高度锁存，但不能让折叠躺倒姿态
+    # 仅因匹配目标关节角就消除上升驱动力。
     value = robust.initial_ascent_velocity_reward(env, target_speed, None)
     if pose_error_range is not None:
         zero_error, full_error = pose_error_range
@@ -275,20 +272,20 @@ def sole_reward(env, angle_power=1.0):
 
 
 def stand_finish_joint_speed_cost(env):
-    """Penalize actual joint speed only once the standing base is high enough."""
+    """仅当站立基座足够高时，才惩罚实际关节速度。"""
     finishing = wants_stand(env) & (standing.base_height(env) >= env.cfg.ascent_reward_stop_height)
     cost = env.scene["robot"].data.joint_vel.square().mean(-1)
     return torch.where(finishing, cost, 0.0)
 
 
 def ground_force_peak(env):
-    """Peak per-body ground resultant across every substep of the policy step."""
+    """策略步全部子步中各刚体地面合力的峰值。"""
     history = env.scene["transform_ground_contact"].data.force_history
     return history.norm(dim=-1).flatten(1).amax(-1)
 
 
 def descent_ground_impact_cost(env, max_body_weights=2.0):
-    """Penalize excess ground force during snake commands, leaving support free."""
+    """在蛇形指令期间惩罚超额地面作用力，正常支撑不受惩罚。"""
     if not math.isfinite(max_body_weights) or max_body_weights <= 1:
         raise ValueError("max_body_weights must be finite and greater than one")
     gravity = math.sqrt(sum(component**2 for component in env.cfg.sim.mujoco.gravity))
@@ -313,8 +310,7 @@ def update_state(env):
     task = mdp.state(env)
     fresh = task.last_step != env.common_step_counter
     valid = final_condition(env)
-    held = torch.where(valid, task.hold_time + env.step_dt, 0.0)
-    task.hold_time.copy_(torch.where(fresh, held, task.hold_time))
+    task.advance_hold(valid, env.common_step_counter, env.step_dt, commit=False)
     term = env.command_manager.get_term("transform")
     switch_valid = auto_switch_condition(env) & ~term.manual_control
     switch_held = torch.where(switch_valid, term.switch_hold_time + env.step_dt, 0.0)
@@ -330,7 +326,7 @@ def success(env):
 
 
 def fallen(env):
-    """Arm at low height, but require real loss from the peak before resetting."""
+    """低高度时启用检测，但重置前要求相对峰值发生实际下降。"""
     cfg = env.cfg
     for name in ("fall_retry_arm_height", "fall_retry_height", "fall_retry_drop_threshold", "fall_retry_hold_s"):
         if not math.isfinite(getattr(cfg, name)) or getattr(cfg, name) <= 0:
@@ -353,7 +349,7 @@ def fallen(env):
 
 
 def early_contact(env):
-    """A meaningful rise and fall must precede a base-contact failure."""
+    """必须先出现显著上升和下降，再判定基座接触失败。"""
     cfg = env.cfg
     if not (math.isfinite(cfg.early_contact_arm_height) and 0 < cfg.early_contact_arm_height < cfg.standing_base_height):
         raise ValueError("early_contact_arm_height must be positive and below standing_base_height")
@@ -393,7 +389,7 @@ def abandoned_exploration(env):
     quiet &= data.body_link_ang_vel_w[:, base_id].norm(dim=-1) < cfg.stagnation_angular_speed
     term = env.command_manager.get_term("transform")
     elapsed = (env.common_step_counter - term.start_step) * env.step_dt
-    # Use command age, not episode age, to allow a new action entrance after switches.
+    # 使用指令持续时间而非回合持续时间，以便切换后允许重新进入动作。
     eligible = elapsed >= cfg.stagnation_grace_s
     fresh = task.still_last_step != env.common_step_counter
     duration = torch.where(quiet & ~near_goal & eligible, task.still_time + env.step_dt, 0.0)
@@ -411,6 +407,52 @@ def command_metric(env):
 
 
 def stand_env_fraction(env):
-    # Global occupancy is repeated per env so episode-based logging does not
-    # itself become biased by the very different episode lengths.
+    # 将全局占比复制到各环境，避免按回合记录日志时
+    # 因回合长度悬殊而产生偏差。
     return wants_stand(env).float().mean().expand(env.num_envs)
+
+
+def configure_bidirectional(cfg, play=False):
+    """在共享镜像任务上安装双向指令、奖励、终止和指标。"""
+    cfg.pretrained_checkpoint = None
+    cfg.initial_roll_range_deg = (-180.0, 180.0)
+    cfg.early_contact_drop_threshold = 0.01
+    cfg.fall_retry_arm_height = 0.05
+    cfg.episode_length_s = 16.0
+    cfg.commands = {"transform": TransformCommandCfg(resampling_time_range=(1e9, 1e9))}
+    cfg.observations = {
+        "actor": ObservationGroupCfg(terms={"command_teacher_state": ObservationTermCfg(func=actor_state)}, enable_corruption=False),
+        "critic": ObservationGroupCfg(terms={"command_teacher_critic_state": ObservationTermCfg(func=critic_state)}, enable_corruption=False),
+    }
+    cfg.events["reset_transition"].func = reset_command_transition
+    for name, func in (("joint_standing", pose_reward), ("base_height_progress", height_reward), ("base_ascent_velocity", velocity_reward), ("sole_ground_alignment", sole_reward)):
+        cfg.rewards[name].func = func
+    cfg.rewards["stand_finish_joint_speed"] = RewardTermCfg(
+        func=stand_finish_joint_speed_cost, weight=-0.02,
+    )
+    cfg.rewards["descent_ground_impact"] = RewardTermCfg(
+        func=descent_ground_impact_cost, weight=-2.0,
+        params={"max_body_weights": 2.0},
+    )
+    cfg.scene.sensors = (*cfg.scene.sensors, ContactSensorCfg(
+        name="transform_ground_contact",
+        primary=ContactMatch(mode="body", pattern=".*", entity="robot"),
+        secondary=ContactMatch(mode="body", pattern="terrain"),
+        fields=("force",), reduce="netforce", history_length=cfg.decimation,
+    ))
+    for name, func in (("update_state", update_state), ("fallen_after_standing", fallen), ("early_base_ground_contact", early_contact), ("abandoned_exploration", abandoned_exploration)):
+        cfg.terminations[name].func = func
+    if play:
+        cfg.terminations["time_out"].func = play_time_out
+        for name in ("fallen_after_standing", "early_base_ground_contact", "abandoned_exploration"):
+            term = cfg.terminations[name]
+            term.params = {"condition": term.func}
+            term.func = play_failure
+    cfg.metrics["joint_error"].func = joint_error
+    cfg.metrics["success"].func = success
+    cfg.metrics["success"].reduce = "max"
+    cfg.metrics["transform_command"] = MetricsTermCfg(func=command_metric, reduce="last")
+    cfg.metrics["stand_env_fraction"] = MetricsTermCfg(func=stand_env_fraction)
+    cfg.metrics["stand_finish_joint_speed"] = MetricsTermCfg(func=stand_finish_joint_speed_cost)
+    cfg.metrics["ground_force_peak_n"] = MetricsTermCfg(func=ground_force_peak, reduce="max")
+    return cfg

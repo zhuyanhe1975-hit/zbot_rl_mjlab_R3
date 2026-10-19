@@ -2,14 +2,14 @@ from types import SimpleNamespace
 
 import torch
 
-from zbot_rl_mjlab.experiments import velocity_tracking as tracking
-from zbot_rl_mjlab.experiments.flat_walking import FlatWalking
+from zbot_rl_mjlab.experiments.walking import FlatWalking, VelocityTracking
+from zbot_rl_mjlab.tasks.walking import mdp as tracking
 
 
 def test_tracking_inherits_flat_without_disturbances():
     for play in (False, True):
         flat = FlatWalking().build_env(play=play)
-        cfg = tracking.VelocityTracking().build_env(play=play)
+        cfg = VelocityTracking().build_env(play=play)
         assert cfg.events == flat.events
         assert cfg.scene.sensors == flat.scene.sensors
         assert (cfg.step_frequency_min, cfg.step_frequency_max) == (0.25, 1.0)
@@ -38,7 +38,7 @@ def test_tracking_penalizes_under_and_overspeed(monkeypatch):
         )
     )
     speeds = torch.tensor([[0.15], [0.10], [0.20], [-0.15]])
-    monkeypatch.setattr(tracking.mdp, "base_lin_vel", lambda env: speeds)
+    monkeypatch.setattr(tracking, "base_lin_vel", lambda env: speeds)
     score = tracking.track_forward_speed(env)
     assert score[0] == 1.0
     torch.testing.assert_close(score[1], score[2])

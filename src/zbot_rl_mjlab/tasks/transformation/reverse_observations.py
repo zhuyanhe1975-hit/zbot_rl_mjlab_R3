@@ -1,4 +1,4 @@
-"""Optional, read-only support feedback for the reverse transformation task."""
+"""反向变形任务可选的只读支撑反馈。"""
 
 import torch
 from mjlab.utils.lab_api.math import quat_apply_inverse
@@ -21,17 +21,17 @@ SUPPORT_OBSERVATION_COLUMNS = (
 
 
 def reserved_hold_observation(env):
-    """Keep the legacy one-column slot fixed at zero; success timers stay private."""
+    """旧版单列槽位保持为零；成功计时器不向策略公开。"""
     return torch.zeros(env.num_envs, 1, device=env.device)
 
 
 def support_observation(env):
-    """Return zero columns by default or the 13 columns listed above.
+    """默认返回零列，启用后返回上方列出的 13 列。
 
-    Signed angular rates (base frame, 10 rad/s scale), heights (0.1 m scale)
-    and downward cosines are clipped to [-1, 1]. Flags, elapsed violation
-    fraction, stage (1 -> 0, 2 -> 1) and ramp fraction are in [0, 1].
-    Reading observations never creates or advances support protection state.
+    有符号角速度（基座坐标系，尺度 10 rad/s）、高度（尺度 0.1 m）
+    和朝下余弦裁剪到 [-1, 1]。标志、持续违规比例、阶段
+    （1 → 0、2 → 1）与渐变比例位于 [0, 1]。
+    读取观测绝不创建或推进支撑保护状态。
     """
     if not env.cfg.support_observations:
         return torch.zeros(env.num_envs, 0, device=env.device)

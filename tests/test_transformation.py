@@ -1,4 +1,4 @@
-"""Independent joint zero-angle RL transformation, without reference or contact sensors."""
+"""独立关节零角度强化学习变形，无需参考运动或接触传感器。"""
 
 from types import SimpleNamespace
 
@@ -438,7 +438,7 @@ def test_registered_action_uses_model_limits_by_default_and_asset_allows_past_pi
 def test_transform_exploration_settings_do_not_change_walking_defaults():
     from mjlab.tasks.registry import load_rl_cfg
 
-    from zbot_rl_mjlab.env_cfg import ppo_cfg
+    from zbot_rl_mjlab.rl import ppo_cfg
 
     before = ppo_cfg()
     transformed = load_rl_cfg(TASK)

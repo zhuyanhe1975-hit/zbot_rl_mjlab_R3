@@ -4,8 +4,8 @@ from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 
 import zbot_rl_mjlab  # noqa: F401
 from zbot_rl_mjlab import cli
-from zbot_rl_mjlab.actions import DelayedJointPositionActionCfg
 from zbot_rl_mjlab.experiments import addons as ad
+from zbot_rl_mjlab.tasks.walking.actions import DelayedJointPositionActionCfg
 
 TASK = "Mjlab-Zbot-6dof-Velocity-Energy-Tracking-Walking"
 NATIVE = ["--env.scene.num-envs", "4096", "--agent.max-iterations", "500"]
@@ -13,7 +13,7 @@ NATIVE = ["--env.scene.num-envs", "4096", "--agent.max-iterations", "500"]
 
 @pytest.fixture(autouse=True)
 def restore_registry():
-    """apply_cli replaces a registered task; put the registry back after each test."""
+    """apply_cli 会替换已注册任务；每次测试后都应恢复注册表。"""
     saved = dict(registry._REGISTRY)
     yield
     registry._REGISTRY.clear()
@@ -44,7 +44,7 @@ def test_disturbance_and_domain_randomization_switches():
         "randomize_encoder_bias",
         "randomize_base_com",
     ]
-    assert events(play=True) == events()  # playback sees the same physics
+    assert events(play=True) == events()  # 回放使用相同的物理设置
 
 
 def test_tuning_options():
@@ -96,7 +96,7 @@ def test_an_experiment_with_its_own_addons_gets_them_replaced_not_duplicated():
     cfg = load_env_cfg(task)
     assert default == 0.25
     assert cfg.events["base_disturbance"].params["disturbed_fraction"] == 1.0
-    # Everything else the deployment task has is still there.
+    # 部署任务的其他配置均应保留。
     assert not set(ad.PRIVILEGED_TERMS) & set(cfg.observations["actor"].terms)
     assert "randomize_mass_inertia" in cfg.events
 

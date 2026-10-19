@@ -19,5 +19,5 @@
   "success_rate": 1.0,
   "min_final_hold_s": 11.78007984161377,
   "max_final_joint_error_rad": 0.054308801889419556,
-  "extended_60s_test": "not run; user requested prompt finish"
+  "extended_60s_test": "未运行；用户要求尽快完成"
 }

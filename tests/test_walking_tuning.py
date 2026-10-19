@@ -2,8 +2,8 @@ import pytest
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 
 import zbot_rl_mjlab  # noqa: F401
-from zbot_rl_mjlab.env_cfg import WALKING_TASK_ID
 from zbot_rl_mjlab.experiments import walking_tuning as tuning
+from zbot_rl_mjlab.tasks.walking.env_cfg import WALKING_TASK_ID
 
 TASK = tuning.WALKING_TUNING_TASK_ID
 
@@ -14,11 +14,9 @@ def rewards(task, play=False):
 
 @pytest.mark.parametrize("play", [False, True])
 def test_has_the_same_structure_as_walking(play):
-    """Same rewards (names, order, functions), observations and events as Walking.
+    """奖励（名称、顺序、函数）、观测和事件均与 Walking 相同。
 
-    Weights, reward parameters and the frequency range are the knobs this task exists to
-    tune, so they are free to differ.
-    """
+本任务用于调节权重、奖励参数和频率范围，因此允许这些值不同。"""
     base, new = rewards(WALKING_TASK_ID, play), rewards(TASK, play)
     assert list(base) == list(new)
     for name in base:
@@ -46,8 +44,8 @@ def test_has_its_own_experiment_name_and_schedule():
 
 
 def test_editing_the_tuning_task_does_not_touch_walking():
-    # load_env_cfg hands out deep copies, so changing one task's config in memory must not
-    # reach the registered configuration of the other, or even of the same task.
+    # load_env_cfg 返回深拷贝，因此在内存中修改某个任务的配置时，不得
+    # 影响其他任务的已注册配置，也不得影响该任务自身的已注册配置。
     first = load_env_cfg(TASK)
     first.rewards["forward_velocity"].weight = 123.0
     assert (

@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
+# 左侧原生 MuJoCo，右侧 MJLab；其余参数传给对比工具。
 set -euo pipefail
-source /home/yhzhu/AI/mjlab/.venv/bin/activate
-
-# 左: 原生 MuJoCo + PyTorch 推理；右: MJLab 推理。省略 --checkpoint 时取 logs/ 下最新的 model_*.pt。
-python viewer_compare.py \
-    --task Mjlab-Zbot-6dof-Velocity-Energy-Disturbed-Walking \
-    --target-speed 0.4 \
-    --force-scale 0 \
-    --torque-scale 0 \
-    "$@"
+PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+exec "$PROJECT_DIR/scripts/python.sh" "$PROJECT_DIR/scripts/viewer_compare.py" \
+  --task Mjlab-Zbot-6dof-Velocity-Energy-Disturbed-Walking \
+  --target-speed 0.4 --force-scale 0 --torque-scale 0 "$@"

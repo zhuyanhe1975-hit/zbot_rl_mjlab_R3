@@ -15,10 +15,6 @@
     <default class="module_joint">
       <joint type="hinge" pos="0 0 0" axis="0 0 1" limited="true" range="-6.28 6.28"/>
     </default>
-    <!-- <default class="position_servo">
-      <position kp="50" kv="5" ctrllimited="true" ctrlrange="-6.28 6.28"
-                forcelimited="true" forcerange="-20 20"/>
-    </default> -->
   </default>
 
   <asset>
@@ -122,13 +118,4 @@
       </body>
     </body>
   </worldbody>
-
-  <!-- <actuator>
-    <position name="joint1_position" class="position_servo" joint="joint1"/>
-    <position name="joint2_position" class="position_servo" joint="joint2"/>
-    <position name="joint3_position" class="position_servo" joint="joint3"/>
-    <position name="joint4_position" class="position_servo" joint="joint4"/>
-    <position name="joint5_position" class="position_servo" joint="joint5"/>
-    <position name="joint6_position" class="position_servo" joint="joint6"/>
-  </actuator> -->
 </mujoco>

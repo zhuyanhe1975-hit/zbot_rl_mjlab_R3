@@ -1,35 +1,32 @@
-"""Velocity + energy walking that lands and stands on the whole sole.
+"""采用速度与能耗奖励、着地及站立时保持全足底支撑的行走实验。
 
-Replaces the old foot_nonparallel_ground term, whose 1-|nz| form was ~theta^4 and
-gave almost no gradient below 10 degrees, with a sin^2-based cost active in three
-phases: while loaded, at touchdown, and just before touchdown.
+替换旧 foot_nonparallel_ground 项，其 1-|nz| 形式约为 theta^4，在倾角小于 10 度时
+几乎没有梯度；新代价基于 sin^2，在承重、触地及触地前的三个阶段生效。
 
-The three weights follow a curriculum.  At the full weights from iteration 0 the net
-reward was negative, so the policy learned to fall quickly (episode length ~30 steps)
-and never recovered; at a fixed small weight (-0.1 / -0.4 / -0.1) it walked but the
-soles stayed as tilted as before.  So the weights start small and grow once a gait
-exists.
+三个权重按课程变化。若从第 0 次迭代就使用完整权重，总奖励为负，策略会学会快速
+倒下（回合约 30 步）且无法恢复；固定小权重（-0.1 / -0.4 / -0.1）虽能行走，
+足底却仍像此前一样倾斜。因此先采用小权重，形成步态后再逐渐增加。
 """
 
 from mjlab.envs.mdp import reward_curriculum
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 
-from .. import mdp
+from ..tasks.walking import mdp
 from .base import RewardEdit
-from .velocity_energy_tracking import VelocityEnergyTracking
+from .walking import VelocityEnergyTracking
 
 FLAT_FOOT_VELOCITY_ENERGY_TASK_ID = "Mjlab-Zbot-6dof-Flat-Foot-Velocity-Energy-Walking"
 
-# Sole tilt is penalized through sin^2(tilt) / SIGMA^2; 0.05 is about 3 degrees.
+# 足底倾斜按 sin^2(倾角) / SIGMA^2 惩罚；0.05 约对应 3 度。
 FLAT_SIGMA = 0.05
-PRE_LANDING_HEIGHT = 0.03  # sole height (m) below which a swing foot must be flat
+PRE_LANDING_HEIGHT = 0.03  # 摆动足低于此足底高度（m）时必须摆平
 
-# env.common_step_counter advances once per vector step and one PPO iteration is
-# num_steps_per_env of them, so a stage "from iteration N" starts at N * this.
+# env.common_step_counter 每个向量环境步递增一次，每次 PPO 迭代有
+# num_steps_per_env 个这样的步，因此“从第 N 次迭代起”的阶段始于 N * 此值。
 STEPS_PER_ITERATION = 24
-# (first iteration, stance, touchdown, pre-landing weight).  The last row equals the
-# weights that collapsed when used from iteration 0.
+# （起始迭代、支撑期权重、触地权重、着地前权重）。最后一行即
+# 从第 0 次迭代直接启用时导致训练崩溃的权重。
 WEIGHT_STAGES = (
     (0, -0.05, -0.2, -0.05),
     (150, -0.15, -0.6, -0.15),
@@ -43,7 +40,7 @@ class FlatFootVelocityEnergy(VelocityEnergyTracking):
     task_id = FLAT_FOOT_VELOCITY_ENERGY_TASK_ID
     experiment_name = "zbot_flat_foot_velocity_energy"
     weight_stages = WEIGHT_STAGES
-    """(first iteration, stance, touchdown, pre-landing weight) rows of the curriculum."""
+    """课程各行依次为（起始迭代、支撑期权重、触地权重、着地前权重）。"""
 
     def reward_edit(self):
         first = self.weight_stages[0]

@@ -1,4 +1,4 @@
-"""Stable goal completion alternates commands without resetting the robot."""
+"""稳定完成目标后交替切换命令，无需重置机器人。"""
 
 import pytest
 import torch
@@ -6,6 +6,7 @@ from test_transformation_commanded import environment
 
 from zbot_rl_mjlab.experiments.bidirectional import SnakeBipedBidirectional
 from zbot_rl_mjlab.tasks.transformation import commanded, mdp, robust
+from zbot_rl_mjlab.tasks.transformation.commanded import BidirectionalEnvCfg
 
 
 def ready_environment(monkeypatch):
@@ -23,6 +24,7 @@ def ready_environment(monkeypatch):
 @pytest.mark.parametrize("play", [False, True])
 def test_default_source_mode_enables_automatic_switches_and_logs_ever_success(play):
     cfg = SnakeBipedBidirectional().build_env(play=play)
+    assert isinstance(cfg, BidirectionalEnvCfg)
     assert cfg.commands["transform"].auto_switch_on_success
     assert cfg.metrics["success"].reduce == "max"
     assert cfg.success_hold_s == 2 and cfg.episode_length_s == 16
@@ -127,10 +129,10 @@ def test_completed_counts_are_logged_and_reset_only_for_selected_worlds(monkeypa
 
 def test_partial_reset_balances_current_commands_after_automatic_reversals():
     env, term = environment()
-    env._transform_initial_standing.zero_()  # Historical source says stand goals.
-    term._command.fill_(-1)  # Both worlds have since switched to snake goals.
+    env._transform_initial_standing.zero_()  # 历史初始状态记录的是站立目标。
+    term._command.fill_(-1)  # 此后两个环境均已切换为蛇形目标。
     chosen = commanded.sample_initial_standing(env, torch.tensor([0]))
-    assert not chosen.any()  # Fill the reset slot with a stand goal.
+    assert not chosen.any()  # 在重置槽位中填入站立目标。
     assert not env._transform_initial_standing.any()
     term._command.fill_(1)
     assert commanded.sample_initial_standing(env, torch.tensor([0])).all()

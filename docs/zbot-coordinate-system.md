@@ -18,7 +18,7 @@ world_up = (0, 0, +1)
 gravity = (0, 0, -1)
 ```
 
-## Zbot 运动坐标系
+## 双足任务运动坐标系
 
 首先将机器人身体模块的局部 `+Z` 轴变换到世界坐标系，并投影到地面水平面，得到 `body_z_horizontal`。然后严格按右手定则定义：
 
@@ -51,23 +51,40 @@ Z = gravity
 实际线速度和角速度先从世界坐标变换到 Zbot base 坐标，再分别与 `forward`、`left`、`gravity` 做点积。速度指令的三个分量也按同一顺序解释：
 
 ```text
-command[0] = forward velocity
-command[1] = left velocity
-command[2] = yaw angular velocity
+command[0] = 前进线速度
+command[1] = 左向线速度
+command[2] = 偏航角速度
 ```
 
-速度跟踪奖励、观测、命令误差统计和 Viewer 箭头必须使用同一套轴，不能用世界固定 `+X/+Y` 替代机器人自身的 `forward/left`。
+速度跟踪奖励、观测、命令误差统计和 可视化窗口箭头必须使用同一套轴，不能用世界固定 `+X/+Y` 替代机器人自身的 `forward/left`。
 
 ## 可视化中的使用
 
 指令箭头的起点沿世界 `+Z` 放置在机器人正上方；箭头方向使用上述 `forward/left/gravity` 运动坐标。箭头长度按任务速度范围归一化，而不是直接按 m/s 或 rad/s 的绝对数值绘制。
 
-足端高度使用 `foot_height_scan` 射线传感器，传感器的 frame 是 `foot_0` 和 `foot_1` body；传感器高度是相对于地面的竖直 clearance，不使用身体模块局部 `Z` 轴作为地面法向。
+足端高度使用 `foot_height_scan` 射线传感器，传感器的 参考坐标系为 `foot_0` 和 `foot_1` 刚体；传感器高度是相对于地面的竖直净空，不使用身体模块局部 `Z` 轴作为地面法向。
+
+## 蛇形任务运动坐标系
+
+蛇形按用户指定的顺序，先确定左右，再确定前后；与上方双足首次叉乘的轴标签不同：
+
+```text
+g = (0, 0, -1)
+up = -g
+module_z = base模块局部+Z轴变换到世界坐标
+left = normalize(g × module_z)
+forward = normalize(left × up)
+```
+
+蛇形的前向、左向、向上构成右手系，偏航正向绕向上轴逆时针。模块Z平行重力时保留最近有效的前向，reset时重新初始化。标准直蛇形中，前向为世界-Y，左向为世界+X。
+
+运动指令、整机质心速度、奖励、统计与键盘使用这套身体轴。摄像头所在foot_0只用于头部稳定；其重力和gyro都用头部机体系，不用摄像头朝向重新定义运动前后。旧头部坐标模型仅按其旧输入语义回放，不混作新配方检查点。
 
 ## 当前实现位置
 
-- `src/zbot_rl_mjlab/mdp.py`：`locomotion_frame`、速度/角速度测量和指令可视化坐标。
-- `src/zbot_rl_mjlab/visualize.py`：独立 standing visualizer 的坐标轴和地面显示。
-- `src/zbot_rl_mjlab/env_cfg.py`：速度指令、足端高度传感器和 Viewer 配置。
+- `src/zbot_rl_mjlab/tasks/walking/mdp.py`：`locomotion_frame`、速度/角速度测量和指令可视化坐标。
+- `src/zbot_rl_mjlab/tasks/snake/mdp.py`：蛇形身体水平坐标、头部稳定与速度测量。
+- `src/zbot_rl_mjlab/viewer.py`：回放窗口中的坐标、速度箭头和显示。
+- `src/zbot_rl_mjlab/tasks/walking/env_cfg.py`：速度指令、足端高度传感器和 可视化配置。
 
-任何修改都应至少验证：直立姿态下三轴单位正交、偏航后前进方向随机器人旋转、`forward × gravity` 指向左侧，以及 smoke rollout 保持有限观测和奖励。
+任何修改都应至少验证：直立姿态下三轴单位正交、偏航后前进方向随机器人旋转、`forward × gravity` 指向左侧，以及 短时仿真检查 保持有限观测和奖励。

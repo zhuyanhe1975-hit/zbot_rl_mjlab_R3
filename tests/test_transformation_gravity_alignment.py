@@ -1,4 +1,4 @@
-"""CPU FK regression for the full base gravity orientation, including base Z."""
+"""在 CPU 上对完整基座重力方向（包括基座 Z 轴）执行正向运动学回归检查。"""
 
 import math
 from types import SimpleNamespace

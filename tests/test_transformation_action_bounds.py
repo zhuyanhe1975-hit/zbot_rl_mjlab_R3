@@ -1,5 +1,6 @@
-"""CPU coverage of task-local commanded targets, independent of physical limits."""
+"""仅使用 CPU 检查任务内部的指令目标，不依赖物理限位。"""
 
+import math
 from types import SimpleNamespace
 
 import pytest
@@ -82,6 +83,35 @@ def test_intersects_named_physical_and_global_target_limits(make_action):
     action.process_actions(-torch.ones(2, 6))
     assert action.commanded_target[:, 0].eq(-0.1).all()
     assert action.commanded_target[:, 1:].eq(-0.3).all()
+
+
+def test_long_saturation_stores_clipped_state_and_reverses_immediately(make_action):
+    action = make_action(target_limit=math.pi / 2)
+    action.rate_cfg.max_target_speed = 2 * math.pi
+    direction = torch.tensor([[1., -1., 1., -1., 1., -1.],
+                              [-1., 1., -1., 1., -1., 1.]])
+    persistent_target = action.commanded_target
+    pointer = persistent_target.data_ptr()
+    for _ in range(1000):
+        action.process_actions(direction)
+    torch.testing.assert_close(persistent_target, direction * (math.pi / 2))
+    action.process_actions(-direction)
+    expected = direction * (math.pi / 2 - 2 * math.pi * .02)
+    torch.testing.assert_close(action.commanded_target, expected)
+    assert action.commanded_target.data_ptr() == pointer
+    assert torch.rad2deg(action.commanded_target[0, 0]).item() == pytest.approx(82.8)
+    action.process_actions(torch.zeros_like(direction))
+    torch.testing.assert_close(persistent_target, expected)
+
+
+def test_global_target_limit_also_clamps_initial_and_selected_reset_state(make_action):
+    action = make_action(target_limit=.5, initial=2.)
+    assert action.commanded_target.eq(.5).all()
+    action._entity.data.joint_pos[1] = -2.
+    action.reset(torch.tensor([1]))
+    assert action.commanded_target[0].eq(.5).all()
+    assert action.commanded_target[1].eq(-.5).all()
+    assert action._entity.data.joint_pos[1].eq(-2.).all()
 
 
 @pytest.mark.parametrize(

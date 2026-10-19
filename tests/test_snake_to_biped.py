@@ -1,4 +1,4 @@
-"""Reverse transformation objectives, grounded standing success, and isolation."""
+"""反向变形目标、触地站立成功条件与隔离性。"""
 
 import math
 from types import SimpleNamespace
@@ -124,10 +124,8 @@ def test_registered_reverse_task_adds_sole_alignment_and_keeps_independent_actio
 def test_hot_reward_runner_is_registered_only_for_reverse_transformation():
     from mjlab.tasks.registry import load_runner_cls
 
-    from zbot_rl_mjlab.tasks.transformation.biped_to_snake import TASK_ID as forward_id
-    from zbot_rl_mjlab.tasks.transformation.hot_rewards import (
-        SnakeToBipedHotRewardRunner,
-    )
+    from zbot_rl_mjlab.rl import SnakeToBipedHotRewardRunner
+    from zbot_rl_mjlab.tasks.transformation.env_cfg import TASK_ID as forward_id
 
     assert load_runner_cls(reverse.TASK_ID) is SnakeToBipedHotRewardRunner
     assert load_runner_cls(forward_id) is None
@@ -167,8 +165,8 @@ def test_reverse_ppo_and_control_period_match_original_transformation_defaults()
 
     from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 
-    from zbot_rl_mjlab.env_cfg import ppo_cfg
-    from zbot_rl_mjlab.tasks.transformation.biped_to_snake import TASK_ID as forward_id
+    from zbot_rl_mjlab.rl import ppo_cfg
+    from zbot_rl_mjlab.tasks.transformation.env_cfg import TASK_ID as forward_id
 
     cfg = load_env_cfg(reverse.TASK_ID)
     reverse_ppo = load_rl_cfg(reverse.TASK_ID)
@@ -280,7 +278,7 @@ def test_initial_joint_pose_cost_is_independent_of_world_pose_and_finite_on_inva
 def test_end_joint_flip_penalty_has_deadband_and_targets_only_end_joints(joint, sign):
     env = _standing_env()
     q = env.scene["robot"].data.joint_pos
-    q[:, 1:5] = 4.0  # Middle-joint bending is outside this penalty's scope.
+    q[:, 1:5] = 4.0  # 中间关节的弯曲不属于此惩罚项的约束范围。
     q[0, joint] += sign * 0.9
     q[1, joint] += sign * 2.0
     torch.testing.assert_close(reverse.end_joint_flip_cost(env), torch.tensor([0.0, 0.5]))
@@ -314,12 +312,12 @@ def test_each_joint_improvement_has_signal_beyond_old_clipped_plateau(joint, sig
     positions = env.scene["robot"].data.joint_pos
     positions[:] = target + sign * 4.0
     positions[1, joint] -= sign * 0.1
-    # Both states were indistinguishable under the old whole-pose MSE clamp.
+    # 旧的全姿态均方误差截断无法区分这两种状态。
     old = (1.0 - (positions - target).square().mean(-1) / target.square().mean()).clamp(-1.0, 1.0)
     torch.testing.assert_close(old, -torch.ones(2))
     reward = reverse.joint_standing_reward(env)
     assert reward[0] < reward[1] < 0.0
-    # Far from target, correcting 0.1 rad in any joint has the same linear gain.
+    # 远离目标时，任意关节修正 0.1 rad 都具有相同的线性增益。
     assert (reward[1] - reward[0]).item() == pytest.approx(0.1 / 6.0, abs=1e-6)
 
 
@@ -438,8 +436,8 @@ def test_ascent_reward_uses_base_origin_world_z_instead_of_com_velocity():
     torch.testing.assert_close(
         reverse.base_ascent_velocity_reward(env), torch.tensor([0.0, 1.0])
     )
-    # Changing orientation, world XY speed, or COM motion must not rotate the
-    # requested world-Z signal into a local-frame component.
+    # 改变朝向、世界坐标系中的 XY 速度或质心运动时，不得将
+    # 所需的世界坐标系 Z 轴信号旋转为局部坐标系分量。
     env.scene["robot"].data.body_link_quat_w[:] = torch.tensor([0.5, 0.5, 0.5, 0.5])
     env.scene["robot"].data.body_link_lin_vel_w[..., :2] = 10.0
     env.scene["robot"].data.body_com_lin_vel_w[:] = -100.0
@@ -678,7 +676,7 @@ def test_base_support_penalty_rejects_invalid_distance_scale(std):
 
 def test_balanced_sole_alignment_beats_one_perfect_foot_and_one_bad_foot():
     env = _standing_env()
-    # Same total angle: (30, 30) versus (0, 60). The old mean preferred (0, 60).
+    # 总角度相同：(30, 30) 与 (0, 60)。旧的均值计算偏向 (0, 60)。
     for row, angles in enumerate(((30.0, 30.0), (0.0, 60.0))):
         for foot, angle in enumerate(angles):
             half = math.radians(angle + 180.0 * foot) / 2
@@ -689,7 +687,7 @@ def test_balanced_sole_alignment_beats_one_perfect_foot_and_one_bad_foot():
     assert scores.mean(-1)[0] < scores.mean(-1)[1]
     reward = reverse.sole_ground_alignment_reward(env)
     assert reward[0] > reward[1]
-    assert scores[0, 0] > 0.3  # Broad feedback at 30 degrees.
+    assert scores[0, 0] > 0.3  # 在 30 度处仍提供较宽范围的反馈。
 
 
 @pytest.mark.parametrize("bad_foot", [0, 1])
@@ -779,7 +777,7 @@ def test_pose_progress_is_independent_of_com_and_feet():
 def test_joint_reward_is_independent_of_base_origin_height(height):
     env = _standing_env()
     env.scene["robot"].data.body_link_pos_w[:, 6, 2] = height
-    # Both target and distant poses retain their scores at every base height.
+    # 在任意基座高度，目标姿态和远离目标的姿态均保持各自的得分。
     target = env.scene["robot"].data.joint_pos[1].clone()
     env.scene["robot"].data.joint_pos[1] = -target
     far_score = -torch.nn.functional.smooth_l1_loss(-target, target, beta=env.cfg.joint_standing_error_scale)
@@ -870,7 +868,7 @@ def test_support_loss_requires_prior_support_and_continuous_violation():
         env.common_step_counter = step
         reverse.advance(env)
         assert not reverse.foot_support_lost(env).any()
-    # Reacquire support in both worlds, then lose one foot in only world 1.
+    # 两个环境均重新获得支撑，随后仅让环境 1 的一只脚失去支撑。
     data.site_pos_w[..., 2] = 0.0
     env.common_step_counter += 1
     reverse.advance(env)
@@ -878,7 +876,7 @@ def test_support_loss_requires_prior_support_and_continuous_violation():
     for step in range(1, 6):
         env.common_step_counter += 1
         reverse.advance(env)
-        # Repeated reads in the same control step cannot accumulate more time.
+        # 在同一控制步中重复读取不能累积额外时间。
         reverse.advance(env)
         assert reverse.foot_support_lost(env).tolist() == [False, step >= 5]
     data.site_pos_w[1, 0, 2] = 0.0
@@ -919,9 +917,9 @@ def test_stage_one_support_hold_tracks_continuously_and_resets_per_world():
     for step in range(25):
         env.common_step_counter = step
         reverse.advance(env)
-        reverse.advance(env)  # Same step must not count twice.
+        reverse.advance(env)  # 同一个时间步不得重复计数。
     torch.testing.assert_close(task.support_hold_s, torch.full((2,), 0.5))
-    assert not task.support_armed.any()  # Stage-one loss still cannot terminate.
+    assert not task.support_armed.any()  # 第一阶段的失稳仍不能触发终止。
     env.scene["feet_ground_contact"].data.found[1, 0] = 0
     env.common_step_counter += 1
     reverse.advance(env)
@@ -1002,10 +1000,7 @@ def test_real_robot_standing_soles_align_better_than_grounded_snake_soles():
     import numpy as np
 
     from zbot_rl_mjlab.robot import get_spec
-    from zbot_rl_mjlab.tasks.transformation.snake_pose import (
-        SNAKE_ROOT_POS,
-        SNAKE_ROOT_QUAT,
-    )
+    from zbot_rl_mjlab.tasks.transformation.poses import SNAKE_ROOT_POS, SNAKE_ROOT_QUAT
 
     model = get_spec().compile()
     native = mujoco.MjData(model)
@@ -1022,8 +1017,8 @@ def test_real_robot_standing_soles_align_better_than_grounded_snake_soles():
             assert native.xpos[model.body("base").id, 2] == pytest.approx(
                 env.cfg.standing_base_height, abs=0.001
             )
-            # Calibrate each site's sign against the actual asset, independently
-            # of the synthetic test fixture and the reward's sign constants.
+            # 根据实际资产独立校准每个站点的符号，
+            # 不依赖合成测试夹具及奖励中的符号常量。
             for site, sign in zip(ids, (1.0, -1.0)):
                 assert native.site_xmat[site].reshape(3, 3)[2, 2] * sign > 0.999
         env.scene["robot"].data.site_pos_w[i] = torch.tensor(native.site_xpos[ids])
@@ -1042,7 +1037,7 @@ def _rolled_env(angle_degrees, yaw_degrees=0.0):
     from mjlab.utils.lab_api.math import quat_mul
 
     env = _standing_env()
-    # Boundary regressions use a fixed limit, independent of live tuning.
+    # 边界回归测试使用固定限制，不受实时调参影响。
     env.cfg.base_z_roll_limit_deg = 90.0
     half = math.radians(angle_degrees) / 2
     yaw_half = math.radians(yaw_degrees) / 2
@@ -1147,8 +1142,8 @@ def test_standing_roll_reference_follows_configured_joint_target():
 
 
 def test_relative_roll_wraps_across_pi_and_invalid_orientation_still_resets():
-    # 170 degrees relative to the raw snake zero, with a -170 degree reference,
-    # is a -20 degree difference rather than 340 degrees.
+    # 相对蛇形原始零位的 170 度，与 -170 度的参考角之间，
+    # 角度差应为 -20 度，而非 340 度。
     from mjlab.utils.lab_api.math import quat_mul
 
     zero = torch.tensor([0.0, 0.0, -(0.5**0.5), -(0.5**0.5)])
@@ -1200,7 +1195,7 @@ def test_native_standing_is_roll_zero_and_snake_stays_inside_standing_corridor()
     native = mujoco.MjData(model)
     base_id = model.body("base").id
     measured = []
-    # Static FK regression samples, not a reference motion used by the policy.
+    # 正向运动学的静态回归样本，不是策略使用的参考运动。
     for fraction in np.linspace(0.0, 1.0, 21):
         half = math.radians(-90 * (1 - fraction)) / 2
         root = (math.cos(half), math.sin(half), 0.0, 0.0)
@@ -1272,7 +1267,7 @@ def test_failure_cost_is_once_ten_points_independent_of_dt_and_excludes_timeouts
     term = env.cfg.rewards["reset_failure"]
     actual = term.func(env) * term.weight * env.step_dt
     torch.testing.assert_close(actual, torch.tensor([0.0, -10.0, 0.0]))
-    # No lingering penalty after the next step clears the termination masks.
+    # 下一步清除终止掩码后，不应残留惩罚。
     failure[:] = False
     timeout[:] = False
     manager.compute()

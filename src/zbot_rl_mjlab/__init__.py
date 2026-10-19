@@ -1,18 +1,12 @@
-"""Zbot tasks for mjlab.  Importing this package registers every experiment.
+"""mjlab 的 Zbot 任务；导入本包会注册全部实验。
 
-Each experiment is a class in ``experiments/`` that derives from its parent experiment and
-states only its own changes (see ``experiments/base.py``).  To add one, write the class and
-list it here.
+每个实验都是 ``experiments/`` 中继承父实验的类，仅声明自身改动
+（参见 ``experiments/base.py``）。添加实验时，定义该类并在此处列出。
 """
 
 from .experiments.bidirectional import SnakeBipedBidirectional
-from .experiments.deploy import DeployFlatFoot, DeployWalking
-from .experiments.disturbed_walking import DisturbedWalking
-from .experiments.flat_foot_disturbed import FlatFootDisturbed
 from .experiments.flat_foot_velocity_energy import FlatFootVelocityEnergy
-from .experiments.flat_walking import FlatWalking
-from .experiments.in_place_stepping import PeriodicStepping
-from .experiments.omni_velocity_energy import OmniVelocityEnergy
+from .experiments.snake import SnakeOmniTeacher
 from .experiments.transformation import (
     BipedToSnake,
     SnakeToBiped,
@@ -21,9 +15,21 @@ from .experiments.transformation import (
     SnakeToBipedRobust,
     SnakeToBipedTeacher,
 )
-from .experiments.velocity_energy_disturbed import VelocityEnergyDisturbed
-from .experiments.velocity_energy_tracking import VelocityEnergyTracking
-from .experiments.velocity_tracking import VelocityTracking
+from .experiments.universal import DeployUniversalLocomotion, UniversalLocomotion
+from .experiments.variants import (
+    DeployFlatFoot,
+    DeployWalking,
+    DisturbedWalking,
+    FlatFootDisturbed,
+    VelocityEnergyDisturbed,
+)
+from .experiments.walking import (
+    FlatWalking,
+    OmniVelocityEnergy,
+    PeriodicStepping,
+    VelocityEnergyTracking,
+    VelocityTracking,
+)
 from .experiments.walking_tuning import WalkingTuning
 
 EXPERIMENTS = (
@@ -46,7 +52,21 @@ EXPERIMENTS = (
     SnakeToBipedRobust,
     SnakeToBipedTeacher,
     SnakeBipedBidirectional,
+    UniversalLocomotion,
+    DeployUniversalLocomotion,
+    SnakeOmniTeacher,
 )
 
 for experiment in EXPERIMENTS:
     experiment().register()
+
+# 仅兼容原始归档 YAML 中的三个项目回调模块名，不恢复旧实验导入接口。
+# 不修改训练配置原件，也不在任务层注入实验类。
+import sys as _sys
+
+from .tasks.walking import mdp as _walking_mdp
+
+_sys.modules.setdefault(f"{__name__}.mdp", _walking_mdp)
+_sys.modules.setdefault(f"{__name__}.experiments.velocity_tracking", _walking_mdp)
+_sys.modules.setdefault(f"{__name__}.experiments.omni_velocity_energy", _walking_mdp)
+del _walking_mdp, _sys

@@ -1,4 +1,4 @@
-"""Keep bounded Gaussian exploration parameters inside the differentiable interval."""
+"""将有界 Gaussian 探索参数保持在可微区间内部。"""
 
 import math
 
@@ -8,11 +8,10 @@ from torch.utils.hooks import RemovableHandle
 
 
 class ActionStdProjection:
-    """Project parameters in place without replacing them or optimizer state.
+    """原位投影参数，不替换参数对象或优化器状态。
 
-    Bounds themselves have a zero clamp derivative in the installed torch build.
-    An optimizer post hook therefore keeps parameters strictly inside the declared
-    range before the next policy distribution is constructed.
+    当前安装的 torch 版本中，边界处 clamp 的导数为零。
+    因此使用优化器后置钩子，在构建下一次策略分布之前将参数严格保持在声明范围内。
     """
 
     def __init__(self, distribution):
@@ -26,7 +25,7 @@ class ActionStdProjection:
         else:
             self.parameter = distribution.std_param
             self.bounds = tuple(distribution.std_range)
-        # Fail at installation, rather than midway through an optimizer update.
+        # 安装时即检查失败，避免在优化器更新中途报错。
         self._projection_bounds = self._interior_bounds()
 
     def _interior_bounds(self):
@@ -41,8 +40,8 @@ class ActionStdProjection:
         inner_lower = torch.nextafter(lower, upper)
         inner_upper = torch.nextafter(upper, lower)
         if self.is_log:
-            # nextafter(0, +/-inf) is subnormal and CUDA may flush it back to 0.
-            # Use an ordinary epsilon when possible, with a normal lower bound.
+            # nextafter(0, +/-inf) 是次正规数，CUDA 可能将其清零。
+            # 尽可能使用普通 epsilon，并采用正规数下界。
             info = torch.finfo(parameter.dtype)
             inset = max(info.tiny, min(info.eps, (high - low) / 4))
             if low == 0:
@@ -76,7 +75,7 @@ class ActionStdProjection:
         )
 
     def install(self, optimizer: torch.optim.Optimizer) -> RemovableHandle:
-        """Register one native post-step hook; caller owns handle lifetime."""
+        """注册一个原生优化器步后钩子；调用方负责句柄生命周期。"""
 
         def project_after_step(optimizer, args, kwargs):
             self.project()

@@ -2,7 +2,7 @@ from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 
 import zbot_rl_mjlab  # noqa: F401
 from zbot_rl_mjlab.experiments import flat_foot_velocity_energy as flat
-from zbot_rl_mjlab.experiments.flat_foot_disturbed import FLAT_FOOT_DISTURBED_TASK_ID
+from zbot_rl_mjlab.experiments.variants import FLAT_FOOT_DISTURBED_TASK_ID
 
 PLAIN = flat.FLAT_FOOT_VELOCITY_ENERGY_TASK_ID
 DISTURBED = FLAT_FOOT_DISTURBED_TASK_ID

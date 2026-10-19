@@ -18,7 +18,7 @@ def test_weights_only_get_stronger_and_end_at_the_full_values():
     for column in (1, 2, 3):
         weights = [row[column] for row in flat.WEIGHT_STAGES]
         assert all(w < 0 for w in weights)
-        assert weights == sorted(weights, reverse=True)  # increasingly negative
+        assert weights == sorted(weights, reverse=True)  # 数值越来越负
     assert flat.WEIGHT_STAGES[-1][1:] == (-0.5, -2.0, -0.5)
 
 

@@ -29,8 +29,8 @@ def test_pd_gains_and_their_randomization_stay_inside_the_mit_range():
 
 
 def test_actuator_is_the_one_every_existing_checkpoint_was_trained_with():
-    # Changing any of these changes the physics under all archived models, and an
-    # earlier switch to another actuator class stopped them from replaying at all.
+    # 修改任意一项都会改变所有归档模型使用的物理设置；
+    # 此前切换到另一执行器类曾导致这些模型完全无法回放。
     (actuator,) = robot_cfg().articulation.actuators
     assert type(actuator) is BuiltinPositionActuatorCfg
     assert (actuator.stiffness, actuator.damping) == (15.0, 1.5)
@@ -39,7 +39,7 @@ def test_actuator_is_the_one_every_existing_checkpoint_was_trained_with():
 
 
 def test_simulated_torque_limit_exceeds_the_hardware_peak():
-    # Documented gap: the simulator still allows more than the RS00 can give.
+    # 已记录的差距：仿真器允许的输出仍超过 RS00 的能力。
     assert robot.SIM_EFFORT_LIMIT > robot.RS00_PEAK_TORQUE
 
 
@@ -50,20 +50,20 @@ def test_actuator_has_one_control_input_per_joint():
     body.add_geom(type=mujoco.mjtGeom.mjGEOM_SPHERE, size=[0.05, 0, 0], mass=1.0)
     (cfg,) = robot_cfg().articulation.actuators
     cfg.build(None, [0], ["j"]).edit_spec(spec, ["j"])
-    assert spec.compile().nu == 1  # a 12-wide ctrl once broke play.py's tensor shapes
+    assert spec.compile().nu == 1  # 12 维 ctrl 曾导致 play.py 的张量形状不匹配
 
 
 def test_torque_speed_reference_curve():
-    # Flat at the peak up to 100 rpm, the datasheet points beyond, zero at no-load speed.
+    # 在 100 rpm 以内保持峰值，此后采用数据手册给出的点，空载转速处为零。
     for rpm in (0, 50, 100):
         assert available_torque(rpm * RPM) == 14.0
     for rpm, expected in robot.RS00_TN_CURVE:
         assert math.isclose(available_torque(rpm * RPM), expected, abs_tol=1e-6), rpm
     assert available_torque(315 * RPM) == pytest.approx(0.5)
     assert available_torque(320 * RPM) == 0.0
-    assert available_torque(-200 * RPM) == available_torque(200 * RPM)  # symmetric
+    assert available_torque(-200 * RPM) == available_torque(200 * RPM)  # 对称
     limits = [available_torque(r * RPM) for r in range(100, 316, 5)]
-    assert limits == sorted(limits, reverse=True)  # never rises with speed
+    assert limits == sorted(limits, reverse=True)  # 不随转速升高而增大
 
 
 def test_rated_torque_is_below_the_curve_at_the_rated_speed():

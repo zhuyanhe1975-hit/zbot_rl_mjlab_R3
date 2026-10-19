@@ -1,12 +1,10 @@
-"""Every checkpoint archived in ``bests/`` must still be usable with the current code.
+"""``bests/`` 中归档的每个检查点都必须仍能用于当前代码。
 
-Cheap, CPU-only checks, run on every archived model against the task it is replayed with
-(``bests/test.sh`` names that task).  They catch the changes that make an old checkpoint
-unreplayable: a different set or order of actor observation terms, a different observation
-or action size, another control rate or action scale, or another actuator.  They do not run
-the simulator; ``python fall_check.py <TASK> <checkpoint>`` does, and should be run after any
-change to physics.
-"""
+这些低开销检查仅使用 CPU，对每个归档模型及其回放任务执行
+（任务名称见 ``bests/test.sh``）。检查可发现导致旧检查点无法回放的变更：
+策略观测项的集合或顺序、观测或动作维度、控制频率、动作缩放，以及执行器。
+这些检查不会运行仿真器；``python scripts/fall_check.py <TASK> <checkpoint>`` 会运行仿真器，
+每次修改物理设置后都应执行。"""
 
 import fnmatch
 import re
@@ -21,19 +19,21 @@ from mjlab.tasks.registry import list_tasks, load_env_cfg, load_rl_cfg
 from rsl_rl.models import MLPModel
 from tensordict import TensorDict
 
-import zbot_rl_mjlab  # noqa: F401  (registers the tasks)
-from zbot_rl_mjlab.env_cfg import ZbotEnvCfg
+import zbot_rl_mjlab  # noqa: F401  （注册任务）
 from zbot_rl_mjlab.robot import ARMATURE, DAMPING, SIM_EFFORT_LIMIT, STIFFNESS
-from zbot_rl_mjlab.tasks.transformation.mirror_actions import (
-    MirroredJointTargetRateActionCfg,
-)
+from zbot_rl_mjlab.tasks.transformation.actions import MirroredJointTargetRateActionCfg
+from zbot_rl_mjlab.tasks.walking.env_cfg import ZbotEnvCfg
 
 BESTS = Path(__file__).resolve().parents[1] / "bests"
 ENTRIES = sorted(p for p in BESTS.iterdir() if p.is_dir())
 
-# Size of each actor observation term.
+# 每个策略观测项的维度。
 TERM_DIMS = {
+    "snake": 40,
     "teacher_state": 36,
+    "universal_state": 50,
+    "command": 4,
+    "gait": 3,
     "command_teacher_state": 37,
     "base_lin_vel": 3,
     "base_ang_vel": 3,
@@ -50,7 +50,7 @@ TERM_DIMS = {
     "com_state": 2,
     "commanded_target": 6,
     "hold_time": 1,
-    "support_state": 0,  # Default reverse-task mode preserves 30-D checkpoints.
+    "support_state": 0,  # 默认反向任务模式兼容 30 维检查点。
     "joint_goal_error": 6,
     "joint_velocity": 6,
     "independent_target": 3,
@@ -67,7 +67,7 @@ ACTION_DIM = 6
 
 
 class _Loose(yaml.SafeLoader):
-    """Reads the saved env.yaml without importing the python objects it names."""
+    """读取已保存的 env.yaml，不导入其中命名的 Python 对象。"""
 
 
 def _sequence(loader, node):
@@ -91,7 +91,7 @@ def archived_env(entry):
 
 
 def task_of(entry):
-    """The task bests/test.sh replays this directory with (first matching case wins)."""
+    """bests/test.sh 回放此目录时使用的任务（采用第一个匹配分支）。"""
     cases = re.findall(
         r'^[ \t]*([^)\s][^)\n]*)\)[ \t]*echo[ \t]*"(Mjlab-[^"]+)"',
         (BESTS / "test.sh").read_text(),
@@ -114,7 +114,7 @@ def live_actor_terms(task):
 
 
 def test_every_actor_term_of_every_task_has_a_known_size():
-    # A new observation term must be given a size here, or the checks below are blind to it.
+    # 必须在此处为新观测项指定维度，否则下面的检查无法检测该项。
     for task in (t for t in list_tasks() if t.startswith("Mjlab-Zbot")):
         unknown = set(live_actor_terms(task)) - set(TERM_DIMS)
         assert not unknown, f"{task}: add {sorted(unknown)} to TERM_DIMS"
@@ -167,8 +167,8 @@ def test_archived_model_matches_the_current_task(entry):
 
     if "frequency" in saved_terms:
         assert isinstance(live, ZbotEnvCfg)
-        # The frequency observation is normalized by this range, so a different range
-        # feeds the policy a different input even though every shape still matches.
+        # 频率观测按此范围归一化，因此更改范围后，即使所有维度仍然匹配，
+        # 策略接收到的输入也会不同。
         assert (saved["step_frequency_min"], saved["step_frequency_max"]) == (
             live.step_frequency_min,
             live.step_frequency_max,

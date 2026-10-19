@@ -6,7 +6,7 @@
   "checkpoint_iteration": 599,
   "training_iterations": 600,
   "trained_from_scratch": true,
-  "user_request": "Archive the latest trained result.",
+  "user_request": "归档最新训练结果。",
   "sha256_model": "40ad7f465384d0ba64075d8cea5ca40d14d43059063f0c95c3ff23b558a468cd",
   "effective_weights": {
     "joint_standing": 12.0,
@@ -43,9 +43,9 @@
   },
   "git_head": "f4edac44b9e973b6feab426eb1f4c21dbcf9f23a",
   "working_tree_dirty": true,
-  "snapshot_scope": "Current project src/assets/scripts/docs and root Python/shell/config files; regression tests bundled as source_snapshot/tests.tar.gz to avoid duplicate pytest collection. Training startup configs and final checkpoint weights are preserved separately. External MJLab checkout and Python environment are not bundled.",
-  "validation_status": "Strict actor load and 8-env 18-s headless inference/switch-continuity smoke passed. No full success-rate, perturbation or hardware validation.",
-  "user_assessment": "User reports the latest trained result is better than the previous archive and requested replacing the existing archive.",
+  "snapshot_scope": "包含当前项目的 src/assets/scripts/docs 及根目录下的 Python、Shell 和配置文件；回归测试打包为 source_snapshot/tests.tar.gz，以避免 pytest 重复收集。训练启动配置和最终检查点权重单独保存。未打包外部 MJLab 检出目录和 Python 环境。",
+  "validation_status": "已通过策略网络严格加载，以及 8 环境、18 秒无界面推理和切换连续性的冒烟测试。尚未完整验证成功率、扰动或硬件运行。",
+  "user_assessment": "用户反馈最新训练结果优于上一份归档，并要求替换现有归档。",
   "replaces_archive": "bests/transform_snake_biped_bidirectional_2026-10-17_iter599",
   "validation": {
     "seed": 42,
@@ -65,16 +65,16 @@
     "old_command_reward_and_metrics_new_command_observations": true
   },
   "known_limits": [
-    "Replacement requested based on user assessment; no matched statistical superiority test against the previous archive.",
-    "Headless validation is a short functional smoke, not a strict success-rate or impact-safety study.",
-    "External perturbations and hardware operation were not evaluated."
+    "根据用户评价执行替换；未与上一份归档进行条件一致的统计优越性检验。",
+    "无界面验证仅为短时功能冒烟测试，并非严格的成功率或冲击安全性研究。",
+    "未评估外部扰动及硬件运行。"
   ],
   "previous_archive_backup": "/home/yhzhu/.codex/backups/zbot-before-archive-replace-7zpfbm12/transform_snake_biped_bidirectional_2026-10-17_iter599",
   "verification": {
     "pytest_command": "./scripts/python.sh -m pytest -q",
     "tests_passed": 668,
     "warnings": 1,
-    "warning_note": "Existing torch.jit.script deprecation warning",
+    "warning_note": "现有的 torch.jit.script 弃用警告",
     "headless_smoke_passed": true
   }
 }

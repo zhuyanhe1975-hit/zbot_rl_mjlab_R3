@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Replay an archived checkpoint in the MJLab viewer.
-#   ./bests/test.sh                      list the archived checkpoints
-#   ./bests/test.sh <dir-or-index> ...   replay one; extra args go to play.py
-# Example: ./bests/test.sh 1 --target-speed 0.3
+# 在 MJLab 查看器中播放已归档模型。
+#   ./bests/test.sh                      列出已归档模型
+#   ./bests/test.sh <dir-or-index> ...   播放指定模型，其余参数传给 play.py
+# 示例： ./bests/test.sh 1 --target-speed 0.3
 set -euo pipefail
 BESTS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$BESTS_DIR")"
@@ -20,7 +20,7 @@ task_of() {
     velocity_energy_tracking_*) echo "Mjlab-Zbot-6dof-Velocity-Energy-Tracking-Walking" ;;
     zbot_disturbed_walking|zbot_disturbed_walking_*) echo "Mjlab-Zbot-6dof-Disturbed-Walking" ;;
     zbot_walking|zbot_walking_*) echo "Mjlab-Zbot-6dof-Walking" ;;
-    *) echo "Unknown task for '$1'; add it to task_of in $0" >&2; return 1 ;;
+    *) echo "无法识别 '$1' 的任务，请在 $0 的 task_of 中补充映射" >&2; return 1 ;;
   esac
 }
 
@@ -33,7 +33,7 @@ fi
 pick="${1%/}"
 shift
 if [[ "$pick" =~ ^[0-9]+$ ]]; then
-  pick="${entries[$((pick - 1))]:?no such index}"
+  pick="${entries[$((pick - 1))]:?索引不存在}"
 fi
 checkpoint="$(ls "$BESTS_DIR/$pick"/model_*.pt | head -n1)"
 

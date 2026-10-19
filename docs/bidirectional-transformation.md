@@ -1,8 +1,10 @@
 # 蛇足双向变形：独立的指令实验
 
+> 本文包含按开发阶段追加的实验记录。不同阶段的观测维数、奖励和验证结果仅适用于对应实验；当前生效参数以源码及实际训练配置为准。文中 `outputs/` 检查产物已移至项目外备份，路径用于追溯历史，不保证在当前工作目录存在。
+
 任务：`Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional`。
 实验入口在 `src/zbot_rl_mjlab/experiments/bidirectional.py`，实现位于
-`tasks/transformation/commanded.py`。不修改原鲁棒/教师实验的行为和已归档模型。
+`tasks/transformation/commanded.py`。双向实验与单向教师是 `TeacherTrainingExperiment` 的兄弟，共用镜像训练基础，各自安装行为与观测；不修改已归档模型。统一构建与状态时序见[架构说明](task-experiment-architecture.md)。
 
 默认从零训练：`pretrained_checkpoint=None`、`resume=False`，Actor、Critic、优化器和训练计数重新初始化。
 复用镜像动作、传感器和物理配置，不加载原站立或爬下模型。尚未运行正式PPO训练。
@@ -18,10 +20,10 @@
 - 默认`source`模式在当前目标附近连续稳定2 s后，原地自动切换相反指令：站稳→爬下→趴稳→站起。切换使用独立计时器，关节最大误差容差默认0.15 rad，其余站稳/静止判据沿用原定义；严格成功仍按0.10 rad连续稳定计时，二者互不替代。时长沿用`success_hold_s`。切换保留root姿态、关节、速度、执行器目标和回合计数，只清除目标相关的计时/失败状态。
 - 训练回合总上限仍为16 s，失败/超时仍reset；一个回合可以完成多次双向变形。显式固定`stand`/`snake`模式不自动反向。
 
-Actor37维、Critic45维：分别在原教师36/44列后追加一维指令。
+策略网络 37 维、价值网络 45 维：分别在原教师36/44列后追加一维指令。
 原关节误差观测仍以固定站立构型为参考；策略结合方向指令推断当前目标。
-Actor不读取成功/失败历史。仍为3维Beta动作，对应6关节镜像目标，目标速度上限2π rad/s。
-新模型输入维度不同，不能直接播放原36维教师checkpoint；原归档有原任务入口。
+策略网络不读取成功/失败历史。仍为3维Beta动作，对应6关节镜像目标，目标速度上限2π rad/s。
+新模型输入维度不同，不能直接播放原 36 维教师检查点；原归档有原任务入口。
 
 ## 奖励与终止
 
@@ -48,27 +50,27 @@ Actor不读取成功/失败历史。仍为3维Beta动作，对应6关节镜像�
 在仓库根目录执行（由用户训练）：
 
 ```bash
-python train.py Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional \
+./scripts/python.sh train.py Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional \
   --env.scene.num-envs 8192 \
   --agent.max-iterations 2000
 ```
 
 ```bash
-python play.py Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional \
+./scripts/python.sh play.py Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional \
   --checkpoint-file logs/rsl_rl/zbot_transform_snake_biped_bidirectional/<run>/model_<N>.pt \
   --env.scene.num-envs 1
 ```
 
-原生viewer中 **`]` → 站立，`[` → 爬下**（无需按Fn或Shift）。先点击MuJoCo窗口使其获得键盘焦点。
+原生可视化窗口中 **`]` → 站立，`[` → 爬下**（无需按Fn或Shift）。先点击MuJoCo窗口使其获得键盘焦点。
 按键作用于全部播放环境，只改变观测中的指令，不重置姿态或执行器目标。
 首次按变形控制键后进入手动控制，屏蔽超时、跌倒、早期base碰地和停滞导致的自动reset，保持当前指令直到再次按键。
 未按键时，默认在目标附近连续稳定2 s后自动反向，并在16 s回合结束或失败后重新采样初态。自动切换不要求达到用于统计的严格成功，切换不重置物理状态。
-只有用户主动reset（原生viewer的Enter键）才重置环境，并恢复自动演示；手动模式下跌倒也保持当前物理状态继续执行指令。
+只有用户主动reset（原生可视化窗口的Enter键）才重置环境，并恢复自动演示；手动模式下跌倒也保持当前物理状态继续执行指令。
 手动控制不改变训练的16 s超时、失败判定和奖励定义。
 固定测试单个方向可加 `--env.commands.transform.mode stand` 或 `snake`，同时将初态设为对应源姿态。
 默认`source`模式保留训练初态/第一条指令配对，并在成功后自动反向；play每次启动随机种子，显式`--env.seed 42`可复现。
 可加`--env.commands.transform.auto-switch-on-success False`恢复整回合保持目标，稳定时长通过`--env.success-hold-s`配置，切换专用关节容差通过`--env.commands.transform.auto-switch-joint-tolerance`配置。`success`指标记录回合内是否曾严格成功，指令管理器另记录每环境每回合的`completed_transitions`，用于观察有效变形次数。
-键盘控制用于默认native viewer，未实现Viser的指令按钮。
+键盘控制用于默认原生可视化窗口，未实现Viser的指令按钮。
 
 无PPO更新的接口验证脚本：`outputs/autonomous/bidirectional_command_probe.py`。
 它验证随机双初态、对应指令、37/45维观测、3维动作、推理有限值以及切换不瞬移；不声称随机策略已学会双向动作。
@@ -92,7 +94,7 @@ python play.py Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional \
 必须从历史峰值回落至少1cm，且高度低于10cm持续0.1s，才触发该保护。
 早期再次触地/冲击项不需要等待这0.1s。静止reset和五项奖励均保留。
 手动play仍屏蔽自动reset。原鲁棒实验保留其原判据，未改动。
-这是训练环境判据变化，需要重启训练进程，可从已有双向checkpoint继续训练；不要求从零重训。
+这是训练环境判据变化，需要重启训练进程，可从已有双向检查点继续训练；不要求从零重训。
 
 ## 防止躺着摆双足构型
 
@@ -109,7 +111,7 @@ python play.py Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional \
 原历史最高base高度≥0.23m后永久关闭速度项的规则优先保留，下降或再偏离构型不能重新开启。
 
 该朝向修复保留五项基础奖励；下述两项增量独立增加。观测仍37/45维，动作仍3维。初态采样、跌倒门槛和手动play不自动reset的规则不变。
-更新定义需要重启训练进程，可从已有双向checkpoint续训；代码验证不等于已验证新策略的学习成功率。
+更新定义需要重启训练进程，可从已有双向检查点续训；代码验证不等于已验证新策略的学习成功率。
 静态FK分数对照在`outputs/autonomous/bidirectional_lying_pose_reward_audit.json`，修改前在同目录的`bidirectional_lying_pose_reward_before.json`。
 
 ## 最小奖励增量：收尾关节速度与趴下冲击
@@ -121,4 +123,4 @@ python play.py Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional \
 
 指标`stand_finish_joint_speed`记录末段关节速度成本，`ground_force_peak_n`记录全方向的峰值接地力（N）。没有额外的下降限速、末段base余速或角速度惩罚。
 
-已有checkpoint保持37/45维观测和3维动作兼容性；新增奖励需重启训练进程并微调后才会改变行为。可通过`--env.pretrained-checkpoint <已验证的双向checkpoint>`热启动actor/critic。验证应比较同初态的站起成功率、收尾关节速度、趴下耗时和接地力峰值；短时仿真验证仅确认奖励计算与加载正常，不代表已学会改善后的动作。
+已有检查点保持37/45维观测和3维动作兼容性；新增奖励需重启训练进程并微调后才会改变行为。可通过`--env.pretrained-checkpoint <已验证的双向检查点>`热启动策略网络／价值网络。验证应比较同初态的站起成功率、收尾关节速度、趴下耗时和接地力峰值；短时仿真验证仅确认奖励计算与加载正常，不代表已学会改善后的动作。

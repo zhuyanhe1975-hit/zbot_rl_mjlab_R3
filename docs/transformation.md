@@ -1,5 +1,9 @@
 # 变形实验：双足与蛇形
 
+> 本文包含按开发阶段追加的实验记录。不同阶段的观测维数、奖励和验证结果仅适用于对应实验；当前生效参数以源码及实际训练配置为准。文中 `outputs/` 检查产物已移至项目外备份，路径用于追溯历史，不保证在当前工作目录存在。
+
+当前结构：实验配方在 `experiments/transformation.py`；环境、状态和回调在 `tasks/transformation/`，共用姿态在 `poses.py`，独立／镜像动作在 `actions.py`。热奖励控制与两个训练运行器统一在根包 `rl.py`。构建与继承约定见[架构说明](task-experiment-architecture.md)。
+
 任务 ID：`Mjlab-Zbot-6dof-Transform-Biped-To-Snake`。
 
 保留6维独立关节目标速度动作；不做强制左右映射。策略自行决定六关节如何接近零角度，
@@ -28,9 +32,9 @@ base线速度<0.02m/s，连续保持2s。
 安全终止仅保留非有限状态、全身质心下降超过0.3m/s、越出1.5m区域；回合最长16s。
 评估在回合终点检查持续保持情况，达标的超时回合记为成功。
 
-Actor和Critic均为30维：关节角6、关节速度6、命令目标6、上次动作6、质心高度/速度2、
-base投影重力3、保持时间1。动作仍为6维，但观测已大幅精简，旧变形checkpoint不能直接恢复，
-需新训练。旧行走任务配置与checkpoint保持不变。
+策略网络和价值网络均为30维：关节角6、关节速度6、命令目标6、上次动作6、质心高度/速度2、
+base投影重力3、保持时间1。动作仍为6维，但观测已大幅精简，旧变形检查点不能直接恢复，
+需新训练。旧行走任务配置与检查点保持不变。
 
 初始探索标准差0.5、范围0.1–1.0、熵系数0.005，避免此前标准差持续增大。
 物理步长0.005s、控制频率50Hz，机器人资产和执行器沿用原定义。
@@ -44,7 +48,7 @@ base投影重力3、保持时间1。动作仍为6维，但观测已大幅精简�
 ./scripts/python.sh play.py Mjlab-Zbot-6dof-Transform-Biped-To-Snake \
   --checkpoint-file <new-checkpoint.pt>
 
-./scripts/python.sh transformation_eval.py --num-envs 4 --checkpoint <new-checkpoint.pt>
+./scripts/python.sh scripts/transformation_eval.py --num-envs 4 --checkpoint <new-checkpoint.pt>
 ```
 
 零动作保持当前站立目标。评估记录质心高度/速度、关节误差、保持时间和终止原因。
@@ -53,18 +57,18 @@ base投影重力3、保持时间1。动作仍为6维，但观测已大幅精简�
 ## 本次验证
 
 全套148项测试、Ruff、Pyright、编译检查和独立审查通过。真实CUDA环境确认6维动作、
-30维Actor/Critic；两轮PPO更新及checkpoint加载通过，短训尚未达到变形目标。
+30维策略网络／价值网络；两轮PPO更新及检查点加载通过，短训尚未达到变形目标。
 同机8192环境、24步零动作基准，精简前环境耗时约0.501s，精简后约0.178s
 （三次采样平均，不含PPO更新；真实训练耗时取决于接触与重置情况）。
 
 ## 蛇形到双足站立
 
 独立任务：`Mjlab-Zbot-6dof-Transform-Snake-To-Biped`，日志目录
-`logs/rsl_rl/zbot_transform_snake_to_biped/`。动作仍为6维独立控制，Actor/Critic均30维，
+`logs/rsl_rl/zbot_transform_snake_to_biped/`。动作仍为6维独立控制，策略网络／价值网络均30维，
 使用脚-地接触传感器；没有动作示范或参考轨迹，课程按脚底表现切换阶段。
 
 初始为六关节全零的贴地直链；浮动根节点旋转为水平并放到地面上方，常量定义于
-`tasks/transformation/snake_pose.py`。仅把关节设为零而保留根节点单位四元数会得到竖直链，
+`tasks/transformation/poses.py`。仅把关节设为零而保留根节点单位四元数会得到竖直链，
 因此需要完整设置初态位置和姿态；之后由重力、碰撞和执行器正常模拟。
 
 逆向任务采用两阶段课程：第一阶段学习双脚朝下，目标构型使用弱奖励，
@@ -82,7 +86,7 @@ base投影重力3、保持时间1。动作仍为6维，但观测已大幅精简�
 第二阶段保留脚底朝向及原有惩罚，关闭仅第一阶段使用的初始构型惩罚；
 之后不因回合重置或分数回落退回第一阶段。
 第二阶段额外保护双脚对地条件：两脚倾角均不超过`support_angle_limit_deg=25°`，
-两个sole site的离地绝对高度均不超过`support_height_limit=0.01m`。
+两个脚底位点的离地绝对高度均不超过`support_height_limit=0.01m`。
 条件不满足时，base高度和上升速度的正收益为0；目标构型误差惩罚、其他负反馈、
 脚底奖励和所有惩罚仍正常计算。目标构型项两阶段均保留负反馈。
 每个环境每次重置后，先恢复一次有效双脚支撑才启用失守保护；之后连续违反条件
@@ -146,7 +150,7 @@ JSON只允许修改权重；未填写的字段保持当前值。例如：
 动作边界、观测、初态、物理参数和成功/保护条件不在热改范围内。
 
 逆向任务的 runner 还会在初始化、完整恢复和每次优化器 step 后，将触界或越界的
-Gaussian std 参数投影到原范围的严格内部，避免裁剪导致探索方差梯度归零。
+高斯分布标准差参数投影到原范围的严格内部，避免裁剪导致探索方差梯度归零。
 区间内参数、声明范围和 Adam 状态均保留；仅加载 actor 时不作投影。
 
 第二阶段核心奖励为：
@@ -156,7 +160,7 @@ Gaussian std 参数投影到原范围的严格内部，避免裁剪导致探索�
   大误差用`abs(error)-0.5*beta`。目标构型为0，其余为负，不做大误差截断；
   远离目标的关节改善仍有线性收益。第一阶段权重0.1，第二阶段渐增到1.0。
   无base高度门控，从初始化就生效；第一阶段使用弱权重，第二阶段渐增到强权重。
-- 双脚实际触地奖励`both_feet_contact`：两个foot body均与terrain存在接触时得1，
+- 双脚实际触地奖励`both_feet_contact`：两个脚部刚体均与terrain存在接触时得1，
   默认权重`feet_contact_weight=0.5`，两个阶段均启用。仅site接近地面不算真实触地。
 - base高度和世界Z速度仅作指标，独立奖励权重均为0，成功判定没有指定base高度门槛。
 - 原软关节对称项，权重-1。
@@ -180,9 +184,9 @@ Gaussian std 参数投影到原范围的严格内部，避免裁剪导致探索�
 距离成本的尺度沿用 `sole_alignment_height_std`，
 角度奖励尺度由 `sole_alignment_angle_std_deg` 配置，观测和动作维度不变，重启训练后生效。
 
-逆向任务已恢复最初的变形任务PPO与控制周期，直接继承正向任务的PPO配置，
+逆向任务保留最初的变形任务 PPO 与控制周期；与正向任务通过共同的 `TransformationExperiment` 复用 PPO 配置，
 不再保留逆向专用覆盖：物理与PD周期5ms，策略周期20ms（`decimation=4`，50Hz）；
-每轮24步/0.48s、4个mini-batch，`gamma=0.99`、`lam=0.95`，启用critic价值损失裁剪。
+每轮24步/0.48s、4个小批次，`gamma=0.99`、`lam=0.95`，启用critic价值损失裁剪。
 动作标准差初值0.5、范围0.1–1.0，熵系数0.005。奖励参数保持当前设置，其他实验不变。
 重启训练后生效。复现临时80ms周期训练的逆向模型时，play需添加 `--env.decimation 16`；
 原50Hz逆向模型和正向归档模型按默认周期回放。
@@ -215,7 +219,7 @@ Gaussian std 参数投影到原范围的严格内部，避免裁剪导致探索�
 ./scripts/python.sh play.py Mjlab-Zbot-6dof-Transform-Snake-To-Biped \
   --checkpoint-file <snake-to-biped-checkpoint.pt>
 
-./scripts/python.sh transformation_eval.py \
+./scripts/python.sh scripts/transformation_eval.py \
   --task Mjlab-Zbot-6dof-Transform-Snake-To-Biped \
   --num-envs 16 --checkpoint <snake-to-biped-checkpoint.pt> \
   --output outputs/transformation/snake-to-biped-evaluation.json
@@ -237,10 +241,10 @@ SHA256校验保持通过；逆向策略尚未长训收敛。
 
 ## 逆向任务可选支撑观测
 
-默认 `support_observations=False`，末尾 `support_state` 返回零列，actor/critic
-仍为30维，兼容已有checkpoint。训练时显式加 `--env.support-observations` 后，
-actor和critic各增加13列，变为43维；评估相应模型时加
-`transformation_eval.py --task Mjlab-Zbot-6dof-Transform-Snake-To-Biped --support-observations`。
+默认 `support_observations=False`，末尾 `support_state` 返回零列，策略网络／价值网络
+仍为30维，兼容已有检查点。训练时显式加 `--env.support-observations` 后，
+策略网络和价值网络各增加13列，变为43维；评估相应模型时加
+`scripts/transformation_eval.py --task Mjlab-Zbot-6dof-Transform-Snake-To-Biped --support-observations`。
 43维模型与原30维模型必须使用各自对应的观测开关；该选项不参与奖励热更新。
 正向任务不添加此观测项。
 
@@ -270,8 +274,8 @@ actor和critic各增加13列，变为43维；评估相应模型时加
 
 实验项 `base_gravity_alignment` 默认权重 `base_gravity_alignment_weight=0`，不会改变当前
 基线。成本为 `1 - dot(g_base_unit, g_stand_unit)`，范围[0,2]；无效姿态按最坏2处理。
-站立参考来自 `standing_joint_pos` 和upright root的真实CPU正向运动学，按目标关节角缓存。
-该项同时比较base本体系重力XYZ分量，补足原axial roll只比较XY方向、无法完整区分侧躺
+站立参考来自 `standing_joint_pos` 和直立根部姿态的真实CPU正向运动学，按目标关节角缓存。
+该项同时比较base本体系重力XYZ分量，补足原轴向横滚只比较XY方向、无法完整区分侧躺
 的缺口，对世界偏航不敏感。原roll成本、roll终止阈值、初态和物理设置不变。
 
 需要验证时可设 `--env.base-gravity-alignment-weight -0.5`，或在热更新JSON的`config`
@@ -294,7 +298,7 @@ actor和critic各增加13列，变为43维；评估相应模型时加
 
 ## 逆向观测中的保持时间占位
 
-逆向actor/critic原有第30列`hold_time`现在固定为0：保留原名称、顺序和1维宽度，
+逆向策略网络／价值网络原有第30列`hold_time`现在固定为0：保留原名称、顺序和1维宽度，
 30维及43维模型的网络形状保持兼容。该列原先在大多数训练状态下恒为0，尚未学会归位时
 没有训练到非零计时输入；在短暂满足目标后骤然输入保持进度，可能扰动控制。
 此修正仅移除该未训练进度输入，不增加开关，不改变真实计时。
@@ -328,7 +332,7 @@ Beta沿用原始零关节蛇形起点、物理设置、末端动作目标±1rad�
   --env.scene.num-envs 8192 --agent.max-iterations 4000
 ./scripts/python.sh play.py Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta \
   --checkpoint-file <beta-checkpoint.pt>
-./scripts/python.sh transformation_eval.py \
+./scripts/python.sh scripts/transformation_eval.py \
   --task Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta --checkpoint <beta-checkpoint.pt>
 ```
 
@@ -336,13 +340,13 @@ Beta沿用原始零关节蛇形起点、物理设置、末端动作目标±1rad�
 
 独立任务：`Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Arc`。
 实验类为 `experiments/transformation.py` 中的 `SnakeToBipedArc`，日志目录为
-`logs/rsl_rl/zbot_transform_snake_to_biped_arc/`。直接运行 `./scripts/train_arc.sh`
-开始训练，默认8192环境、4000轮。`train.sh` 中提供了对应的注释命令示例。
+`logs/rsl_rl/zbot_transform_snake_to_biped_arc/`。直接运行 `./scripts/python.sh train.py Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Arc`
+开始训练，环境数和迭代数可通过下列参数显式指定。
 采用 `[0, 0.04, -0.04, 0.04, -0.04, 0] rad` 和配套根部位姿作为低位浅弧起点。
-根部四元数也必须采用 `arc_pose.py` 中的值；只改关节、仍从直线蛇形的根部姿态慢慢施加
+根部四元数也必须采用 `tasks/transformation/poses.py` 中的值；只改关节、仍从直线蛇形的根部姿态慢慢施加
 小目标角，在本轮筛选中不能形成同样的地面弧形。
 
-选择浅弧时同时考虑防滚支撑和真实质心到两脚 sole site 地面投影线段的距离。
+选择浅弧时同时考虑防滚支撑和真实质心到两脚 脚底位点 地面投影线段的距离。
 0.3 rad 候选的距离约57.7 mm，未采用。0.04 rad 浅弧停稳后约8.1 mm，承重接触
 凸包内的质心余量约5.1 mm。原生 CPU 仿真在15/1.5 PD、5 Nm限矩下，分别保持8 s，
 无推力及正负1 N横向推力持续0.2 s的三次检查均恢复稳定。这是单组接触参数下的筛选，
@@ -354,10 +358,10 @@ Beta沿用原始零关节蛇形起点、物理设置、末端动作目标±1rad�
 原始直线蛇形任务保持独立。
 
 ```bash
-./scripts/train_arc.sh
+./scripts/python.sh train.py Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Arc
 # 可覆盖默认值，例如：
-./scripts/train_arc.sh --env.scene.num-envs 4096 --agent.max-iterations 2000
-./scripts/python.sh transformation_eval.py \
+./scripts/python.sh train.py Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Arc --env.scene.num-envs 4096 --agent.max-iterations 2000
+./scripts/python.sh scripts/transformation_eval.py \
   --task Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Arc \
   --curriculum-stage 1 --num-envs 4 --output outputs/arc_hold.json
 ```
@@ -401,7 +405,7 @@ Beta沿用原始零关节蛇形起点、物理设置、末端动作目标±1rad�
 鲁棒与教师实验的目标角速度上限均为2π rad/s（360°/s），50 Hz控制下每步目标变化
 不超过约0.12566 rad；实际关节速度仍由执行器和接触动力学决定。
 初始零姿态与站立目标都满足该关系。约束仅作用于目标角，不改写实际关节位置，外力下
-实际角度仍可能暂时不对称。actor和critic的上次动作观测由3维展开为6维，维持30维输入。
+实际角度仍可能暂时不对称。策略网络和价值网络的上次动作观测由3维展开为6维，维持30维输入。
 策略导出输出为3个目标角速率动作，外部部署端也须执行镜像展开与目标角积分，不能直接
 当作6个关节目标角发送。环境、播放和评估入口均已接入该映射。
 
@@ -475,18 +479,18 @@ base到两脚site线段偏离的过程奖励及其他正则已移除，最终站
 删除恒定扰动强度指标及逐步扰动状态采集；奖励权重热改仅开放当前五项；脚底朝下权重通过`rewards.sole_ground_alignment`修改。
 
 ```bash
-# 正式训练由用户执行；train.sh 中也提供了对应的注释命令示例。
-./scripts/train_robust.sh
+# 训练命令；可按需设置并行环境数和训练轮数。
+./scripts/python.sh train.py Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Robust
 
 # 覆盖并行环境数和微调轮数
-./scripts/train_robust.sh --env.scene.num-envs 4096 --agent.max-iterations 2000
+./scripts/python.sh train.py Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Robust --env.scene.num-envs 4096 --agent.max-iterations 2000
 
 # 续训新的三动作checkpoint：恢复网络、优化器与计数，不重新注入model_2550。
-./scripts/train_robust.sh --agent.resume True \
+./scripts/python.sh train.py Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Robust --agent.resume True \
   --agent.load-run <run-directory-name> --agent.load-checkpoint model_500.pt
 
-# 使用新训练checkpoint做完整扰动评估；不要省略checkpoint，否则只是零动作保持。
-./scripts/python.sh transformation_eval.py \
+# 使用新训练检查点做完整扰动评估；不要省略checkpoint，否则只是零动作保持。
+./scripts/python.sh scripts/transformation_eval.py \
   --task Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Robust \
   --checkpoint <new-checkpoint.pt> --num-envs 16 \
   --output outputs/robust_evaluation.json
@@ -510,7 +514,7 @@ base到两脚site线段偏离的过程奖励及其他正则已移除，最终站
 
 教师Actor共36维，按下表顺序拼接。实际六关节状态不压缩成3维，因为外力下实际关节
 可能偏离镜像关系；独立目标角和上次动作才各用3维。重力和角速度都在base坐标系，
-不用有跨界跳变的Euler roll。额外的世界Z速度直接对应上升奖励。关节角误差以站立目标为零点。
+不用有跨界跳变的欧拉横滚角。额外的世界Z速度直接对应上升奖励。关节角误差以站立目标为零点。
 
 | Actor信息 | 维度 |
 |---|---:|
@@ -521,11 +525,11 @@ base到两脚site线段偏离的过程奖励及其他正则已移除，最终站
 | 两脚与base接触标志 | 3 |
 | 两脚sole高度、朝下法线余弦 | 2+2 |
 
-Critic共44维，在Actor的36维上增加reset历史及计时状态8维。移除质心相对位置与
+价值网络共 44 维，在策略网络的36维上增加reset历史及计时状态8维。移除质心相对位置与
 当前全零外力/力矩列。Actor特征每步仅收集一次，Critic复用；环境部分reset会使缓存失效。
 不再收集未用于当前奖励和reset的支撑保护状态，站稳计时与成功判据保持原定义。
 
-各项按物理单位显式缩放并裁剪，观测范围约±5；关闭Actor/Critic的第二层运行统计归一化，
+各项按物理单位显式缩放并裁剪，观测范围约±5；关闭策略网络／价值网络的第二层运行统计归一化，
 避免接触标志、刚开始变化的计时列被很小的方差放大。网络仍为256/128 MLP，初始学习率
 3e-4、熵系数0.005、Beta三动作。这是从头学习的起步配置，不是已验证的最快超参数。
 
@@ -534,7 +538,7 @@ Critic共44维，在Actor的36维上增加reset历史及计时状态8维。移�
 
 ```bash
 # 正式训练由用户执行。
-python train.py Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Robust-Teacher \
+./scripts/python.sh train.py Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Robust-Teacher \
   --env.scene.num-envs 8192 \
   --agent.max-iterations 2000
 ```

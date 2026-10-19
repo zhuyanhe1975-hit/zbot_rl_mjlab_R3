@@ -1,4 +1,4 @@
-"""Random roll about the snake's longitudinal (root local Z) axis at reset."""
+"""重置时绕蛇形纵轴（根部局部 Z 轴）随机滚转。"""
 
 import math
 from functools import lru_cache
@@ -12,11 +12,10 @@ from ...robot import get_spec
 
 @lru_cache(maxsize=4)
 def collision_radial_envelope(joints):
-    """Radial convex hull and longitudinal extent of native collision vertices.
+    """原生碰撞顶点的径向凸包及纵向范围。
 
-    The extruded radial hull conservatively encloses all vertices. On the
-    prescribed horizontal snake axis its plane clearance is exact, apart from
-    floating point error. No additional geometry dependency is needed.
+    沿纵向拉伸径向凸包可保守包围所有顶点。在规定的水平蛇形轴姿态下，
+    除浮点误差外，其相对平面的净空计算精确，无需额外几何依赖。
     """
     model = get_spec().compile()
     data = mujoco.MjData(model)  # pyright: ignore[reportAttributeAccessIssue]
@@ -51,7 +50,7 @@ def collision_radial_envelope(joints):
 
 
 def rolled_root_states(default, origins, angles, radial, z_min, z_max, clearance):
-    """Pure root-state construction; angles are offsets in radians."""
+    """仅构造根状态；角度为弧度制偏移量。"""
     root = default.clone()
     delta = torch.zeros_like(root[:, 3:7])
     delta[:, 0] = torch.cos(angles / 2)

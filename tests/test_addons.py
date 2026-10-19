@@ -5,14 +5,15 @@ from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
 import zbot_rl_mjlab
-from zbot_rl_mjlab.actions import DelayedJointPositionActionCfg
 from zbot_rl_mjlab.experiments import addons as ad
-from zbot_rl_mjlab.experiments.base import Experiment, variant
-from zbot_rl_mjlab.experiments.disturbed_walking import DisturbedWalking
-from zbot_rl_mjlab.experiments.flat_foot_disturbed import FlatFootDisturbed
-from zbot_rl_mjlab.experiments.omni_velocity_energy import OmniVelocityEnergy
-from zbot_rl_mjlab.experiments.velocity_energy_disturbed import VelocityEnergyDisturbed
-from zbot_rl_mjlab.experiments.velocity_energy_tracking import VelocityEnergyTracking
+from zbot_rl_mjlab.experiments.base import Experiment, WalkingExperiment, variant
+from zbot_rl_mjlab.experiments.variants import (
+    DisturbedWalking,
+    FlatFootDisturbed,
+    VelocityEnergyDisturbed,
+)
+from zbot_rl_mjlab.experiments.walking import OmniVelocityEnergy, VelocityEnergyTracking
+from zbot_rl_mjlab.tasks.walking.actions import DelayedJointPositionActionCfg
 
 BASE = VelocityEnergyTracking
 RESET = "reset_scene_to_default"
@@ -100,7 +101,7 @@ def test_observation_noise_validates_its_arguments():
         build(ad.ObservationNoise(std={"no_such_term": 0.1}, bias={}))
     with pytest.raises(ValueError):
         build(ad.ObservationNoise(std={"joint_pos": 0.1}, bias={"joint_vel": 0.1}))
-    # A term another add-on hides from the actor is still a known term.
+    # 被其他附加配置对策略网络隐藏的观测项，仍属于已知观测项。
     build(ad.BlindActor(), ad.ObservationNoise(std={"base_lin_vel": 0.1}, bias={}))
 
 
@@ -145,9 +146,9 @@ def test_a_subclass_replaces_a_parents_add_on_of_the_same_type_and_adds_others()
     ]
     cfg = Child().build_env()
     assert cfg.events["base_disturbance"].params["disturbed_fraction"] == 1.0
-    assert "randomize_foot_friction" in cfg.events  # inherited
+    assert "randomize_foot_friction" in cfg.events  # 继承的配置
     assert isinstance(cfg.actions["joint_pos"], DelayedJointPositionActionCfg)
-    # The parent is untouched by the child.
+    # 子配置不应修改父配置。
     assert (
         Parent().build_env().events["base_disturbance"].params["disturbed_fraction"]
         == 0.25
@@ -160,7 +161,7 @@ def test_a_subclass_replaces_a_parents_add_on_of_the_same_type_and_adds_others()
     [
         experiment
         for experiment in zbot_rl_mjlab.EXPERIMENTS
-        if getattr(experiment, "supports_walking_addons", True)
+        if issubclass(experiment, WalkingExperiment)
     ],
 )
 def test_every_walking_experiment_accepts_every_add_on(experiment, play):

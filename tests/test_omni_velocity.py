@@ -2,9 +2,10 @@ import torch
 from mjlab.tasks.registry import load_env_cfg
 
 import zbot_rl_mjlab  # noqa: F401
-from zbot_rl_mjlab.experiments import omni_velocity_energy as omni
+from zbot_rl_mjlab.experiments import walking as recipes
+from zbot_rl_mjlab.tasks.walking import mdp as omni
 
-TASK = omni.OMNI_VELOCITY_ENERGY_TASK_ID
+TASK = recipes.OMNI_VELOCITY_ENERGY_TASK_ID
 
 
 def test_omni_tracks_three_commands_without_conflicting_terms():
@@ -20,21 +21,21 @@ def test_omni_tracks_three_commands_without_conflicting_terms():
         assert "lateral_velocity" not in cfg.rewards
         assert "yaw_drift" not in cfg.rewards
         ranges = cfg.commands["target_speed"].ranges
-        assert ranges.lin_vel_x == omni.LIN_VEL_X
-        assert ranges.lin_vel_y == omni.LIN_VEL_Y
-        assert ranges.ang_vel_z == omni.ANG_VEL_Z
+        assert ranges.lin_vel_x == recipes.LIN_VEL_X
+        assert ranges.lin_vel_y == recipes.LIN_VEL_Y
+        assert ranges.ang_vel_z == recipes.ANG_VEL_Z
 
 
 def test_yaw_rate_reward_uses_counter_clockwise_positive(monkeypatch):
     command = torch.tensor([[0.0, 0.0, 0.5]])
     monkeypatch.setattr(omni, "velocity_command", lambda env: command)
-    # base_ang_vel's third axis points down, so a CCW turn of 0.5 rad/s is -0.5.
+    # base_ang_vel 的第三轴朝下，因此逆时针转动 0.5 rad/s 对应 -0.5。
     monkeypatch.setattr(
-        omni.mdp, "base_ang_vel", lambda env: torch.tensor([[0.0, 0.0, -0.5]])
+        omni, "base_ang_vel", lambda env: torch.tensor([[0.0, 0.0, -0.5]])
     )
     assert torch.allclose(omni.track_yaw_rate(None), torch.ones(1))
     monkeypatch.setattr(
-        omni.mdp, "base_ang_vel", lambda env: torch.tensor([[0.0, 0.0, 0.5]])
+        omni, "base_ang_vel", lambda env: torch.tensor([[0.0, 0.0, 0.5]])
     )
     assert omni.track_yaw_rate(None).item() < 0.01
 
@@ -42,10 +43,10 @@ def test_yaw_rate_reward_uses_counter_clockwise_positive(monkeypatch):
 def test_command_arrows_follow_zbot_forward_left_axes():
     import numpy as np
 
-    from zbot_rl_mjlab.mdp import command_arrow_segments
+    from zbot_rl_mjlab.tasks.walking.mdp import command_arrow_segments
 
     origin = np.array([1.0, 2.0, 0.5])
-    forward = np.array([0.0, 1.0, 0.0])  # robot yawed 90 degrees
+    forward = np.array([0.0, 1.0, 0.0])  # 机器人偏航 90 度
     left = np.array([-1.0, 0.0, 0.0])
     (lin_a, lin_b), (yaw_a, yaw_b) = command_arrow_segments(
         origin, forward, left, (1.0, 0.0, 0.0), length=0.25
@@ -59,7 +60,7 @@ def test_command_arrows_follow_zbot_forward_left_axes():
     _, (yaw_a, yaw_b) = command_arrow_segments(
         origin, forward, left, (0.0, 0.0, 1.0), length=0.25
     )
-    # Counter-clockwise seen from above: right-hand rule gives world +Z, any yaw.
+    # 从上方看为逆时针：无论偏航角如何，按右手定则均为世界坐标系 +Z。
     assert np.allclose(yaw_a, origin)
     assert np.allclose(yaw_b - yaw_a, [0.0, 0.0, 0.25])
     _, (yaw_a, yaw_b) = command_arrow_segments(
@@ -85,7 +86,7 @@ def test_follow_key_toggles_only_through_the_action_queue():
     v = object.__new__(zviewer.FollowCameraViewer)
     v._actions = __import__("collections").deque()
     v._follow = False
-    v._on_key(ord("~"))  # An unbound key: nothing queued.
+    v._on_key(ord("~"))  # 未绑定按键：不应向队列添加任何内容。
     assert not v._actions
     v._on_key(zviewer.FOLLOW_KEY)
     action, payload = v._actions.popleft()

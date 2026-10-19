@@ -1,1 +1,1 @@
-"""Nonperiodic morphology transitions, independent of locomotion tasks."""
+"""独立于运动任务的非周期形态转换。"""

@@ -3,7 +3,7 @@
   "source_run": "logs/rsl_rl/zbot_transform_biped_to_snake/2026-10-16_15-43-07",
   "source_checkpoint": "logs/rsl_rl/zbot_transform_biped_to_snake/2026-10-16_15-43-07/model_199.pt",
   "iteration": 199,
-  "user_report": "User reports the redesigned task learned quickly; archive explicitly requested.",
+  "user_report": "用户反馈重新设计的任务学习较快，并明确要求归档。",
   "validation": {
     "strict_actor_load": "passed",
     "archive_regression_tests": "16 passed",
@@ -17,7 +17,7 @@
         0.05441305413842201,
         0.054414644837379456
       ],
-      "note": "All episodes reached timeout at low COM height; current strict zero-angle and continuous-hold success criterion was not met."
+      "note": "所有回合均在较低质心高度达到超时；未满足当前严格的零角度及连续保持成功条件。"
     }
   }
 }

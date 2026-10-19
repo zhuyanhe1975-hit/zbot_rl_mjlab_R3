@@ -1,4 +1,4 @@
-"""Joint-zeroing and COM descent, without contact sensors or support estimation."""
+"""变形任务共用场景，以及双足转蛇形的行为装配。"""
 
 from dataclasses import dataclass
 
@@ -19,6 +19,8 @@ from ...robot import get_spec, robot_cfg
 from . import mdp
 from .actions import JointTargetRateActionCfg
 
+TASK_ID = "Mjlab-Zbot-6dof-Transform-Biped-To-Snake"
+
 
 @dataclass
 class TransformationEnvCfg(ManagerBasedRlEnvCfg):
@@ -31,6 +33,11 @@ class TransformationEnvCfg(ManagerBasedRlEnvCfg):
     workspace_radius: float = 1.5
 
 
+@dataclass
+class BipedToSnakeEnvCfg(TransformationEnvCfg):
+    """关节归零与平缓下降任务的配置。"""
+
+
 def full_body_spec():
     spec = get_spec()
     for geom in spec.geoms:
@@ -40,7 +47,8 @@ def full_body_spec():
     return spec
 
 
-def transformation_env_cfg(play=False):
+def transformation_scene_cfg(play=False, cfg_cls=TransformationEnvCfg, action_cfg_cls=JointTargetRateActionCfg):
+    """直接创建最终配置类型，共用机器人、场景和控制接口。"""
     robot = robot_cfg()
     robot.spec_fn = full_body_spec
     actor = {
@@ -52,7 +60,7 @@ def transformation_env_cfg(play=False):
         "projected_gravity": ObservationTermCfg(func=mdp.projected_gravity),
         "hold_time": ObservationTermCfg(func=mdp.hold_observation),
     }
-    return TransformationEnvCfg(
+    return cfg_cls(
         seed=42,
         decimation=4,
         episode_length_s=16.0,
@@ -77,21 +85,13 @@ def transformation_env_cfg(play=False):
             for name in ("actor", "critic")
         },
         actions={
-            "joint_pos": JointTargetRateActionCfg(
+            "joint_pos": action_cfg_cls(
                 entity_name="robot",
                 actuator_names=(".*",),
                 use_default_offset=False,
             )
         },
-        rewards={
-            "joint_zero": RewardTermCfg(func=mdp.joint_zero_reward, weight=3.0),
-            "com_descent_velocity": RewardTermCfg(
-                func=mdp.com_descent_velocity_reward,
-                weight=1.0,
-                params={"target_speed": 0.03},
-            ),
-            "joint_symmetry": RewardTermCfg(func=mdp.joint_symmetry_cost, weight=-0.5),
-        },
+        rewards={},
         terminations={
             "update_state": TerminationTermCfg(func=mdp.update_state),
             "unsafe": TerminationTermCfg(func=mdp.unsafe),
@@ -105,11 +105,7 @@ def transformation_env_cfg(play=False):
                 func=mdp.reset_transformation, mode="reset"
             ),
         },
-        metrics={
-            "joint_error": MetricsTermCfg(func=mdp.joint_error_metric),
-            "com_height": MetricsTermCfg(func=mdp.com_height),
-            "success": MetricsTermCfg(func=mdp.success, reduce="last"),
-        },
+        metrics={},
         sim=SimulationCfg(
             mujoco=MujocoCfg(
                 timestep=0.005,
@@ -129,3 +125,23 @@ def transformation_env_cfg(play=False):
             origin_type=ViewerConfig.OriginType.WORLD,
         ),
     )
+
+
+def transformation_env_cfg(play=False, cfg_cls=BipedToSnakeEnvCfg):
+    """装配下降方向，默认创建下降专用配置。"""
+    cfg = transformation_scene_cfg(play=play, cfg_cls=cfg_cls)
+    cfg.rewards = {
+        "joint_zero": RewardTermCfg(func=mdp.joint_zero_reward, weight=3.0),
+        "com_descent_velocity": RewardTermCfg(
+            func=mdp.com_descent_velocity_reward,
+            weight=1.0,
+            params={"target_speed": 0.03},
+        ),
+        "joint_symmetry": RewardTermCfg(func=mdp.joint_symmetry_cost, weight=-0.5),
+    }
+    cfg.metrics = {
+        "joint_error": MetricsTermCfg(func=mdp.joint_error_metric),
+        "com_height": MetricsTermCfg(func=mdp.com_height),
+        "success": MetricsTermCfg(func=mdp.success, reduce="last"),
+    }
+    return cfg

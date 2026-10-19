@@ -1,4 +1,4 @@
-"""CPU-only hot reward transaction, update-boundary and checkpoint coverage."""
+"""仅使用 CPU 检查奖励热更新事务、更新边界与检查点。"""
 
 import json
 from types import SimpleNamespace
@@ -9,7 +9,7 @@ import torch
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from rsl_rl.modules import GaussianDistribution
 
-from zbot_rl_mjlab.tasks.transformation.hot_rewards import (
+from zbot_rl_mjlab.rl import (
     CHECKPOINT_KEY,
     CONFIG_SIGNS,
     REWARD_SIGNS,

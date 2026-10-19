@@ -1,7 +1,7 @@
-"""Compact full-state teacher: 36 actor inputs and 44 critic inputs.
+"""紧凑完整状态教师策略：策略输入 36 维，价值输入 44 维。
 
-Teacher actors do not receive exact external pushes or reset history. Privileged
-critic inputs improve value estimation without becoming required student sensors.
+教师策略网络不接收精确外部推力或重置历史。价值网络的特权输入改善价值估计，
+不会变成学生策略必需的传感器。
 """
 
 import math
@@ -88,7 +88,7 @@ def normalized_external_wrench(env):
 
 
 def reset_memory(env):
-    """Read-only reset state; never expose future push vectors/times to the actor."""
+    """只读重置状态；不向策略网络提供未来推力向量或时刻。"""
     state = fall_retry_state(env)
     height_drop = (state.peak_base_height - base_height(env)).clamp_min(0)
     return torch.stack((
@@ -100,8 +100,8 @@ def reset_memory(env):
 
 
 def teacher_reference_observation_groups():
-    # Clip is applied before scale by ObservationManager. All scaled values are
-    # bounded at approximately +/-5; no second running normalizer is required.
+    # ObservationManager 先裁剪再缩放。缩放后的值大致位于 +/-5，
+    # 无需第二次运行归一化。
     actor = {
         "joint_goal_error": ObservationTermCfg(func=joint_goal_error, scale=1 / math.pi, clip=(-4 * math.pi, 4 * math.pi)),
         "joint_velocity": ObservationTermCfg(func=joint_velocity, scale=0.5, clip=(-10, 10)),
@@ -126,7 +126,7 @@ def teacher_reference_observation_groups():
 
 
 def teacher_actor_state(env):
-    """Collect/scale actor features once, shared by Actor and Critic this frame."""
+    """本帧仅采集／缩放一次策略特征，供策略网络与价值网络共享。"""
     stamp = (env.common_step_counter, getattr(env, "_observation_generation", 0))
     cached = getattr(env, "_teacher_actor_cache", None)
     if cached is not None and cached[0] == stamp:

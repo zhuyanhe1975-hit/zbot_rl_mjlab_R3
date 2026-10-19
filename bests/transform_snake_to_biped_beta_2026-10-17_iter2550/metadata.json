@@ -13,15 +13,15 @@
     "observation_dim": 30,
     "action_dim": 6,
     "raw_head_dim": 12,
-    "hold_time_slot": "fixed zero"
+    "hold_time_slot": "固定为零"
   },
   "training_provenance": {
-    "course": "Manual reward hot updates: pose 0.6 -> preparation 3 -> standing 6; symmetry -0.2; coarse maximum joint error 1 rad before stage 2.",
-    "config_files": "env.yaml and agent.yaml are the original run startup files; final_effective_weights.json is extracted from this checkpoint metadata.",
-    "automatic_course": "New Beta task automates the preparation latch; regression tested, not verified by a complete cold-start retraining."
+    "course": "手动热更新奖励：姿态 0.6 -> 准备 3 -> 站立 6；对称性 -0.2；第二阶段前的粗略最大关节误差为 1 rad。",
+    "config_files": "env.yaml 和 agent.yaml 是原始运行的启动文件；final_effective_weights.json 从此检查点的元数据中提取。",
+    "automatic_course": "新的 Beta 任务自动处理准备阶段锁存；已通过回归测试，尚未经完整的从零重新训练验证。"
   },
   "validation": {
-    "numerical_evaluation": "Copied evaluation.json: 4 environments, 16 seconds, strict goal success rate 1.0. Evaluation used matching native Beta trial loader under original reverse task ID.",
+    "numerical_evaluation": "复制的 evaluation.json：4 个环境、16 秒，严格目标成功率为 1.0。评估在原始反向任务 ID 下使用匹配的原生 Beta 试验加载器。",
     "production_task_eval": {
       "status": "passed",
       "file": "native_evaluation.json",
@@ -31,12 +31,12 @@
       "max_final_joint_error_rad": 0.05471086502075195,
       "minimum_continuous_hold_s": 11.760079383850098
     },
-    "cpu_actor_strict_load": "Passed archive regression: real CPU MLPModel using registered Beta config, strict state load, finite 6-action deterministic inference.",
+    "cpu_actor_strict_load": "已通过归档回归测试：在 CPU 上使用真实 MLPModel 和已注册的 Beta 配置，严格加载状态，并确认 6 维动作的确定性推理结果均为有限值。",
     "not_done": [
-      "60-second evaluation",
-      "16-environment evaluation",
-      "ONNX/JIT export",
-      "hardware validation"
+      "60 秒评估",
+      "16 环境评估",
+      "ONNX/JIT 导出",
+      "硬件验证"
     ]
   }
 }
