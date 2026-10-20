@@ -10,7 +10,12 @@ from test_snake_task import state_env
 
 from zbot_rl_mjlab.tasks.snake import mdp
 from zbot_rl_mjlab.tasks.snake.commands import SnakeVelocityCommandCfg
-from zbot_rl_mjlab.tasks.snake.env_cfg import SNAKE_JOINT_LIMIT, snake_env_cfg
+from zbot_rl_mjlab.tasks.snake.env_cfg import (
+    SNAKE_JOINT_LIMIT,
+    SNAKE_MAX_TARGET_SPEED,
+    snake_env_cfg,
+)
+from zbot_rl_mjlab.tasks.transformation.actions import JointTargetRateActionCfg
 
 
 def continuous_env():
@@ -92,7 +97,7 @@ def test_legacy_tracking_and_visual_share_site_pose_instead_of_body_pose(play):
     data.site_quat_w[:, 0] = quat_mul(
         yaw_quat(math.pi / 2).expand(2, -1), data.site_quat_w[:, 0],
     )
-    data.site_pos_w = torch.tensor([[[2., 3., .5]], [[4., 5., .7]]])
+    data.site_pos_w = torch.tensor([[[2., 3., .5], [1.4, 3., .5]], [[4., 5., .7], [3.4, 5., .7]]])
     data.body_com_lin_vel_w[..., 1] = .05
     data.site_ang_vel_w = data.site_ang_vel_w.clone()
     data.site_ang_vel_w[:, 0, 2] = .2
@@ -188,15 +193,17 @@ def test_actor_world_x_reference_changes_under_yaw_but_body_features_are_invaria
         value[1] = quat_apply(q.expand(12, -1), value[1])
     data.body_link_quat_w[1] = quat_mul(q.expand(12, -1), data.body_link_quat_w[1])
     obs = mdp.actor_state(env)
-    invariant = torch.cat((obs[:, :24], obs[:, 27:]), -1)
+    invariant = torch.cat((obs[:, :24], obs[:, 27:43]), -1)
     torch.testing.assert_close(invariant[0], invariant[1], atol=2e-6, rtol=1e-5)
     assert not torch.allclose(obs[0, 24:27], obs[1, 24:27])
+    torch.testing.assert_close(obs[:, 43:47], mdp.head_orientation(env))
+    torch.testing.assert_close(obs[:, 47:49], torch.tensor([[0., 1.], [1., 0.]]), atol=1e-6, rtol=0)
     world_reference = quat_apply(data.body_link_quat_w[:, 0], obs[:, 24:27])
     torch.testing.assert_close(world_reference, torch.tensor([[1., 0., 0.]]).expand(2, -1), atol=1e-6, rtol=0)
     expected = quat_apply_inverse(data.body_link_quat_w[:, 0], data.body_link_ang_vel_w[:, 0])
     torch.testing.assert_close(obs[:, 33:36], expected)
-    assert obs.shape == (2, 40)
-    assert mdp.critic_state(env).shape == (2, 55)
+    assert obs.shape == (2, 51)
+    assert mdp.critic_state(env).shape == (2, 66)
 
 
 def test_legacy_head_motion_and_world_gyro_keep_old_checkpoint_semantics():
@@ -261,18 +268,30 @@ def test_world_speed_rewards_preserve_physical_action_bounds():
     assert cfg.motion_frame == 'body_gravity'
     assert cfg.head_gyro_frame == 'head'
     assert {name: term.weight for name, term in cfg.rewards.items()} == {
-        'forward_speed': 1., 'lateral_speed_cost': -1., 'vertical_speed_cost': -1.,
-        'joint_pose_deviation': -.01, 'head_tilt_reset_cost': -.5, 'target_saturation_fraction': -.1,
+        'head_forward_speed': 15., 'head_lateral_speed_cost': -5., 'head_vertical_speed_cost': -.2,
+        'joint_pose_deviation': -.02, 'joint_fold_cost': -1., 'head_tilt_reset_cost': -5., 'target_saturation_fraction': -.1,
+        'head_angular_velocity_cost': -.2,
+        'head_yaw_cost': -.5,
+        'head_yaw_integral_cost': -.5,
+        'body_yaw_cost': -.1,
+        'body_yaw_integral_cost': -1.,
+        'body_yaw_reset_cost': -5.,
+        'head_yaw_reset_cost': -5.,
+        'alive': .02,
+        'action_rate': -.0,
+        'self_collision_reset_cost': -5.,
     }
-    assert cfg.actions['joint_pos'].target_limit == SNAKE_JOINT_LIMIT == math.pi / 2
-    assert cfg.actions['joint_pos'].max_target_speed == 2 * math.pi
+    assert cfg.actions['joint_pos'].target_limit == SNAKE_JOINT_LIMIT == math.pi / 3
+    assert isinstance(cfg.actions['joint_pos'], JointTargetRateActionCfg)
+    assert cfg.actions['joint_pos'].max_target_speed == SNAKE_MAX_TARGET_SPEED == 2 * math.pi
+    assert not cfg.actions['joint_pos'].use_default_offset
     assert 'translation_stall_fraction' not in cfg.metrics
 
 
 def test_target_saturation_adds_penalty_but_action_clipping_is_only_a_metric():
     env = continuous_env()
     action = env.action_manager.get_term('joint_pos')
-    action.commanded_target[0, :3] = math.pi / 2
+    action.commanded_target[0, :3] = SNAKE_JOINT_LIMIT
     action.raw_action[1, :2] = torch.tensor([-1., 1.])
     assert mdp.target_saturation_fraction(env).tolist() == pytest.approx([.5, 0.])
     assert mdp.action_clip_fraction(env).tolist() == pytest.approx([0., 1 / 3])
@@ -283,7 +302,7 @@ def test_target_saturation_adds_penalty_but_action_clipping_is_only_a_metric():
 def test_target_windup_only_penalizes_ineffective_outward_requests():
     env = continuous_env()
     action = env.action_manager.get_term('joint_pos')
-    action.commanded_target[:] = torch.tensor([math.pi / 2, -math.pi / 2, .5, -.5, 0., 0.])
+    action.commanded_target[:] = torch.tensor([SNAKE_JOINT_LIMIT, -SNAKE_JOINT_LIMIT, .5, -.5, 0., 0.])
     env.action_manager.action = torch.tensor([[2., -2., 2., -2., 2., -2.], [-2., 2., 2., -2., 2., -2.]])
     # 原始输出2不能被执行层的±1裁剪掩盖；反向脱离边界没有惩罚。
     assert mdp.target_windup_cost(env).tolist() == pytest.approx([8 / 6, 0.])

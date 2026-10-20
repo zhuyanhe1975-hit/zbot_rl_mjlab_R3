@@ -9,6 +9,7 @@ from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 
 @dataclass(kw_only=True)
 class UniversalCommandCfg(CommandTermCfg):
+    snake_teacher_enabled: bool = False
     training: bool = True
     mode: str = "source"
     auto_switch_on_success: bool = False
@@ -107,12 +108,13 @@ class UniversalCommand(CommandTerm):
         if not len(ids):
             return
         if self.pretraining and self.cfg.training:
-            group = ids % 4
+            group = ids % (5 if self.cfg.snake_teacher_enabled else 4)
             previous_mode = self._command[ids, 0].clone()
-            self._command[ids, 0] = torch.where(group == 2, -1., 1.)
+            self._command[ids, 0] = torch.where((group == 2) | (group == 4), -1., 1.)
             self.requested_velocity[ids] = 0
             self.requested_velocity[ids[group == 0], 0] = .08
             self.requested_velocity[ids[group == 1], 1] = .05
+            self.requested_velocity[ids[group == 4], 0] = .08
             self._clear(ids[self._command[ids, 0] != previous_mode])
             return
         # 未完成的变形必须到位或超时，不能用自动换目标逃避失败。
@@ -161,24 +163,28 @@ class UniversalCommand(CommandTerm):
         ids = self._ids(env_ids)
         if env_ids is not None:
             return
+        # 此后 ids 覆盖全部环境；掩码运算全部留在设备上，不逐步同步。
         fresh = self.last_step[ids] != self._env.common_step_counter
-        if self.cfg.training and not self.pretraining and fresh.any():
+        if self.cfg.training and not self.pretraining:
             scores = motion_tracking_score(tracking_velocity(self._env), self.velocity_command, self.cfg.velocity_limits)
             moving = ~self.transition_mask & (self.velocity_command.norm(dim=-1) > .01) & fresh
-            for mode in (0, 1):
-                selected = moving & (self.standing_mode == bool(mode))
-                if selected.any():
-                    self.tracking_ema[mode].lerp_(scores[selected].mean().clamp(0, 1), .01)
+            selected = moving[None] & (self.standing_mode[None] == torch.tensor((False, True), device=self.device)[:, None])
+            count = selected.sum(-1)
+            mean = (torch.where(selected, scores[None], 0.).sum(-1) / count.clamp_min(1)).clamp(0, 1)
+            self.tracking_ema.copy_(torch.where(count > 0, self.tracking_ema.lerp(mean, .01), self.tracking_ema))
         ready = configuration_ready(self._env)
         relaxed = configuration_ready(self._env, relaxed=True)
         held = torch.where(ready, self.hold_time + self._env.step_dt, 0.)
         self.hold_time[ids] = torch.where(fresh, held[ids], self.hold_time[ids])
         settled = self.hold_time >= self.cfg.hold_s
-        # 已进入运动阶段后使用更宽阈值，避免合法摆动导致频繁切换。
+        # Recovery is optional: a locomotion policy must not change action
+        # semantics merely because a foot briefly loses contact.
         was_transition = self.transition_mask.clone()
-        self.transition_mask[ids] = torch.where(self.transition_mask[ids], ~settled[ids], ~relaxed[ids])
-        entered = ids[~was_transition[ids] & self.transition_mask[ids]]
-        self.start_step[entered] = self._env.common_step_counter
+        auto_recovery = (getattr(self.cfg, 'train_auto_recovery', True) if self.cfg.training
+                         else getattr(self.cfg, 'play_auto_recovery', True))
+        recover = ~relaxed if auto_recovery else torch.zeros_like(relaxed)
+        self.transition_mask[ids] = torch.where(self.transition_mask[ids], ~settled[ids], recover[ids])
+        self.start_step.masked_fill_(~was_transition & self.transition_mask, self._env.common_step_counter)
         self.phase[ids] = torch.where(self.standing_mode[ids], torch.where(self.transition_mask[ids], 3, 0), torch.where(self.transition_mask[ids], 1, 2))
         self.standing_achieved[ids] |= self.phase[ids] == 0
         target = torch.where(self.transition_mask[:, None], 0., self.requested_velocity)

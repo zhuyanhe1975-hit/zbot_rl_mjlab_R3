@@ -42,12 +42,25 @@ def test_named_state_and_history_preserve_critic_and_base_factory(play):
     assert sum(DIMS.values()) == 37
     assert actor.history_length == 5 and actor.flatten_history_dim
     assert not actor.enable_corruption
-    assert actor.nan_policy == "sanitize"
+    # 逐项无条件清理 NaN/Inf，替代管理器 sanitize 的逐项 .any() 同步。
+    assert actor.nan_policy == "disabled"
+    assert all(torch.isfinite(value).all() for value in values.values())
     assert 37 * actor.history_length == 185
     base = universal_env_cfg(play=play)
     assert list(base.observations["actor"].terms) == ["universal_state"]
     assert base.observations["actor"].history_length is None
     assert mdp.actor_state(env).shape == (2, 50)
+
+
+def test_actor_terms_sanitize_non_finite_values():
+    env, _ = state_env()
+    cfg = universal_env_cfg()
+    configure_deployment(cfg)
+    env.scene["robot"].data.joint_pos_biased[0, 0] = float("nan")
+    env.scene["robot"].data.joint_pos_biased[1, 1] = float("inf")
+    value = cfg.observations["actor"].terms["joint_pos"].func(env)
+    assert torch.isfinite(value).all()
+    assert value[0, 0] == 0 and value[1, 1] == 0
 
 
 def test_actor_and_critic_have_no_sensor_noise():

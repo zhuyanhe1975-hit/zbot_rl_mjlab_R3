@@ -1,0 +1,2 @@
+# Preserve byte-exact archived git patches, including blank context lines.
+bests/*/workspace.patch -whitespace

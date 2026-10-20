@@ -22,7 +22,12 @@ class PartialBaseImpulse(envs_mdp.apply_body_impulse):
     def __call__(self, env, env_ids, *args, **kwargs):
         kwargs.pop("disturbed_fraction", None)
         super().__call__(env, env_ids, *args, **kwargs)
-        quiet = (~self._disturbed_mask).nonzero(as_tuple=False).flatten()
+        # 掩码只在构造或原位改写时变化；按版本号缓存静默编号，避免每步 nonzero 同步。
+        version = (id(self._disturbed_mask), self._disturbed_mask._version)
+        if getattr(self, "_quiet_version", None) != version:
+            self._quiet = (~self._disturbed_mask).nonzero(as_tuple=False).flatten()
+            self._quiet_version = version
+        quiet = self._quiet
         if quiet.numel():
             zeros = torch.zeros((len(quiet), self._num_bodies, 3), device=self._device)
             self._asset.write_external_wrench_to_sim(
@@ -74,3 +79,18 @@ def add_base_disturbance(
         },
     )
     return cfg
+
+
+_CONSTANTS: dict = {}
+
+
+def constant(reference: torch.Tensor, values, dtype: torch.dtype | None = None) -> torch.Tensor:
+    """按设备/类型缓存小常量，避免每步 new_tensor 触发主机到设备的阻塞拷贝。
+
+    返回的张量为共享只读缓存，调用方只能 expand/参与运算，不得原地修改。
+    """
+    key = (reference.device, dtype or reference.dtype, tuple(values))
+    cached = _CONSTANTS.get(key)
+    if cached is None:
+        cached = _CONSTANTS[key] = torch.tensor(key[2], device=key[0], dtype=key[1])
+    return cached

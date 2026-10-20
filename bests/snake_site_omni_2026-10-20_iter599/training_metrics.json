@@ -1,0 +1,327 @@
+{
+  "Episode_Reward/track_linear_velocity": {
+    "step": 597,
+    "value": 22.196565628051758,
+    "wall_time": 1792494916.5592365
+  },
+  "Episode_Reward/track_angular_velocity": {
+    "step": 597,
+    "value": 4.964099884033203,
+    "wall_time": 1792494916.5593162
+  },
+  "Episode_Reward/site_tilt": {
+    "step": 597,
+    "value": -0.5570610761642456,
+    "wall_time": 1792494916.559361
+  },
+  "Episode_Reward/joint_pos_limits": {
+    "step": 597,
+    "value": -0.43524718284606934,
+    "wall_time": 1792494916.5594018
+  },
+  "Episode_Reward/joint_target_limits": {
+    "step": 597,
+    "value": -0.705238938331604,
+    "wall_time": 1792494916.5594397
+  },
+  "Episode_Metrics/velocity_error_vx": {
+    "step": 597,
+    "value": 0.05633201822638512,
+    "wall_time": 1792494916.5594776
+  },
+  "Episode_Metrics/velocity_error_vy": {
+    "step": 597,
+    "value": 0.04834284260869026,
+    "wall_time": 1792494916.559514
+  },
+  "Episode_Metrics/velocity_error_wz": {
+    "step": 597,
+    "value": 0.305915504693985,
+    "wall_time": 1792494916.55955
+  },
+  "Episode_Metrics/command_vx_positive_fraction": {
+    "step": 597,
+    "value": 0.024310830980539322,
+    "wall_time": 1792494916.5595849
+  },
+  "Episode_Metrics/command_vx_negative_fraction": {
+    "step": 597,
+    "value": 0.08979089558124542,
+    "wall_time": 1792494916.5596197
+  },
+  "Episode_Metrics/command_vy_positive_fraction": {
+    "step": 597,
+    "value": 0.032486796379089355,
+    "wall_time": 1792494916.5596569
+  },
+  "Episode_Metrics/command_vy_negative_fraction": {
+    "step": 597,
+    "value": 0.027711452916264534,
+    "wall_time": 1792494916.5599375
+  },
+  "Episode_Metrics/command_wz_positive_fraction": {
+    "step": 597,
+    "value": 0.03212502598762512,
+    "wall_time": 1792494916.5600088
+  },
+  "Episode_Metrics/command_wz_negative_fraction": {
+    "step": 597,
+    "value": 0.06388828903436661,
+    "wall_time": 1792494916.560074
+  },
+  "Episode_Metrics/site_height": {
+    "step": 597,
+    "value": 0.0730006992816925,
+    "wall_time": 1792494916.5601351
+  },
+  "Episode_Metrics/site_tilt_rad": {
+    "step": 597,
+    "value": 0.3028690814971924,
+    "wall_time": 1792494916.560197
+  },
+  "Episode_Termination/self_collision": {
+    "step": 597,
+    "value": 0.0,
+    "wall_time": 1792494916.5602748
+  },
+  "Episode_Termination/site_tilt": {
+    "step": 597,
+    "value": 1.0,
+    "wall_time": 1792494916.5603502
+  },
+  "Loss/value": {
+    "step": 599,
+    "value": 0.04670653119683266,
+    "wall_time": 1792494917.7503185
+  },
+  "Loss/surrogate": {
+    "step": 599,
+    "value": -0.0027921514119952917,
+    "wall_time": 1792494917.7503376
+  },
+  "Loss/entropy": {
+    "step": 599,
+    "value": -9.95097541809082,
+    "wall_time": 1792494917.7503424
+  },
+  "Loss/rollout_biped_frames": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.750346
+  },
+  "Loss/rollout_biped_fraction": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.7503488
+  },
+  "Loss/rollout_biped_active_frames": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.7503517
+  },
+  "Loss/rollout_biped_velocity_rmse": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.7503545
+  },
+  "Loss/rollout_biped_vx_rmse": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.7503572
+  },
+  "Loss/rollout_biped_signed_vx": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.7503598
+  },
+  "Loss/rollout_biped_vy_rmse": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.7503624
+  },
+  "Loss/rollout_biped_signed_vy": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.7503648
+  },
+  "Loss/rollout_biped_wz_rmse": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.7504277
+  },
+  "Loss/rollout_biped_signed_wz": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.7504838
+  },
+  "Loss/rollout_biped_planar_progress": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.750507
+  },
+  "Loss/rollout_descending_frames": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.7505283
+  },
+  "Loss/rollout_descending_fraction": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.7505498
+  },
+  "Loss/rollout_snake_frames": {
+    "step": 599,
+    "value": 196608.0,
+    "wall_time": 1792494917.7505708
+  },
+  "Loss/rollout_snake_fraction": {
+    "step": 599,
+    "value": 1.0,
+    "wall_time": 1792494917.7505922
+  },
+  "Loss/rollout_snake_active_frames": {
+    "step": 599,
+    "value": 175131.0,
+    "wall_time": 1792494917.750717
+  },
+  "Loss/rollout_snake_velocity_rmse": {
+    "step": 599,
+    "value": 0.48850110173225403,
+    "wall_time": 1792494917.7507646
+  },
+  "Loss/rollout_snake_vx_rmse": {
+    "step": 599,
+    "value": 0.15026000142097473,
+    "wall_time": 1792494917.7508342
+  },
+  "Loss/rollout_snake_signed_vx": {
+    "step": 599,
+    "value": 0.016478976234793663,
+    "wall_time": 1792494917.7508795
+  },
+  "Loss/rollout_snake_vy_rmse": {
+    "step": 599,
+    "value": 0.16289612650871277,
+    "wall_time": 1792494917.7508988
+  },
+  "Loss/rollout_snake_signed_vy": {
+    "step": 599,
+    "value": 0.0406155064702034,
+    "wall_time": 1792494917.7509224
+  },
+  "Loss/rollout_snake_wz_rmse": {
+    "step": 599,
+    "value": 0.8165701031684875,
+    "wall_time": 1792494917.7509422
+  },
+  "Loss/rollout_snake_signed_wz": {
+    "step": 599,
+    "value": 0.01968374103307724,
+    "wall_time": 1792494917.7509663
+  },
+  "Loss/rollout_snake_planar_progress": {
+    "step": 599,
+    "value": 0.041086409240961075,
+    "wall_time": 1792494917.75099
+  },
+  "Loss/rollout_ascending_frames": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.7510128
+  },
+  "Loss/rollout_ascending_fraction": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.7510304
+  },
+  "Loss/teacher_ppo_iterations": {
+    "step": 599,
+    "value": 600.0,
+    "wall_time": 1792494917.7510555
+  },
+  "Loss/rollout_reward_track_linear_velocity": {
+    "step": 599,
+    "value": 2.8186421394348145,
+    "wall_time": 1792494917.7510808
+  },
+  "Loss/rollout_reward_track_angular_velocity": {
+    "step": 599,
+    "value": 0.484460711479187,
+    "wall_time": 1792494917.7510982
+  },
+  "Loss/rollout_reward_site_tilt": {
+    "step": 599,
+    "value": -0.06215863674879074,
+    "wall_time": 1792494917.7511218
+  },
+  "Loss/rollout_reward_joint_pos_limits": {
+    "step": 599,
+    "value": -0.03292772173881531,
+    "wall_time": 1792494917.7511463
+  },
+  "Loss/rollout_reward_joint_target_limits": {
+    "step": 599,
+    "value": -0.060531407594680786,
+    "wall_time": 1792494917.7511742
+  },
+  "Loss/rollout_reward_rate": {
+    "step": 599,
+    "value": 3.1474850177764893,
+    "wall_time": 1792494917.751177
+  },
+  "Loss/rollout_reset_count": {
+    "step": 599,
+    "value": 0.0,
+    "wall_time": 1792494917.7511952
+  },
+  "Loss/rollout_episode_age_s": {
+    "step": 599,
+    "value": 272.6795654296875,
+    "wall_time": 1792494917.7512345
+  },
+  "Loss/learning_rate": {
+    "step": 599,
+    "value": 0.0012974634300917387,
+    "wall_time": 1792494917.751253
+  },
+  "Policy/mean_std": {
+    "step": 599,
+    "value": 0.11593152582645416,
+    "wall_time": 1792494917.7513134
+  },
+  "Perf/total_fps": {
+    "step": 599,
+    "value": 333758.0,
+    "wall_time": 1792494917.751319
+  },
+  "Perf/collection_time": {
+    "step": 599,
+    "value": 0.5357916355133057,
+    "wall_time": 1792494917.751322
+  },
+  "Perf/learning_time": {
+    "step": 599,
+    "value": 0.053281545639038086,
+    "wall_time": 1792494917.7513423
+  },
+  "Train/mean_reward": {
+    "step": 599,
+    "value": 610.30419921875,
+    "wall_time": 1792494917.751415
+  },
+  "Train/mean_episode_length": {
+    "step": 599,
+    "value": 12278.4599609375,
+    "wall_time": 1792494917.751473
+  },
+  "Train/mean_reward/time": {
+    "step": 448,
+    "value": 610.30419921875,
+    "wall_time": 1792494917.7515295
+  },
+  "Train/mean_episode_length/time": {
+    "step": 448,
+    "value": 12278.4599609375,
+    "wall_time": 1792494917.7515717
+  }
+}

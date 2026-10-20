@@ -1,9 +1,13 @@
 # Zbot 强化学习实验
 
-基于 MJLab 的六关节 Zbot 仿真训练项目，包含行走、蛇足变形和综合运动任务，共注册 22 个实验。
+基于 MJLab 的六关节 Zbot 仿真训练项目，包含行走、蛇足变形和综合运动任务，共注册 30 个实验。
 行走类覆盖周期踏步、速度跟踪、能耗、扰动和部署配置；变形类覆盖双足变蛇形、蛇形站起和指令控制的双向切换。
 新增综合任务通过多教师蒸馏预训练一个统一策略，联合学习双足运动、蛇形运动和变形；尚需完整训练验收。
-独立的[蛇形全向教师](docs/snake-omni-teacher.md)覆盖六向运动、头部稳定、柔和接触和自碰撞检测，支持键盘控制。
+
+当前先做[全能特权教师的纯双足对照](docs/privileged-omni-teacher.md)：`Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Wide-Biped` 全部环境固定双足，只采样全向 `vx/vy/wz`、混合指令和停车；蛇形及变形暂不采样。仍用56维真值输入（构型1维、任务1维），网络与PPO参数保持不变。通过 `ZBOT_EXPERIMENT=biped bash train.sh` 训练、`ZBOT_EXPERIMENT=biped bash run.sh` 回放；日志独立保存在 `logs/ablations/biped_scalar_only/`，完整训练由用户启动。
+当前默认入口为[分任务教师指导＋PPO的全能特权教师](docs/guided-privileged-teacher.md)：`bash train.sh` 从头训练新实验，产生检查点后用 `bash run.sh` 回放。每轮同时执行PPO和按任务监督；双足全向归档指导行走，双向变形归档指导站起／爬下；默认不加载世界X蛇形教师，蛇形全向由PPO学习。变形执行镜像目标与归直后重试规则。保持56维特权观测和分任务网络，学生训练继续暂缓。没有100代统一切换。旧纯PPO实验使用 `ZBOT_EXPERIMENT=taskrouted`，其他既有选项和检查点保留。
+部署学生训练暂缓；原[全向学生及CUDA Graph分析](docs/snake-leg-omni.md)保留供后续使用。
+原[四教师世界X实验](docs/snake-leg-universal.md)和[独立蛇形任务](docs/snake-omni-teacher.md)保留用于历史复现。
 综合部署实验从第一轮起使用受限观测学生，在同一受扰环境中接受教师指导，再继续节能与抗扰强化学习，见[最终学生培养](docs/universal-locomotion.md#最终部署学生)。
 
 ## 环境与运行
@@ -24,7 +28,7 @@ export MJLAB_ROOT=/实际路径/mjlab
 ```
 
 行走训练可将任务 ID 改为 `Mjlab-Zbot-6dof-Walking`。各任务参数可在任务 ID 后加 `--help` 查看。
-`train.sh`、`run.sh` 直接列出各实验命令，暂不使用的命令整段注释；当前执行综合任务。切换实验时手动调整注释。需要命令行指定任务和参数时，使用 `scripts/python.sh train.py/play.py`。
+`train.sh`、`run.sh` 使用 `ZBOT_EXPERIMENT` 选择实验；默认 `guided`，无需另建启动脚本。需要命令行指定任务和参数时，使用 `scripts/python.sh train.py/play.py`。
 评估和诊断工具统一放在 `scripts/`，例如 `./scripts/python.sh scripts/transformation_eval.py --help`。
 
 ## 目录
@@ -72,3 +76,23 @@ export MJLAB_ROOT=/实际路径/mjlab
 - [坐标系约定](docs/zbot-coordinate-system.md)
 - [步态指标](docs/gait-metrics.md)与[RS00 执行器](docs/rs00-actuator.md)
 - [历史项目记录](docs/project-memory.md)与[历史重置计划](docs/reset-plan.md)
+
+双足动作范围的独立对照任务与100轮不动诊断见[动作范围检查](docs/omni-v3-100-action-range.md)；完整训练仍由用户启动。
+
+当前统一入口为 `bash train.sh` / `bash run.sh`，采用[显式任务状态机](docs/omni-task-fsm.md)，默认关闭100/500轮周期验收输出。
+
+当前500轮停滞的诊断与单技能对照用法见[受控对照说明](docs/fsm-training-stall-control.md)，仍使用`train.sh`和`run.sh`。
+
+[标量观测更新](docs/scalar-observation-update.md)仅用于当前Wide全能任务；旧bests文件及play兼容验证通过。
+
+### 最新蛇形 site 全向实验归档
+
+`bests/snake_site_omni_2026-10-20_iter599` 保存 600 次 PPO 更新后的最终检查点、
+实际训练配置、源码快照、训练标量与独立评测。严格全向评测目前仅停止场景通过，
+其余方向尚未达标；本归档用于保留实验进度，不代表合格的全向控制器。
+
+```bash
+./bests/test.sh snake_site_omni_2026-10-20_iter599 --env.scene.num-envs 16
+```
+
+详情见 [归档说明](bests/snake_site_omni_2026-10-20_iter599/README.md)。

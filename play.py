@@ -36,6 +36,7 @@ class PlayConfig:
     device: str = "cuda:0"
     viewer: str = "native"
     stochastic: bool = False
+    follow_smoothing_time: float = .2
 
 
 class SampledPlayPolicy:
@@ -71,6 +72,8 @@ def main():
         config=mjlab.TYRO_FLAGS,
     )
     cfg.env.scene.env_spacing = 1.0
+    if not math.isfinite(cfg.follow_smoothing_time) or cfg.follow_smoothing_time < 0:
+        raise ValueError('follow-smoothing-time must be finite and nonnegative')
     cfg.env.viewer.enable_shadows = True
     cfg.env.viewer.enable_reflections = True
     if cfg.stochastic and "motion" not in cfg.env.commands:
@@ -121,6 +124,11 @@ def main():
         periodic.step_frequency_max = training_env.step_frequency_max
     if cfg.viewer not in ("native", "viser"):
         raise ValueError("viewer must be native or viser")
+    runner_cls = load_runner_cls(task) or MjlabOnPolicyRunner
+    from zbot_rl_mjlab.omni_teacher import OmniTeacherRunner
+
+    if issubclass(runner_cls, OmniTeacherRunner):
+        runner_cls.prepare_playback_env_cfg(cfg.env, checkpoint)
     env = ManagerBasedRlEnv(cfg.env, device=cfg.device)
     try:
         # MuJoCo 默认阴影裁剪距离仅为 1 m。扩大该距离，避免机器人离开初始原点后
@@ -130,7 +138,6 @@ def main():
             model.vis.map.shadowclip = 10.0
             model.vis.map.shadowscale = 0.9
         wrapped = RslRlVecEnvWrapper(env, clip_actions=agent.clip_actions)
-        runner_cls = load_runner_cls(task) or MjlabOnPolicyRunner
         train_cfg = asdict(agent)
         from zbot_rl_mjlab.experiments.snake import SnakeTeacherRunner
 
@@ -160,13 +167,26 @@ def main():
                 print(f"运动site={cast(SnakeEnvCfg, env.cfg).motion_site}：左向=重力×site Z轴，前向=左向×向上；绕向上逆时针为正。")
             print("每次平移调整 0.025 m/s，转向调整 0.1 rad/s；启动时静止。")
             print("运动site原点的蓝点为指令基点；W/S/A/D 后出现蓝色平移箭头，Q/E 后出现橙色转向箭头。R 切换可视化显示。")
-            print("控制作用于全部播放环境；按键不重置姿态。Enter 复位，空格暂停，\\ 跟随相机。")
+            print("速度控制只作用于当前选中的机器人；逗号/句号切换选择。按键不重置姿态。Enter 复位，空格暂停，\\ 跟随相机。")
             if cfg.viewer == "viser":
                 print("蛇形键盘控制仅支持原生查看器，请使用 --viewer native。")
+        elif getattr(cfg.env, 'site_snake_omni', False):
+            print('独立蛇形全向：foot_0_sole −Z投影为前方，vy向左，wz绕世界向上为正。')
+            print('每6～12秒独立随机采样速度；W/S前后、A/D侧移、Q/E转向、X停车，键盘只接管所选机器人。')
+            print('平移每次调整0.025m/s，转向0.1rad/s；逗号/句号切换选择。固定蛇形，Enter复位。')
         elif isinstance(cfg.env, UniversalEnvCfg):
             print("综合运动：W/S 前后，A/D 侧移，Q/E 左右转，X 停走；按键逐次调整速度。")
             print("构型：] 双足、[ 蛇形；切换时停车，到位后恢复目标速度。Enter 复位，空格暂停。")
-            print("控制作用于全部播放环境；手动模式保留物理状态，数值异常仍会复位。")
+            print("速度、停车和构型键只作用于当前选中的机器人；逗号/句号切换选择，其他机器人保持原指令。")
+            play_velocity = getattr(cfg.env.commands['transform'], 'play_velocity', None)
+            if play_velocity is not None:
+                if getattr(cfg.env.commands['transform'], 'play_random_velocity', False):
+                    interval = cfg.env.commands['transform'].resampling_time_range
+                    print(f"每个机器人每 {interval[0]:g}～{interval[1]:g} 秒随机采样 vx/vy/wz（含停车、单轴及组合）；键盘接管所选机器人后停止自动采样。")
+                else:
+                    print(f"启动时自动运动 vx/vy/wz={play_velocity}；键盘接管所选机器人，X 停车后保持停止。")
+                if not getattr(cfg.env.commands['transform'], 'play_auto_recovery', True):
+                    print("构型保持初始分配，不自动变形或复位；仅 [ / ] 切换所选机器人构型。")
         elif "transform" in cfg.env.commands:
             transform_env = cast(TransformationEnvCfg, env.cfg)
             transform = env.command_manager.get_command("transform")
@@ -181,8 +201,10 @@ def main():
             if command_cfg.auto_switch_on_success and command_cfg.mode == "source":
                 print(f"Automatic stand/snake alternation after {transform_env.success_hold_s:g} s stable near the goal (joint tolerance {command_cfg.auto_switch_joint_tolerance:g} rad).")
             print("Transform controls: ] = stand (+1), [ = snake (-1). Keyboard control locks the command and disables automatic resets; no pose reset.")
-        viewer = FollowCameraViewer if cfg.viewer == "native" else ViserPlayViewer
-        viewer(wrapped, play_policy).run()
+        if cfg.viewer == 'native':
+            FollowCameraViewer(wrapped, play_policy, follow_smoothing_time=cfg.follow_smoothing_time).run()
+        else:
+            ViserPlayViewer(wrapped, play_policy).run()
     finally:
         env.close()
 

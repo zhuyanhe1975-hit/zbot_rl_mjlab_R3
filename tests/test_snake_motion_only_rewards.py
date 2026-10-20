@@ -28,13 +28,23 @@ def historical_tracking_env():
 def test_world_speed_pose_rewards_and_tilt_reset_are_active(play):
     cfg = snake_env_cfg(play=play)
     assert {name: term.weight for name, term in cfg.rewards.items()} == {
-        'forward_speed': 1.,
-        'lateral_speed_cost': -1.,
-        'vertical_speed_cost': -1.,
-        'joint_pose_deviation': -.01,
-        'head_tilt_reset_cost': -.5, 'target_saturation_fraction': -.1,
+        'head_forward_speed': 15.,
+        'head_lateral_speed_cost': -5.,
+        'head_vertical_speed_cost': -.2,
+        'joint_pose_deviation': -.02, 'joint_fold_cost': -1.,
+        'head_tilt_reset_cost': -5., 'target_saturation_fraction': -.1,
+        'head_angular_velocity_cost': -.2,
+        'head_yaw_cost': -.5,
+        'head_yaw_integral_cost': -.5,
+        'body_yaw_cost': -.1,
+        'body_yaw_integral_cost': -1.,
+        'body_yaw_reset_cost': -5.,
+        'head_yaw_reset_cost': -5.,
+        'alive': .02,
+        'action_rate': -.0,
+        'self_collision_reset_cost': -5.,
     }
-    assert set(cfg.terminations) == {'unsafe', 'head_tilt', 'self_collision', 'time_out'}
+    assert set(cfg.terminations) == {'unsafe', 'head_tilt', 'head_yaw', 'body_yaw', 'self_collision', 'time_out'}
     assert cfg.head_tilt_limit == pytest.approx(math.pi / 3)
     assert cfg.terminations['head_tilt'].func is mdp.head_tilt_limit_reached
     assert not cfg.terminations['head_tilt'].time_out

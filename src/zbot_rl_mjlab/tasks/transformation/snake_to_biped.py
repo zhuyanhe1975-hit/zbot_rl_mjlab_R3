@@ -16,6 +16,7 @@ from mjlab.sensor import ContactMatch, ContactSensorCfg
 from mjlab.utils.lab_api.math import quat_apply, quat_apply_inverse
 
 from ...robot import DEFAULT_JOINT_POS, JOINT_NAMES, get_spec
+from ..common import constant
 from . import mdp
 from .actions import JointTargetRateActionCfg
 from .env_cfg import TransformationEnvCfg, transformation_scene_cfg
@@ -76,7 +77,7 @@ def _joint_error(env):
 def initial_joint_pose_cost(env):
     """相对本实验重置关节姿态的均方位移。"""
     positions = env.scene["robot"].data.joint_pos
-    initial = positions.new_tensor(env.cfg.initial_joint_pos)
+    initial = constant(positions, env.cfg.initial_joint_pos)
     cost = (positions - initial).square().mean(-1)
     return torch.nan_to_num(cost, nan=100.0, posinf=100.0).clamp(max=100.0)
 
@@ -138,9 +139,7 @@ def base_gravity_alignment_cost(env):
     local = quat_apply_inverse(quaternion, gravity)
     norm = local.norm(dim=-1, keepdim=True)
     unit = local / norm.clamp_min(1e-6)
-    reference = local.new_tensor(
-        standing_gravity_reference(tuple(env.cfg.standing_joint_pos))
-    )
+    reference = constant(local, standing_gravity_reference(tuple(env.cfg.standing_joint_pos)))
     reference = reference / reference.norm().clamp_min(1e-6)
     cost = 1.0 - (unit * reference).sum(-1)
     valid = torch.isfinite(quaternion).all(-1) & (quaternion.norm(dim=-1) > 1e-6)
@@ -238,7 +237,7 @@ def sole_height_cost(env):
         raise ValueError("sole_alignment_height_std must be positive")
     robot = env.scene["robot"]
     ids, _ = robot.find_sites(("foot_0_sole", "foot_1_sole"), preserve_order=True)
-    sole_height = robot.data.site_pos_w[:, ids, 2] - env.scene.env_origins[:, 2, None]
+    sole_height = robot.data.site_pos_w[:, constant(robot.data.site_pos_w, ids, torch.long), 2] - env.scene.env_origins[:, 2, None]
     cost = sole_height.abs() / env.cfg.sole_alignment_height_std
     return torch.nan_to_num(cost, nan=4.0, posinf=4.0).clamp(max=4.0).mean(-1)
 
@@ -249,7 +248,7 @@ def base_support_distance(env):
     ids, _ = robot.find_sites(("foot_0_sole", "foot_1_sole"), preserve_order=True)
     base_id = robot.find_bodies("base")[0][0]
     base_xy = robot.data.body_link_pos_w[:, base_id, :2]
-    feet = robot.data.site_pos_w[:, ids, :2]
+    feet = robot.data.site_pos_w[:, constant(robot.data.site_pos_w, ids, torch.long), :2]
     start = feet[:, 0]
     segment = feet[:, 1] - start
     length_sq = segment.square().sum(-1)
@@ -271,10 +270,10 @@ def base_support_distance_cost(env):
 def _sole_direction_cosine(env):
     robot = env.scene["robot"]
     ids, _ = robot.find_sites(("foot_0_sole", "foot_1_sole"), preserve_order=True)
-    quat = robot.data.site_quat_w[:, ids]
+    quat = robot.data.site_quat_w[:, constant(robot.data.site_quat_w, ids, torch.long)]
     normal_z = 1.0 - 2.0 * (quat[..., 1].square() + quat[..., 2].square())
     # foot_0 的物理足底向外法向为 -site_Z；foot_1 为 +site_Z。
-    cosine = (normal_z * quat.new_tensor([1.0, -1.0])).clamp(-1.0, 1.0)
+    cosine = (normal_z * constant(quat, (1.0, -1.0))).clamp(-1.0, 1.0)
     return torch.where(torch.isfinite(quat).all(-1), cosine, float("nan"))
 
 
@@ -321,7 +320,7 @@ def sole_support_valid(env):
         raise ValueError("support_height_limit must be finite and positive")
     robot = env.scene["robot"]
     ids, _ = robot.find_sites(("foot_0_sole", "foot_1_sole"), preserve_order=True)
-    heights = robot.data.site_pos_w[:, ids, 2] - env.scene.env_origins[:, 2, None]
+    heights = robot.data.site_pos_w[:, constant(robot.data.site_pos_w, ids, torch.long), 2] - env.scene.env_origins[:, 2, None]
     cosine = _sole_direction_cosine(env)
     return (
         both_feet_ground_contact(env)

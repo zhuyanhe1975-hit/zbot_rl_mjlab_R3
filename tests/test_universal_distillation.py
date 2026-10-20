@@ -417,7 +417,7 @@ def test_runner_wires_independent_validation_and_preserves_course(algorithm, mon
     monkeypatch.setattr(MultiTeacherRunner, '_teacher_provenance', lambda self: {})
     monkeypatch.setattr(universal_evaluation, 'UniversalEvaluator', lambda **kwargs: evaluator)
     monkeypatch.setattr(MjlabOnPolicyRunner, 'learn', lambda self, count, random_lengths: (count, random_lengths))
-    runner = MultiTeacherRunner(cast(RslRlVecEnvWrapper, env), {}, log_dir=str(tmp_path))
+    runner = MultiTeacherRunner(cast(RslRlVecEnvWrapper, env), {'console_mode': 'full'}, log_dir=str(tmp_path))
     assert term.pretraining and len(resets) == 1
     assert alg.validation_callback is not None and alg.phase_callback is not None
     assert runner.learn(2, True) == (2, False)
@@ -912,7 +912,7 @@ def test_runner_publishes_progress_and_wires_primary_and_robust_schema(algorithm
     monkeypatch.setattr('zbot_rl_mjlab.teachers.TeacherEnsemble', lambda *args, **kwargs: alg.teachers)
     monkeypatch.setattr(MultiTeacherRunner, '_teacher_provenance', lambda self: {})
     monkeypatch.setattr(universal_evaluation, 'UniversalEvaluator', lambda **kwargs: created.append(Evaluator(**kwargs)) or created[-1])
-    runner = MultiTeacherRunner(cast(RslRlVecEnvWrapper, env), {'validation_randomized': False, 'robust_validation_interval': 100}, log_dir=str(tmp_path))
+    runner = MultiTeacherRunner(cast(RslRlVecEnvWrapper, env), {'validation_randomized': False, 'robust_validation_interval': 100, 'console_mode': 'full'}, log_dir=str(tmp_path))
     assert len(created) == 2
     assert created[0].kwargs['env_cfg'] is physical.cfg
     assert not created[0].kwargs['randomized'] and created[1].kwargs['randomized']
@@ -926,3 +926,110 @@ def test_runner_publishes_progress_and_wires_primary_and_robust_schema(algorithm
     assert runner._run_robust_validation()['validation_passed'] is False
     assert created[1].rl_iteration == 25
 
+
+
+def _four_teacher_proxy(alg, parameter, *, include_snake=True):
+    names = ("walking", "omni", "transform", "snake")
+    ids = torch.tensor([0, 0, 1, 1, 2, 2, 3, 3] if include_snake else [0, 0, 1, 1, 2, 2, 2, 2])
+    alg.teachers = cast(TeacherEnsemble, SimpleNamespace(
+        teacher_names=names,
+        query=lambda: SimpleNamespace(actions=parameter, weights=torch.ones(8),
+                                      teacher_ids=ids, counts={name: int((ids == index).sum()) for index, name in enumerate(names)}),
+    ))
+    return names
+
+
+def test_four_teacher_sampling_metrics_anchor_and_resume(algorithm):
+    alg, obs, parameter = algorithm
+    names = _four_teacher_proxy(alg, parameter)
+    alg.distillation_max_samples = 16
+    rollout(alg, obs)
+    assert alg._cached_counts == [4, 4, 4, 4]
+    metrics = alg.update()
+    for name in names:
+        assert metrics[f"teacher_{name}_candidates"] == 4
+        assert metrics[f"teacher_{name}_cached"] == 4
+        assert metrics[f"teacher_{name}_validation_samples"] == 2
+        assert metrics[f"teacher_{name}_optimized"] > 0
+    alg.anchor_max_samples = 8
+    alg._capture_anchor()
+    assert alg._anchor is not None
+    assert torch.bincount(alg._anchor[3], minlength=4).tolist() == [2, 2, 2, 2]
+    alg.ppo_start_iteration = 1
+    saved = deepcopy(alg.save())
+    alg.load(saved)
+    assert not alg.is_warmup
+    assert alg._anchor is not None
+    assert (alg._anchor[3] == 3).sum() == 2
+
+
+def test_four_teacher_gate_and_anchor_require_snake_coverage(algorithm):
+    alg, obs, parameter = algorithm
+    _four_teacher_proxy(alg, parameter, include_snake=False)
+    alg.warmup_iterations = 1
+    alg.validation_interval_iterations = 1
+    alg.validation_required_passes = 1
+    alg.validation_min_samples = 1
+    alg.validation_use_mse = False
+    alg.validation_max_std = 1
+    alg.validation_callback = lambda: {"validation_passed": True}
+    rollout(alg, obs)
+    metrics = alg.update()
+    assert metrics["warmup_blocked_snake"] == 1
+    assert metrics["warmup_validation_passes"] == 0
+    assert alg.is_warmup
+    with pytest.raises(RuntimeError, match="缺少教师训练覆盖"):
+        alg._capture_anchor()
+
+
+def test_balanced_sampling_keeps_all_high_anchor_strata():
+    labels = torch.arange(8).repeat_interleave(3)
+    indices = MultiTeacherPPO._balanced_indices(labels, 16)
+    assert len(indices) == 16
+    assert labels[indices].bincount(minlength=8).tolist() == [2] * 8
+
+
+def test_anchor_selection_requires_explicit_fourth_teacher():
+    from zbot_rl_mjlab.anchor import select
+
+    obs = TensorDict({"actor": torch.ones(8, 7)}, batch_size=[8])
+    held_out = torch.tensor([False, True] * 4)
+    ids = torch.arange(4).repeat_interleave(2)
+    indices = select(obs, ids, held_out, 8, required_teacher_training=True, expected_teacher_count=4)
+    assert set(ids[indices[~held_out[indices]]].tolist()) == {0, 1, 2, 3}
+    with pytest.raises(ValueError, match="教师 3 缺少训练样本"):
+        select(obs[:6], ids[:6], held_out[:6], 8, required_teacher_training=True, expected_teacher_count=4)
+
+
+def test_four_teacher_gate_accepts_complete_coverage(algorithm):
+    alg, obs, parameter = algorithm
+    _four_teacher_proxy(alg, parameter)
+    alg.distillation_max_samples = 16
+    alg.warmup_iterations = 1
+    alg.validation_interval_iterations = 1
+    alg.validation_required_passes = 1
+    alg.validation_min_samples = 1
+    alg.validation_use_mse = False
+    alg.validation_max_std = 1
+    alg.validation_callback = lambda: {"validation_passed": True}
+    rollout(alg, obs)
+    metrics = alg.update()
+    assert metrics["warmup_blocked_snake"] == 0
+    assert metrics["warmup_validation_passes"] == 1
+    assert not alg.is_warmup
+    assert alg._anchor is not None
+    assert set(alg._anchor[3].tolist()) == {0, 1, 2, 3}
+
+
+def test_snake_motion_anchor_has_dedicated_stratum():
+    from zbot_rl_mjlab.anchor import strata
+
+    observations = TensorDict({"actor": torch.zeros(2, 185), "critic": torch.zeros(2, 53)}, batch_size=[2])
+    observations["critic"][:, 38] = -1
+    observations["critic"][:, 41] = 1  # snake phase
+    observations["critic"][0, 43] = 0.3
+    labels = strata(observations, torch.full((2,), 3))
+    assert labels.tolist() == [8, 7]
+    indices = MultiTeacherPPO._balanced_indices(torch.arange(9).repeat_interleave(2), 18)
+    assert len(indices) == 18
+    assert set((indices // 2).tolist()) == set(range(9))

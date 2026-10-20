@@ -76,7 +76,16 @@ def test_registered_task_ids_are_preserved():
     assert [cls.task_id for cls in zbot_rl_mjlab.EXPERIMENTS] == [
         *PRE_REFACTOR_CONTRACTS, "Mjlab-Zbot-6dof-Universal-Locomotion",
         "Mjlab-Zbot-6dof-Universal-Locomotion-Deploy",
+        "Mjlab-Zbot-6dof-Universal-Snake-Leg-Deploy",
+        "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Deploy",
+        "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher",
+        "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Wide-Biped",
+        "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Multi-Critic",
+        "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Task-Critic",
+        "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Task-Routed",
+        "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided",
         "Mjlab-Zbot-6dof-Snake-Omni-Teacher",
+        "Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher",
     ]
 
 
@@ -92,7 +101,7 @@ def test_new_snake_teacher_has_an_independent_nonwalking_registration(play):
     assert list(cfg.commands) == ["motion"]
     assert cfg.observations["actor"].terms["snake"].func is snake_mdp.actor_state
     assert cfg.observations["critic"].terms["snake"].func is snake_mdp.critic_state
-    assert (snake_mdp.ACTOR_DIM, snake_mdp.CRITIC_DIM) == (40, 55)
+    assert (snake_mdp.ACTOR_DIM, snake_mdp.CRITIC_DIM) == (51, 66)
     assert load_rl_cfg(task).experiment_name == "zbot_snake_omni_teacher"
     from zbot_rl_mjlab.experiments.snake import SnakeTeacherRunner
 

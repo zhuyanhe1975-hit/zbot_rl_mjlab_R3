@@ -85,7 +85,7 @@ def runner_setup(algorithm, monkeypatch, tmp_path, request):
     monkeypatch.setattr('zbot_rl_mjlab.teachers.TeacherEnsemble', load_teachers)
     monkeypatch.setattr(MultiTeacherRunner, '_teacher_provenance', lambda self: {})
     monkeypatch.setattr(universal_evaluation, 'UniversalEvaluator', lambda **kwargs: created.append(Evaluator(**kwargs)) or created[-1])
-    runner = MultiTeacherRunner(cast(RslRlVecEnvWrapper, env), {}, log_dir=str(tmp_path))
+    runner = MultiTeacherRunner(cast(RslRlVecEnvWrapper, env), {'console_mode': 'full'}, log_dir=str(tmp_path))
     return runner, command, created, obs
 
 

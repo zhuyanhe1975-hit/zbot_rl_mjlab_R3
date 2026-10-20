@@ -1,0 +1,10 @@
+{
+  "python": "3.13.7",
+  "torch": "2.14.0",
+  "mjlab": "1.6.0",
+  "rsl-rl": null,
+  "mujoco": "3.11.0",
+  "mujoco-warp": "3.11.0",
+  "warp-lang": "1.14.0",
+  "tensorboard": "2.20.0"
+}

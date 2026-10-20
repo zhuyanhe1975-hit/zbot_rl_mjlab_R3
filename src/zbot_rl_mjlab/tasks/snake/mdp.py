@@ -7,11 +7,12 @@ import torch
 from mjlab.envs import mdp as common_mdp
 from mjlab.utils.lab_api.math import quat_apply, quat_apply_inverse, quat_mul
 
+from ..common import constant
 from ..transformation.mdp import body_masses, com_state
 from .commands import SnakeVelocityCommand
 
-ACTOR_DIM = 40
-CRITIC_DIM = 55
+ACTOR_DIM = 51
+CRITIC_DIM = 66
 LINEAR_TRACKING_STD = .05  # m/s，匹配Zbot厘米每秒量级的平移速度。
 YAW_TRACKING_STD = .3  # rad/s。
 
@@ -36,17 +37,17 @@ def head_forward(env):
         raise ValueError('未知蛇形运动坐标系')
     data = env.scene["robot"].data
     quat = data.body_link_quat_w[:, head_index(env)]
-    axis = quat.new_tensor(env.cfg.head_forward_axis).expand(env.num_envs, -1)
+    axis = constant(quat, env.cfg.head_forward_axis).expand(env.num_envs, -1)
     forward = quat_apply(quat, axis)[:, :2]
     # 摄像头指向竖直时航向本身退化，此时依靠倾斜惩罚退出该姿态。
-    backup = quat_apply(quat, quat.new_tensor((1., 0., 0.)).expand_as(axis))[:, :2]
+    backup = quat_apply(quat, constant(quat, (1., 0., 0.)).expand_as(axis))[:, :2]
     forward = torch.where((forward.norm(dim=-1) > .1)[:, None], forward, backup)
     return forward / forward.norm(dim=-1, keepdim=True).clamp_min(1e-6)
 
 
 def _body_motion_forward(quat):
     """蛇形先由重力叉乘模块Z确定左向，再由左向叉乘向上确定前向。"""
-    up = quat.new_tensor((0., 0., 1.)).expand(*quat.shape[:-1], 3)
+    up = constant(quat, (0., 0., 1.)).expand(*quat.shape[:-1], 3)
     body_z = quat_apply(quat, up)
     left = torch.linalg.cross(-up, body_z)
     norm = left.norm(dim=-1, keepdim=True)
@@ -61,10 +62,10 @@ def body_heading(env):
     robot = env.scene['robot']
     quat = robot.data.site_quat_w[:, motion_site_index(env)]
     forward, valid = _body_motion_forward(quat)
-    z = quat.new_tensor((0., 0., 1.)).expand(env.num_envs, -1)
+    z = constant(quat, (0., 0., 1.)).expand(env.num_envs, -1)
     if not hasattr(env, '_snake_forward_w'):
         # 尚无有效历史且Z竖直时，从身体X轴初始化，不引入固定世界航向。
-        x = quat.new_tensor((1., 0., 0.)).expand_as(z)
+        x = constant(quat, (1., 0., 0.)).expand_as(z)
         fallback = quat_apply(quat, x)[:, :2]
         env._snake_forward_w = fallback / fallback.norm(dim=-1, keepdim=True).clamp_min(1e-6)
     env._snake_forward_w.copy_(torch.where(valid[:, None], forward, env._snake_forward_w))
@@ -78,15 +79,182 @@ def motion_axes(env):
     return forward, left
 
 
+def head_orientation(env):
+    """头部世界姿态四元数WXYZ，归一化并统一q/-q符号。"""
+    quat = env.scene["robot"].data.body_link_quat_w[:, head_index(env)]
+    quat = quat / quat.norm(dim=-1, keepdim=True).clamp_min(1e-6)
+    return torch.where(quat[:, :1] < 0., -quat, quat)
+
+
+def _initial_yaw_reference(env):
+    if not hasattr(env, '_snake_initial_yaw'):
+        # 观测管理器会早于首次事件reset构造，使用默认根姿态初始化参考。
+        roots = env.scene["robot"].data.default_root_state
+        forward = _body_motion_forward(roots[:, 3:7])[0]
+        env._snake_initial_yaw = torch.atan2(forward[:, 1], forward[:, 0])
+    return env._snake_initial_yaw
+
+
+def head_yaw_deviation(env):
+    """相对本回合初始头部朝向的最短有符号yaw差，范围[-pi,pi]。"""
+    initial = _initial_yaw_reference(env)
+    forward = head_forward(env)
+    delta = torch.atan2(forward[:, 1], forward[:, 0]) - initial
+    return torch.atan2(delta.sin(), delta.cos())
+
+
+def head_yaw_abs_deviation(env):
+    return head_yaw_deviation(env).abs()
+
+
+def _head_yaw_limit(env):
+    limit = env.cfg.head_yaw_limit
+    if not math.isfinite(limit) or not 0 < limit <= math.pi:
+        raise ValueError('yaw偏差阈值必须是(0, pi]内的有限值')
+    return limit
+
+
+def head_yaw_cost(env):
+    """以终止角度归一化的yaw偏差平方，不累计历史转动。"""
+    return (head_yaw_deviation(env) / _head_yaw_limit(env)).square()
+
+
+def head_yaw_limit_reached(env):
+    # 严格超过阈值才复位；容差避免恰好60度的浮点舍入误判。
+    return head_yaw_abs_deviation(env) > _head_yaw_limit(env) + 1e-6
+
+
+def _body_yaw_state(env):
+    """尾site指向头site的水平连线，相对同一回合初始yaw参考。"""
+    robot = env.scene["robot"]
+    tail = robot.find_sites(env.cfg.tail_site)[0][0]
+    delta = robot.data.site_pos_w[:, motion_site_index(env), :2] - robot.data.site_pos_w[:, tail, :2]
+    valid = torch.isfinite(delta).all(-1) & (delta.norm(dim=-1) > 1e-4)
+    error = torch.atan2(delta[:, 1], delta[:, 0]) - _initial_yaw_reference(env)
+    wrapped = torch.atan2(error.sin(), error.cos())
+    return torch.where(valid, wrapped, torch.full_like(wrapped, math.pi)), valid
+
+
+def body_yaw_deviation(env):
+    return _body_yaw_state(env)[0]
+
+
+def body_yaw_abs_deviation(env):
+    return body_yaw_deviation(env).abs()
+
+
+def _body_yaw_limit(env):
+    limit = env.cfg.body_yaw_limit
+    if not math.isfinite(limit) or not 0 < limit <= math.pi:
+        raise ValueError('体轴yaw偏差阈值必须是(0, pi]内的有限值')
+    return limit
+
+
+def body_yaw_cost(env):
+    return (body_yaw_deviation(env) / _body_yaw_limit(env)).square()
+
+
+def body_yaw_limit_reached(env):
+    error, valid = _body_yaw_state(env)
+    return ~valid | (error.abs() > _body_yaw_limit(env) + 1e-6)
+
+
+def body_yaw_reset_cost(env):
+    """独立体轴越界收取一次失败费用；与头部yaw越界同时发生不重复收费。"""
+    body = env.termination_manager.get_term('body_yaw')
+    head = env.termination_manager.get_term('head_yaw')
+    return (body & ~head).float() / env.step_dt
+
+
+class BodyYawIntegralState:
+    """有符号偏差的整回合时间积分；同一控制步读取不重复累加。"""
+
+    def __init__(self, num_envs, device, dtype, step):
+        self.value = torch.zeros(num_envs, device=device, dtype=dtype)
+        self.last_step = torch.full((num_envs,), int(step), device=device, dtype=torch.long)
+
+    def reset(self, env_ids, step):
+        ids = slice(None) if env_ids is None else env_ids
+        self.value[ids] = 0.
+        self.last_step[ids] = int(step)
+
+    def update(self, error, step, dt):
+        if not math.isfinite(dt) or dt <= 0:
+            raise ValueError('yaw积分控制步长必须为正有限值')
+        fresh = self.last_step < step
+        self.value.add_(torch.where(fresh, error * dt, torch.zeros_like(error)))
+        self.last_step[fresh] = int(step)
+        return self.value
+
+
+def body_yaw_integral_state(env):
+    if not hasattr(env, '_snake_body_yaw_integral'):
+        env._snake_body_yaw_integral = BodyYawIntegralState(
+            env.num_envs, env.device, env.scene['robot'].data.joint_pos.dtype, env.common_step_counter,
+        )
+    return env._snake_body_yaw_integral
+
+
+def body_yaw_integral(env):
+    error, valid = _body_yaw_state(env)
+    error = torch.where(valid, error, torch.zeros_like(error))
+    return body_yaw_integral_state(env).update(error, env.common_step_counter, env.step_dt)
+
+
+def body_yaw_integral_abs(env):
+    return body_yaw_integral(env).abs()
+
+
+def body_yaw_integral_normalized(env):
+    scale = env.cfg.body_yaw_integral_time_scale
+    if not math.isfinite(scale) or scale <= 0:
+        raise ValueError('yaw积分归一化时间必须为正有限值')
+    return body_yaw_integral(env) / (_body_yaw_limit(env) * scale)
+
+
+def body_yaw_integral_cost(env):
+    """左右偏差相抵，持续单边累积；费用有界以免长期积分鼓励提前退出。"""
+    return body_yaw_integral_normalized(env).tanh().square()
+
+
+def head_yaw_integral_state(env):
+    if not hasattr(env, '_snake_head_yaw_integral'):
+        env._snake_head_yaw_integral = BodyYawIntegralState(
+            env.num_envs, env.device, env.scene['robot'].data.joint_pos.dtype, env.common_step_counter,
+        )
+    return env._snake_head_yaw_integral
+
+
+def head_yaw_integral(env):
+    error = head_yaw_deviation(env)
+    error = torch.where(torch.isfinite(error), error, torch.zeros_like(error))
+    return head_yaw_integral_state(env).update(error, env.common_step_counter, env.step_dt)
+
+
+def head_yaw_integral_abs(env):
+    return head_yaw_integral(env).abs()
+
+
+def head_yaw_integral_normalized(env):
+    scale = env.cfg.head_yaw_integral_time_scale
+    if not math.isfinite(scale) or scale <= 0:
+        raise ValueError('头部yaw积分归一化时间必须为正有限值')
+    return head_yaw_integral(env) / (_head_yaw_limit(env) * scale)
+
+
+def head_yaw_integral_cost(env):
+    return head_yaw_integral_normalized(env).tanh().square()
+
+
 def head_gravity(env):
     data = env.scene["robot"].data
     quat = data.body_link_quat_w[:, head_index(env)]
-    gravity = quat.new_tensor((0., 0., -1.)).expand(env.num_envs, -1)
+    gravity = constant(quat, (0., 0., -1.)).expand(env.num_envs, -1)
     return quat_apply_inverse(quat, gravity)
 
 
 def head_tilt(env):
-    target = head_gravity(env).new_tensor(env.cfg.head_up_axis)
+    target = constant(env.scene['robot'].data.body_link_quat_w, env.cfg.head_up_axis)
     cosine = -(head_gravity(env) * target).sum(-1)
     return cosine.clamp(-1., 1.).acos()
 
@@ -101,6 +269,11 @@ def head_tilt_reset_cost(env):
     return env.termination_manager.get_term('head_tilt').float() / env.step_dt
 
 
+def head_yaw_reset_cost(env):
+    """yaw越界终止的一次性事件成本，与奖励管理器dt缩放抵消。"""
+    return env.termination_manager.get_term('head_yaw').float() / env.step_dt
+
+
 def head_height(env):
     return env.scene["robot"].data.body_link_pos_w[:, head_index(env), 2] - env.scene.env_origins[:, 2]
 
@@ -112,19 +285,42 @@ def world_com_velocity(env):
     return (velocity * mass[..., None]).sum(-2) / mass.sum(-1, keepdim=True).clamp_min(1e-6)
 
 
-def forward_speed(env):
-    """整机质心沿蛇形前向的带符号速度；倒退得负分。"""
+def self_collision_reset_cost(env):
+    """使用本步终止结果计一次性事件费；与奖励管理器dt缩放抵消。"""
+    return env.termination_manager.get_term('self_collision').float() / env.step_dt
+
+
+def head_forward_velocity(env):
+    """整机质心速度在蛇头水平前向的带符号投影（m/s）。"""
     forward, _ = motion_axes(env)
     return (world_com_velocity(env)[:, :2] * forward).sum(-1)
 
 
-def lateral_speed_cost(env):
-    """整机质心沿蛇形左向的速度绝对值。"""
-    _, left = motion_axes(env)
-    return (world_com_velocity(env)[:, :2] * left).sum(-1).abs()
+def head_forward_speed(env):
+    """整机质心世界X速度线性奖励，上限截断；负向速度保留线性负分。"""
+    cap = env.cfg.forward_speed_cap
+    if not math.isfinite(cap) or cap <= 0:
+        raise ValueError('前进奖励速度上限必须为正有限值')
+    return world_velocity_component(env, 0).clamp(max=cap)
 
 
-def vertical_speed_cost(env):
+def motion_penalty_scale(env):
+    """世界X前进速度提高时，惩罚倍率由基础下限线性增至1。"""
+    minimum = env.cfg.motion_penalty_min_scale
+    if not math.isfinite(minimum) or not 0 <= minimum <= 1:
+        raise ValueError('运动惩罚倍率下限必须是[0, 1]内的有限值')
+    gain = env.cfg.motion_penalty_speed_gain
+    if not math.isfinite(gain) or gain < 0:
+        raise ValueError('运动惩罚速度增益必须为非负有限值')
+    return (minimum + gain * world_velocity_component(env, 0).clamp_min(0.)).clamp(max=1.)
+
+
+def head_lateral_speed_cost(env):
+    """整机质心世界Y速度绝对值，按世界X前进速度放大惩罚。"""
+    return world_velocity_component(env, 1).abs() * motion_penalty_scale(env)
+
+
+def head_vertical_speed_cost(env):
     """蛇形向上轴与重力反向，上下运动均计费。"""
     return world_com_velocity(env)[:, 2].abs()
 
@@ -141,7 +337,7 @@ def observation_reference(env):
     if reference != 'world_x':
         raise ValueError('未知蛇形观测参考系')
     quat = env.scene["robot"].data.body_link_quat_w[:, head_index(env)]
-    world_x = quat.new_tensor((1., 0., 0.)).expand(env.num_envs, -1)
+    world_x = constant(quat, (1., 0., 0.)).expand(env.num_envs, -1)
     return quat_apply_inverse(quat, world_x)
 
 
@@ -158,7 +354,7 @@ def planar_velocity(env):
 
 def tracking_components(actual, requested):
     """旧诊断兼容接口；当前训练使用MJLab指数速度跟踪奖励。"""
-    tolerance = actual.new_tensor((.04, .04, .20))
+    tolerance = constant(actual, (.04, .04, .20))
     scale = torch.maximum(requested.abs(), tolerance)
     # 平方误差相对静止基线的改善：零均值往返不能靠瞬时命中刷正分。
     progress = (2 * actual * requested - actual.square()) / scale.square()
@@ -316,6 +512,19 @@ def joint_pose_deviation_cost(env):
     return (data.joint_pos - data.default_joint_pos).square().mean(-1)
 
 
+def joint_fold_cost(env, soft_angle=2 * math.pi / 3, full_angle=math.pi):
+    """实际或目标关节超过软阈值后渐进计费，取最严重关节避免均值稀释。"""
+    if not (math.isfinite(soft_angle) and math.isfinite(full_angle)
+            and 0 <= soft_angle < full_angle):
+        raise ValueError('折叠惩罚角度必须满足0 <= soft_angle < full_angle且均为有限值')
+    data = env.scene['robot'].data
+    target = env.action_manager.get_term('joint_pos').commanded_target
+    actual_error = (data.joint_pos - data.default_joint_pos).abs()
+    target_error = (target - data.default_joint_pos).abs()
+    worst_angle = torch.maximum(actual_error, target_error).amax(-1)
+    return ((worst_angle - soft_angle) / (full_angle - soft_angle)).clamp(0., 1.).square()
+
+
 def joint_pose_rms(env):
     return joint_pose_deviation_cost(env).sqrt()
 
@@ -331,9 +540,27 @@ def joint_pose_max_deviation(env):
 
 def head_tilt_cost(env):
     """阈值内按1-cos(倾角)惩罚，阈值外饱和；绕重力轴转动不受罚。"""
-    target = head_gravity(env).new_tensor(env.cfg.head_up_axis)
+    target = constant(env.scene['robot'].data.body_link_quat_w, env.cfg.head_up_axis)
     cosine = -(head_gravity(env) * target).sum(-1)
     return 1 - cosine.clamp(math.cos(env.cfg.head_tilt_limit), 1.)
+
+
+def head_linear_velocity(env):
+    """头部原点的真实线速度，表达在头部局部坐标中（m/s）。"""
+    data = env.scene["robot"].data
+    i = head_index(env)
+    return quat_apply_inverse(data.body_link_quat_w[:, i], data.body_link_lin_vel_w[:, i])
+
+
+def head_angular_velocity_cost(env):
+    """三轴角速度平方和，按实际前进速度放大；不豁免偏航。"""
+    angular = env.scene["robot"].data.body_link_ang_vel_w[:, head_index(env)]
+    return angular.square().sum(-1) * motion_penalty_scale(env)
+
+
+def head_angular_speed(env):
+    """真实角速度模长指标，不包含奖励动态权重。"""
+    return env.scene["robot"].data.body_link_ang_vel_w[:, head_index(env)].norm(dim=-1)
 
 
 def head_rotation_cost(env):
@@ -341,7 +568,7 @@ def head_rotation_cost(env):
     # 有意偏航按指令跟踪，不以固定朝向或总角速度压制转向。
     error = angular.clone()
     error[:, 2] -= command_term(env).command[:, 2]
-    return (error / error.new_tensor((.6, .6, .6))).square().sum(-1).clamp(max=100)
+    return (error / constant(error, (.6, .6, .6))).square().sum(-1).clamp(max=100)
 
 
 def head_acceleration_cost(env):
@@ -385,7 +612,7 @@ def energy_cost(env):
 
 def standstill(env):
     quiet = command_term(env).requested_velocity.norm(dim=-1) < .001
-    speed = (planar_velocity(env) / planar_velocity(env).new_tensor((.02, .02, .10))).square().sum(-1)
+    speed = (planar_velocity(env) / constant(env.scene['robot'].data.body_link_quat_w, (.02, .02, .10))).square().sum(-1)
     joints = env.scene["robot"].data.joint_vel.square().mean(-1)
     return torch.where(quiet, torch.exp(-speed - joints), 0.)
 
@@ -424,11 +651,16 @@ def reset_snake(env, env_ids):
     joints = torch.zeros((len(ids), 6), device=env.device)
     robot.write_root_state_to_sim(root, env_ids=ids)
     robot.write_joint_state_to_sim(joints, torch.zeros_like(joints), env_ids=ids)
+    initial_forward = _body_motion_forward(root[:, 3:7])[0]
+    initial_yaw = _initial_yaw_reference(env)
+    initial_yaw[ids] = torch.atan2(initial_forward[:, 1], initial_forward[:, 0])
     if env.cfg.motion_frame == 'body_gravity':
         if not hasattr(env, '_snake_forward_w'):
             env._snake_forward_w = torch.zeros((env.num_envs, 2), device=env.device, dtype=root.dtype)
         # foot_0_sole与root同向，避免读取尚未前向更新的site姿态。
-        env._snake_forward_w[ids] = _body_motion_forward(root[:, 3:7])[0]
+        env._snake_forward_w[ids] = initial_forward
+    body_yaw_integral_state(env).reset(ids, env.common_step_counter)
+    head_yaw_integral_state(env).reset(ids, env.common_step_counter)
 
 
 def actor_state(env):
@@ -446,6 +678,9 @@ def actor_state(env):
               observation_reference(env), planar_velocity(env), head_gravity(env), gyro,
               head_height(env)[:, None], data.body_link_lin_vel_w[:, i, 2:3],
               torch.stack((phase.sin(), phase.cos()), -1))
+    yaw = head_yaw_deviation(env)
+    values += (head_linear_velocity(env), head_orientation(env), torch.stack((yaw.sin(), yaw.cos()), -1),
+               body_yaw_integral_normalized(env)[:, None], head_yaw_integral_normalized(env)[:, None])
     return torch.nan_to_num(torch.cat(values, -1))
 
 
@@ -457,7 +692,7 @@ def critic_state(env):
 def velocity_error(env):
     actual = planar_velocity(env)
     term = command_term(env)
-    error = (actual - term.command) / actual.new_tensor(term.cfg.velocity_limits)
+    error = (actual - term.command) / constant(actual, term.cfg.velocity_limits)
     return error.square().mean(-1).sqrt()
 
 

@@ -160,13 +160,14 @@ def test_detailed_metrics_do_not_expand_console_output(monkeypatch, capsys):
 
 def test_world_task_shows_signed_velocity_and_all_reward_parts(monkeypatch, capsys):
     writer = RecordingWriter()
-    names = ('forward_speed', 'lateral_speed_cost', 'vertical_speed_cost', 'joint_pose_deviation', 'target_saturation_fraction', 'head_tilt_reset_cost')
+    names = ('head_forward_speed', 'head_lateral_speed_cost', 'head_vertical_speed_cost', 'joint_pose_deviation', 'target_saturation_fraction', 'head_tilt_reset_cost', 'head_angular_velocity_cost', 'self_collision_reset_cost', 'action_rate', 'head_yaw_cost', 'alive', 'head_yaw_reset_cost', 'body_yaw_cost', 'body_yaw_reset_cost', 'body_yaw_integral_cost', 'head_yaw_integral_cost', 'joint_fold_cost')
     logger = make_runner(monkeypatch, writer, names, observation_reference='world_x').logger
     logger.ep_extras = [{
-        **{f'Episode_Reward/{name}': value for name, value in zip(names, (.04, -.002, -.001, -.003, -.05, -.0167), strict=True)},
+        **{f'Episode_Reward/{name}': value for name, value in zip(names, (.04, -.002, -.001, -.003, -.05, -.0167, -.002, -.0167, -.01, -.001, .02, -.1667, -.001, 0., -.001, -.001, -.002), strict=True)},
         'Episode_Metrics/world_velocity_x': .04,
         'Episode_Metrics/world_velocity_y': -.01,
         'Episode_Metrics/world_velocity_z': .002,
+        'Episode_Metrics/head_angular_speed_rad_s': .3,
     }]
     log(logger)
     shown = capsys.readouterr().out

@@ -1,0 +1,20 @@
+[
+  "--env.actions.joint-pos.target-limit",
+  "1.0471975511965976",
+  "--env.actions.joint-pos.max-target-speed",
+  "6.283185307179586",
+  "--env.motion-penalty-min-scale",
+  "0.25",
+  "--env.motion-penalty-speed-gain",
+  "5.0",
+  "--env.head-yaw-limit",
+  "1.0471975511965976",
+  "--env.body-yaw-limit",
+  "0.5235987755982988",
+  "--env.head-yaw-integral-time-scale",
+  "1.0",
+  "--env.body-yaw-integral-time-scale",
+  "1.0",
+  "--env.forward-speed-cap",
+  "0.2"
+]

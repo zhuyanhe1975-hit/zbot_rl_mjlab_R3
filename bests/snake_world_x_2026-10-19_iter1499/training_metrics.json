@@ -1,0 +1,267 @@
+{
+  "Episode_Reward/alive": {
+    "step": 1499,
+    "value": 0.019707471132278442,
+    "wall_time": 1792400787.5398197
+  },
+  "Episode_Reward/head_forward_speed": {
+    "step": 1499,
+    "value": 2.08590030670166,
+    "wall_time": 1792400787.540104
+  },
+  "Episode_Reward/action_rate": {
+    "step": 1499,
+    "value": -0.009330501779913902,
+    "wall_time": 1792400787.540264
+  },
+  "Episode_Reward/head_lateral_speed_cost": {
+    "step": 1499,
+    "value": -0.2704714238643646,
+    "wall_time": 1792400787.5404136
+  },
+  "Episode_Reward/head_vertical_speed_cost": {
+    "step": 1499,
+    "value": -0.006736920680850744,
+    "wall_time": 1792400787.5408611
+  },
+  "Episode_Reward/joint_pose_deviation": {
+    "step": 1499,
+    "value": -0.005492950789630413,
+    "wall_time": 1792400787.5410802
+  },
+  "Episode_Reward/target_saturation_fraction": {
+    "step": 1499,
+    "value": -0.009109778329730034,
+    "wall_time": 1792400787.541238
+  },
+  "Episode_Reward/body_yaw_integral_cost": {
+    "step": 1499,
+    "value": -0.3290579319000244,
+    "wall_time": 1792400787.5413861
+  },
+  "Episode_Reward/body_yaw_cost": {
+    "step": 1499,
+    "value": -0.030353447422385216,
+    "wall_time": 1792400787.5415914
+  },
+  "Episode_Reward/body_yaw_reset_cost": {
+    "step": 1499,
+    "value": -0.004282407462596893,
+    "wall_time": 1792400787.5417702
+  },
+  "Episode_Reward/head_yaw_integral_cost": {
+    "step": 1499,
+    "value": -0.2588954567909241,
+    "wall_time": 1792400787.5419316
+  },
+  "Episode_Reward/head_yaw_cost": {
+    "step": 1499,
+    "value": -0.013757879845798016,
+    "wall_time": 1792400787.5420933
+  },
+  "Episode_Reward/head_yaw_reset_cost": {
+    "step": 1499,
+    "value": 0.0,
+    "wall_time": 1792400787.5422533
+  },
+  "Episode_Reward/head_tilt_reset_cost": {
+    "step": 1499,
+    "value": 0.0,
+    "wall_time": 1792400787.542413
+  },
+  "Episode_Reward/head_angular_velocity_cost": {
+    "step": 1499,
+    "value": -0.19158974289894104,
+    "wall_time": 1792400787.5425727
+  },
+  "Episode_Reward/self_collision_reset_cost": {
+    "step": 1499,
+    "value": 0.0,
+    "wall_time": 1792400787.542735
+  },
+  "Episode_Metrics/world_velocity_x": {
+    "step": 1499,
+    "value": 0.14991426467895508,
+    "wall_time": 1792400787.5428941
+  },
+  "Episode_Metrics/world_velocity_y": {
+    "step": 1499,
+    "value": 0.006568072363734245,
+    "wall_time": 1792400787.5430517
+  },
+  "Episode_Metrics/world_velocity_z": {
+    "step": 1499,
+    "value": -0.004039555788040161,
+    "wall_time": 1792400787.5432153
+  },
+  "Episode_Metrics/target_saturation_fraction": {
+    "step": 1499,
+    "value": 0.09265249967575073,
+    "wall_time": 1792400787.5433729
+  },
+  "Episode_Metrics/action_clip_fraction": {
+    "step": 1499,
+    "value": 0.0,
+    "wall_time": 1792400787.5435326
+  },
+  "Episode_Metrics/joint_pose_rms_rad": {
+    "step": 1499,
+    "value": 0.5145523548126221,
+    "wall_time": 1792400787.5437012
+  },
+  "Episode_Metrics/joint_velocity_rms_rad_s": {
+    "step": 1499,
+    "value": 2.5846269130706787,
+    "wall_time": 1792400787.5440874
+  },
+  "Episode_Metrics/motion_penalty_scale": {
+    "step": 1499,
+    "value": 0.8649775385856628,
+    "wall_time": 1792400787.5442567
+  },
+  "Episode_Metrics/head_forward_velocity_m_s": {
+    "step": 1499,
+    "value": -0.008523793891072273,
+    "wall_time": 1792400787.5444276
+  },
+  "Episode_Metrics/head_angular_speed_rad_s": {
+    "step": 1499,
+    "value": 0.9410995244979858,
+    "wall_time": 1792400787.544653
+  },
+  "Episode_Metrics/body_yaw_integral_abs_rad_s": {
+    "step": 1499,
+    "value": 3.003704786300659,
+    "wall_time": 1792400787.5449312
+  },
+  "Episode_Metrics/body_yaw_deviation_rad": {
+    "step": 1499,
+    "value": 0.2604837119579315,
+    "wall_time": 1792400787.5450943
+  },
+  "Episode_Metrics/body_yaw_peak_rad": {
+    "step": 1499,
+    "value": 0.40563517808914185,
+    "wall_time": 1792400787.5452614
+  },
+  "Episode_Metrics/head_yaw_integral_abs_rad_s": {
+    "step": 1499,
+    "value": 1.744745135307312,
+    "wall_time": 1792400787.5454223
+  },
+  "Episode_Metrics/head_yaw_deviation_rad": {
+    "step": 1499,
+    "value": 0.12917841970920563,
+    "wall_time": 1792400787.545584
+  },
+  "Episode_Metrics/head_yaw_peak_rad": {
+    "step": 1499,
+    "value": 0.25173917412757874,
+    "wall_time": 1792400787.5457468
+  },
+  "Episode_Metrics/head_tilt_rad": {
+    "step": 1499,
+    "value": 0.28493398427963257,
+    "wall_time": 1792400787.54592
+  },
+  "Episode_Metrics/head_tilt_peak_rad": {
+    "step": 1499,
+    "value": 0.4094373881816864,
+    "wall_time": 1792400787.5461612
+  },
+  "Episode_Metrics/ground_force_peak_bodyweights": {
+    "step": 1499,
+    "value": 2.109098434448242,
+    "wall_time": 1792400787.5463398
+  },
+  "Episode_Termination/unsafe": {
+    "step": 1499,
+    "value": 0.0,
+    "wall_time": 1792400787.5466917
+  },
+  "Episode_Termination/head_tilt": {
+    "step": 1499,
+    "value": 0.0,
+    "wall_time": 1792400787.547065
+  },
+  "Episode_Termination/head_yaw": {
+    "step": 1499,
+    "value": 0.0,
+    "wall_time": 1792400787.5475066
+  },
+  "Episode_Termination/body_yaw": {
+    "step": 1499,
+    "value": 0.125,
+    "wall_time": 1792400787.547914
+  },
+  "Episode_Termination/self_collision": {
+    "step": 1499,
+    "value": 0.0,
+    "wall_time": 1792400787.5483103
+  },
+  "Episode_Termination/time_out": {
+    "step": 1499,
+    "value": 5.708333492279053,
+    "wall_time": 1792400787.5486848
+  },
+  "Loss/value": {
+    "step": 1499,
+    "value": 0.0030856600496917963,
+    "wall_time": 1792400787.5487962
+  },
+  "Loss/surrogate": {
+    "step": 1499,
+    "value": -2.3377726392936893e-05,
+    "wall_time": 1792400787.548803
+  },
+  "Loss/entropy": {
+    "step": 1499,
+    "value": -13.402548789978027,
+    "wall_time": 1792400787.5488064
+  },
+  "Loss/learning_rate": {
+    "step": 1499,
+    "value": 0.0008649755618534982,
+    "wall_time": 1792400787.5488093
+  },
+  "Policy/mean_std": {
+    "step": 1499,
+    "value": 0.07524844259023666,
+    "wall_time": 1792400787.5488763
+  },
+  "Perf/total_fps": {
+    "step": 1499,
+    "value": 259874.0,
+    "wall_time": 1792400787.548884
+  },
+  "Perf/collection_time": {
+    "step": 1499,
+    "value": 0.7014265060424805,
+    "wall_time": 1792400787.5488868
+  },
+  "Perf/learning_time": {
+    "step": 1499,
+    "value": 0.05512356758117676,
+    "wall_time": 1792400787.5488896
+  },
+  "Train/mean_reward": {
+    "step": 1499,
+    "value": 28.200162887573242,
+    "wall_time": 1792400787.5489492
+  },
+  "Train/mean_episode_length": {
+    "step": 1499,
+    "value": 1484.2900390625,
+    "wall_time": 1792400787.5489697
+  },
+  "Train/mean_reward/time": {
+    "step": 1230,
+    "value": 28.200162887573242,
+    "wall_time": 1792400787.5490012
+  },
+  "Train/mean_episode_length/time": {
+    "step": 1230,
+    "value": 1484.2900390625,
+    "wall_time": 1792400787.5490181
+  }
+}

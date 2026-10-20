@@ -5,6 +5,7 @@ import torch
 from mjlab.envs import mdp as common_mdp
 from mjlab.utils.lab_api.math import quat_apply
 
+from ..common import constant
 from ..transformation import mdp as transform
 from ..transformation import snake_to_biped as standing
 from ..transformation.poses import SNAKE_JOINT_POS, SNAKE_ROOT_POS, SNAKE_ROOT_QUAT
@@ -25,7 +26,11 @@ def base_height(env):
 
 
 def heading(env):
-    """沿用行走任务的重力叉乘基座 Z 轴，退化时保留最后方向。"""
+    """腿走使用基座前向；首版蛇教师实验使用归档世界+X指令参考。"""
+    if getattr(env.cfg, 'omni_site_frame', False):
+        from .omni import site_heading
+
+        return site_heading(env)
     data, i = transform._base(env)
     axis = torch.zeros_like(data.body_link_pos_w[:, i])
     axis[:, 2] = 1
@@ -34,14 +39,26 @@ def heading(env):
     norm = projected.norm(dim=-1, keepdim=True)
     valid = torch.isfinite(projected).all(-1) & (norm[:, 0] > .15)
     term = command_term(env)
+    if getattr(env.cfg, 'snake_teacher_enabled', False):
+        # 教师优化的是世界+X速度；头部摆动不能把前爬请求旋转成世界侧移。
+        snake_forward = torch.zeros_like(projected)
+        snake_forward[:, 0] = 1
+        projected = torch.where(term.standing_mode[:, None], projected, snake_forward)
+        norm = projected.norm(dim=-1, keepdim=True)
+        valid = torch.isfinite(projected).all(-1) & (norm[:, 0] > .15)
     term.heading.copy_(torch.where(valid[:, None], projected / norm.clamp_min(1e-6), term.heading))
     first = valid & ~term.heading_initialized
-    term.initial_heading[first] = term.heading[first]
+    # torch.where 避免布尔索引赋值在每步触发设备同步。
+    term.initial_heading.copy_(torch.where(first[:, None], term.heading, term.initial_heading))
     term.heading_initialized |= valid
     return term.heading
 
 
 def velocity(env):
+    if getattr(env.cfg, 'omni_site_frame', False):
+        from .omni import site_velocity
+
+        return site_velocity(env)
     data, i = transform._base(env)
     forward = heading(env)
     lateral = torch.stack((-forward[:, 1], forward[:, 0]), -1)
@@ -50,7 +67,15 @@ def velocity(env):
 
 
 def tracking_velocity(env):
-    """平移采用整机质心，避免只摆动中间基座就获得推进奖励。"""
+    """独立 site 蛇任务跟踪 foot_0_sole；其余任务保留原来的质心参考。"""
+    if getattr(env.cfg, 'site_snake_omni', False):
+        from .omni import site_velocity
+
+        return site_velocity(env)
+    if getattr(env.cfg, 'omni_site_frame', False):
+        from .omni import tracking_velocity as site_tracking_velocity
+
+        return site_tracking_velocity(env)
     data, i = transform._base(env)
     masses = transform.body_masses(env)
     linear = (data.body_com_lin_vel_w[..., :2] * masses[..., None]).sum(-2)
@@ -73,9 +98,26 @@ def configuration_ready(env, relaxed=False):
     h = base_height(env)
     upright = standing.base_gravity_alignment_cost(env)
     supported = contacts(env)[:, :2].any(-1)
+    startup = torch.zeros_like(supported)
+    reset_step = getattr(term, 'canonical_motion_start', None)
+    if relaxed and reset_step is not None:
+        # Canonical reset poses begin a few millimetres above ground. Contact
+        # sensors need physics steps to populate; this is not a failed transform.
+        age = (env.common_step_counter - reset_step) * env.step_dt
+        startup = (reset_step >= 0) & (age < getattr(term.cfg, 'motion_startup_s', 0.))
+        supported |= startup
     stand = (h > (.14 if relaxed else .20)) & (upright < (.9 if relaxed else .45)) & supported
+    height = getattr(term.cfg, 'standing_ready_height', None)
+    tolerance = getattr(term.cfg, 'transition_joint_tolerance', None)
+    if not relaxed and height is not None:
+        stand &= h >= height
+    if not relaxed and tolerance is not None:
+        goal = constant(env.scene['robot'].data.joint_pos, env.cfg.standing_joint_pos)
+        close = (env.scene['robot'].data.joint_pos - goal).abs().amax(-1) <= tolerance
+        # Only a transformation must settle near its target; walking remains free to step.
+        stand &= ~term.transition_mask | close
     snake = (h < (.18 if relaxed else .12)) & (transform.com_state(env)[:, 0] < (.16 if relaxed else .10))
-    snake &= normalized_force(env) > .1
+    snake &= (normalized_force(env) > .1) | startup
     ready = torch.where(term.standing_mode, stand, snake)
     straightening = getattr(term, 'straightening_mask', None)
     return ready if straightening is None else ready & ~straightening
@@ -83,7 +125,11 @@ def configuration_ready(env, relaxed=False):
 
 def gait_observation(env):
     """教师和学生共享确定性的步态相位与频率。"""
-    frequency = command_term(env).gait_frequency
+    term = command_term(env)
+    frequency = term.gait_frequency
+    if getattr(env.cfg, 'snake_teacher_enabled', False):
+        # 蛇归档时钟为0.7Hz；不能向教师隐藏学生不可见的另一套相位。
+        frequency = torch.where(term.standing_mode, frequency, .7)
     phase = env.episode_length_buf * env.step_dt * frequency * (2 * torch.pi)
     return torch.stack((phase.sin(), phase.cos(), frequency), -1)
 
@@ -125,7 +171,7 @@ def critic_state(env):
 
 def motion_tracking_score(actual, requested, limits=(.25, .20, .8)):
     """按相对指令幅值汇总各轴推进，未指令轴仅收取独立小幅漂移成本。"""
-    limits = requested.new_tensor(limits)
+    limits = constant(requested, limits)
     scale = torch.maximum(requested.abs(), limits * .1)
     kernel = 1 / (1 + 4 * ((actual - requested) / scale).square())
     stationary = 1 / (1 + 4 * (requested / scale).square())
@@ -162,9 +208,9 @@ def transition_progress_reward(env):
     potential = posture_reward(env)
     fresh = term.potential_step != env.common_step_counter
     progress = torch.where(torch.isfinite(term.potential), (potential - term.potential) / env.step_dt, 0.)
-    term.progress_reward[fresh] = progress[fresh]
-    term.potential[fresh] = potential[fresh]
-    term.potential_step[fresh] = env.common_step_counter
+    term.progress_reward.copy_(torch.where(fresh, progress, term.progress_reward))
+    term.potential.copy_(torch.where(fresh, potential, term.potential))
+    term.potential_step.masked_fill_(fresh, env.common_step_counter)
     return term.progress_reward
 
 
@@ -217,7 +263,8 @@ def demonstration_time_out(env):
     """运动演示最长十秒，变形到位并短暂保持后及时重新演示。"""
     term = command_term(env)
     elapsed = env.episode_length_buf * env.step_dt
-    transformation = torch.arange(env.num_envs, device=env.device) % 4 >= 2
+    groups = torch.arange(env.num_envs, device=env.device) % (5 if term.cfg.snake_teacher_enabled else 4)
+    transformation = (groups == 2) | (groups == 3)
     completed = transformation & ~term.transition_mask & (elapsed >= 1.5)
     return ((elapsed >= 10.) | completed) & term.cfg.training & term.pretraining & ~term.manual_control
 
@@ -235,7 +282,8 @@ def reset_universal(env, env_ids):
     term = command_term(env)
     choose = torch.rand(len(ids), device=env.device) < .5 if training else torch.ones(len(ids), device=env.device, dtype=torch.bool)
     if training and term.pretraining:
-        choose = ids % 4 != 3
+        groups = ids % (5 if term.cfg.snake_teacher_enabled else 4)
+        choose = (groups != 3) & (groups != 4)
     root = robot.data.default_root_state[ids].clone()
     root[:, :3] = env.scene.env_origins[ids] + root.new_tensor(SNAKE_ROOT_POS)
     root[:, 3:7] = root.new_tensor(SNAKE_ROOT_QUAT)
@@ -252,12 +300,18 @@ def reset_universal(env, env_ids):
     q[choose] = q.new_tensor(env.cfg.standing_joint_pos)
     root[choose, :3] = env.scene.env_origins[ids[choose]] + root.new_tensor([0., -.06, .003 - collision_radial_envelope(tuple(env.cfg.standing_joint_pos))[1]])
     root[choose, 3:7] = root.new_tensor([1., 0., 0., 0.])
+    if training and getattr(env.cfg, 'snake_teacher_enabled', False):
+        # 留出独立的规范前爬初态，不改变起立教师的滚转姿态库。
+        crawl = (ids % 5 == 4) if term.pretraining else (~choose & ~term.standing_mode[ids])
+        root[crawl, :3] = env.scene.env_origins[ids[crawl]] + root.new_tensor([0., 0., .0555])
+        root[crawl, 3:7] = root.new_tensor([2 ** -.5, 0., -(2 ** -.5), 0.])
+        q[crawl] = 0
     robot.write_joint_state_to_sim(q, torch.zeros_like(q), env_ids=ids)
     robot.write_root_state_to_sim(root, env_ids=ids)
 
 
 def phase_fraction(env, phase: int):
-    """每个环境的阶段标记，日志均值即该阶段交互占比。"""
+    """每环境阶段标记；回合结束子集的日志均值不代表全局采样占比。"""
     return (command_term(env).phase == phase).float()
 
 
@@ -269,7 +323,7 @@ def mode_motion_error(env, phase: int):
     """
     term = command_term(env)
     selected = (term.phase == phase) & (term.requested_velocity.norm(dim=-1) > .01)
-    limits = term.velocity_command.new_tensor(term.cfg.velocity_limits)
+    limits = constant(term.velocity_command, term.cfg.velocity_limits)
     error = ((tracking_velocity(env) - term.velocity_command) / limits).square().mean(-1).sqrt()
     scale = selected.float().mean().clamp_min(1. / env.num_envs)
     return torch.where(selected, error / scale, 0.)

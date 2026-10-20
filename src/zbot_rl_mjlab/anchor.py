@@ -9,7 +9,7 @@ Anchor = tuple[TensorDict, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tenso
 
 
 def strata(observations: TensorDict, teacher_ids: torch.Tensor) -> torch.Tensor:
-    """部署学生按八类能力分层；原任务或测试代理沿用教师分组。"""
+    """部署学生按运动能力分层；原任务或测试代理沿用教师分组。"""
     actor, critic = observations.get("actor"), observations.get("critic")
     if (
         actor is None
@@ -29,6 +29,8 @@ def strata(observations: TensorDict, teacher_ids: torch.Tensor) -> torch.Tensor:
     result[moving] = direction[moving]
     result[(phase == 1) & (mode < 0)] = 6
     result[(phase == 3) & (mode > 0)] = 5
+    snake_moving = (phase == 2) & (mode < 0) & (velocity[:, :2].abs().amax(-1) > 0)
+    result[snake_moving] = 8
     result[mode == 0] = 4
     return result
 
@@ -39,15 +41,18 @@ def select(
     held_out: torch.Tensor,
     limit: int,
     required_teacher_training: bool = False,
+    expected_teacher_count: int = 3,
 ) -> torch.Tensor:
     """稀有层先取、轮流补足容量；不复制行，不改变训练与留出身份。"""
     if type(limit) is not int or limit < 0:
         raise ValueError("保护样本容量必须是非负整数")
     selected = []
     if required_teacher_training:
-        if limit < 3:
-            raise ValueError("教师训练保护至少需要 3 个样本容量")
-        for teacher in range(3):
+        if type(expected_teacher_count) is not int or expected_teacher_count < 1:
+            raise ValueError("教师数量必须是正整数")
+        if limit < expected_teacher_count:
+            raise ValueError(f"教师训练保护至少需要 {expected_teacher_count} 个样本容量")
+        for teacher in range(expected_teacher_count):
             candidates = torch.where((ids == teacher) & ~held_out)[0]
             if not len(candidates):
                 raise ValueError(f"教师 {teacher} 缺少训练样本，不能建立基础保护")

@@ -11,6 +11,7 @@ import torch
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.utils.lab_api.math import quat_apply_inverse
 
+from ..common import constant
 from .mdp import _base, body_masses, commanded_target, projected_gravity
 from .robust import ROBUST_TASK_ID, fall_retry_state
 from .snake_to_biped import _sole_direction_cosine, base_height, base_vertical_velocity
@@ -23,7 +24,7 @@ STUDENT_PROPRIO_DIM = 24
 
 def joint_goal_error(env):
     position = env.scene["robot"].data.joint_pos
-    return position - position.new_tensor(env.cfg.standing_joint_pos)
+    return position - constant(position, env.cfg.standing_joint_pos)
 
 
 def joint_velocity(env):
@@ -67,7 +68,7 @@ def ground_contacts(env):
 def sole_heights(env):
     robot = env.scene["robot"]
     ids, _ = robot.find_sites(("foot_0_sole", "foot_1_sole"), preserve_order=True)
-    return robot.data.site_pos_w[:, ids, 2] - env.scene.env_origins[:, 2, None]
+    return robot.data.site_pos_w[:, constant(robot.data.site_pos_w, ids, torch.long), 2] - env.scene.env_origins[:, 2, None]
 
 
 def com_relative_to_base(env):
@@ -139,8 +140,8 @@ def teacher_actor_state(env):
         sites, _ = robot.find_sites(("foot_0_sole", "foot_1_sole"), preserve_order=True)
         metadata = (
             base_index, torch.tensor(sites, device=env.device, dtype=torch.long),
-            data.joint_pos.new_tensor(env.cfg.standing_joint_pos),
-            data.joint_pos.new_tensor([0, 0, -1]).expand(env.num_envs, 3),
+            constant(data.joint_pos, env.cfg.standing_joint_pos),
+            constant(data.joint_pos, (0., 0., -1.)).expand(env.num_envs, 3),
         )
         env._teacher_observation_metadata = metadata
     base_index, sites, goal, gravity = metadata
@@ -155,7 +156,7 @@ def teacher_actor_state(env):
         raise ValueError("Teacher observations require foot and base contacts")
     contacts = torch.cat(((foot_found > 0).reshape(env.num_envs, 2), (base_found > 0).reshape(env.num_envs, -1).any(-1, keepdim=True)), dim=-1).float()
     sole_quat = data.site_quat_w[:, sites]
-    normals = (1 - 2 * (sole_quat[..., 1].square() + sole_quat[..., 2].square())) * sole_quat.new_tensor([1, -1])
+    normals = (1 - 2 * (sole_quat[..., 1].square() + sole_quat[..., 2].square())) * constant(sole_quat, (1., -1.))
     normals = torch.where(torch.isfinite(sole_quat).all(-1), normals.clamp(-1, 1), float("nan"))
     heights = data.site_pos_w[:, sites, 2] - env.scene.env_origins[:, 2, None]
     value = torch.cat((

@@ -33,12 +33,13 @@ def state_env():
     )
     data.body_link_pos_w[..., 2] = .055
     data.body_com_pos_w[..., 2] = .055
+    data.body_link_pos_w[:, -1, 0] = -.6
     # 此site在foot_0上无局部旋转，视图随刚体测试姿态同步更新。
-    data.site_pos_w = data.body_link_pos_w[:, :1]
+    data.site_pos_w = data.body_link_pos_w[:, ::11]
     data.site_quat_w = data.body_link_quat_w[:, :1]
     data.site_ang_vel_w = data.body_link_ang_vel_w[:, :1]
-    robot = SimpleNamespace(data=data, find_bodies=lambda name: ([0], [name]),
-                            find_sites=lambda name: ([0], [name]),
+    robot = SimpleNamespace(data=data, find_bodies=lambda name, preserve_order=False: (list(range(12)), list(name)) if not isinstance(name, str) else ([11 if name == 'foot_1' else 0], [name]),
+                            find_sites=lambda name: ([1 if name == 'foot_1_sole' else 0], [name]),
                             indexing=SimpleNamespace(body_ids=torch.arange(bodies)))
     ground = SimpleNamespace(found=torch.ones(n, bodies), force=torch.zeros(n, bodies, 3), force_history=torch.zeros(n, 4, bodies, 3))
     own = SimpleNamespace(found=torch.zeros(n, 1), force_history=torch.zeros(n, 4, 1, 3), dist_history=torch.zeros(n, 4, 1))
@@ -48,10 +49,10 @@ def state_env():
     term = SimpleNamespace(command=torch.zeros(n, 3), requested_velocity=torch.zeros(n, 3), cfg=SimpleNamespace(frequency=.7, velocity_limits=(.25, .25, math.pi / 2)))
     action = SimpleNamespace(commanded_target=torch.zeros(n, 6), raw_action=torch.zeros(n, 6))
     return SimpleNamespace(
-        num_envs=n, device='cpu', cfg=cfg, scene=scene, step_dt=.02, episode_length_buf=torch.zeros(n),
+        num_envs=n, device='cpu', cfg=cfg, common_step_counter=0, _snake_initial_yaw=torch.zeros(n), scene=scene, step_dt=.02, episode_length_buf=torch.zeros(n),
         command_manager=SimpleNamespace(get_term=lambda name: term),
-        termination_manager=SimpleNamespace(get_term=lambda name: torch.zeros(n, dtype=torch.bool)),
-        action_manager=SimpleNamespace(get_term=lambda name: action),
+        termination_manager=SimpleNamespace(get_term=lambda name: torch.zeros(n, dtype=torch.bool), terminated=torch.zeros(n, dtype=torch.bool)),
+        action_manager=SimpleNamespace(get_term=lambda name: action, action=torch.zeros(n, 6), prev_action=torch.zeros(n, 6)),
         sim=SimpleNamespace(model=SimpleNamespace(body_mass=torch.ones(n, bodies))),
     )
 
@@ -81,7 +82,7 @@ def test_snake_only_limits_action_targets_and_preserves_model_ranges():
     for play in (False, True):
         cfg = snake_env_cfg(play=play)
         model = cfg.scene.entities['robot'].spec_fn().compile()
-        assert cfg.actions['joint_pos'].target_limit == pytest.approx(math.pi / 2)
+        assert cfg.actions['joint_pos'].target_limit == pytest.approx(math.pi / 3)
         for name in JOINT_NAMES:
             joint = model.joint(name)
             assert model.jnt_limited[joint.id]
@@ -179,8 +180,8 @@ def test_self_collision_catches_transient_force_and_penetration():
 
 def test_teacher_observation_and_safety_are_finite_at_standard_snake_pose():
     env = state_env()
-    assert mdp.actor_state(env).shape == (2, 40)
-    assert mdp.critic_state(env).shape == (2, 55)
+    assert mdp.actor_state(env).shape == (2, 51)
+    assert mdp.critic_state(env).shape == (2, 66)
     assert torch.isfinite(mdp.actor_state(env)).all()
     assert not mdp.unsafe(env).any()
     assert mdp.head_acceleration_cost(env).eq(0).all()
@@ -209,7 +210,7 @@ def test_joint_pose_penalty_and_diagnostic_are_independent_of_world_heading():
     env = state_env()
     cfg = env.cfg
     assert cfg.rewards['joint_pose_deviation'].func is mdp.joint_pose_deviation_cost
-    assert cfg.rewards['joint_pose_deviation'].weight == -.01
+    assert cfg.rewards['joint_pose_deviation'].weight == -.02
     assert 'joint_pose_deviation' not in cfg.terminations
     assert cfg.metrics['joint_pose_rms_rad'].func is mdp.joint_pose_rms
     env.scene['robot'].data.joint_pos[:] = .3

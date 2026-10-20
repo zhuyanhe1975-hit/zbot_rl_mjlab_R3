@@ -1,5 +1,5 @@
 """通过多教师蒸馏预训练并联合优化的综合运动实验。"""
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import cast
 
 from ..distillation import MultiTeacherPpoCfg, MultiTeacherRunner
@@ -83,3 +83,46 @@ class DeployUniversalLocomotion(UniversalLocomotion):
         from ..tasks.universal.deployment import configure_deployment
 
         configure_deployment(cfg, play=play)
+
+
+class SnakeLegDeploy(DeployUniversalLocomotion):
+    """蛇爬、腿走和双向变形共享一个部署学生的独立实验。"""
+
+    task_id = "Mjlab-Zbot-6dof-Universal-Snake-Leg-Deploy"
+    experiment_name = "zbot_universal_snake_leg_deploy"
+
+    def build_ppo(self):
+        from ..teachers import SNAKE_CHECKPOINT
+
+        cfg = super().build_ppo()
+        cast(MultiTeacherPpoCfg, cfg.algorithm).teacher_checkpoints = {'snake': SNAKE_CHECKPOINT}
+        return cfg
+
+    def edit(self, cfg, play):
+        cfg.snake_teacher_enabled = True
+        cfg.commands['transform'].snake_teacher_enabled = True
+
+
+class SnakeLegOmniDeploy(DeployUniversalLocomotion):
+    """两种形态共享site全向指令；只用变形教师辅助，从首轮联合PPO。"""
+
+    task_id = 'Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Deploy'
+    experiment_name = 'zbot_universal_snake_leg_omni_deploy'
+
+    def build_ppo(self):
+        cfg = super().build_ppo()
+        algorithm = cast(MultiTeacherPpoCfg, cfg.algorithm)
+        algorithm.enabled_teachers = ('transform',)
+        algorithm.teacher_warmup_enabled = False
+        algorithm.validation_interval_iterations = 100
+        cfg.robust_validation_interval = 500
+        return cfg
+
+    def edit(self, cfg, play):
+        from ..tasks.universal.omni import OmniCommandCfg, reset_omni
+
+        cfg.omni_site_frame = True
+        cfg.motion_site = 'foot_0_sole'
+        cfg.commands['transform'] = OmniCommandCfg(**asdict(cfg.commands['transform']))
+        cfg.events['reset_transition'].func = reset_omni
+        cfg.events['reset_transition'].params = {}

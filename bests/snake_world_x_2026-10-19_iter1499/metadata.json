@@ -1,0 +1,47 @@
+{
+  "task": "Mjlab-Zbot-6dof-Snake-Omni-Teacher",
+  "source_run": "logs/rsl_rl/zbot_snake_omni_teacher/2026-10-19_16-45-28_beta_body_v3",
+  "source_checkpoint": "model_1499.pt",
+  "iteration": 1499,
+  "archived_at": "2026-10-19T17:19:36.701295+08:00",
+  "git_head": "dede12192387a183e58d4d1f3f52c942c7155192",
+  "recipe": {
+    "version": 22,
+    "motion_frame": "body_gravity",
+    "motion_body": "foot_0",
+    "motion_site": "foot_0_sole",
+    "tail_site": "foot_1_sole",
+    "body_yaw_limit": 0.5235987755982988,
+    "body_yaw_reference": "episode_initial_heading",
+    "body_yaw_integral": "signed_episode_dt_tanh_squared",
+    "body_yaw_integral_time_scale": 1.0,
+    "objective": "snake_world_x_capped_speed",
+    "forward_speed_cap": 0.2,
+    "motion_penalty_speed_gain": 5.0,
+    "motion_penalty_min_scale": 0.25,
+    "motion_penalty_scaling": "clipped_positive_world_x_ramp",
+    "yaw_reference": "episode_initial_heading",
+    "head_yaw_limit": 1.0471975511965976,
+    "head_yaw_integral": "signed_episode_dt_tanh_squared",
+    "head_yaw_integral_time_scale": 1.0,
+    "head_orientation_observation": "quaternion_wxyz_and_relative_yaw_sincos",
+    "actor_observation_dim": 51,
+    "critic_observation_dim": 66,
+    "observation_reference": "world_x",
+    "head_gyro_frame": "head",
+    "action_control": "integrated_joint_velocity",
+    "max_target_speed": 6.283185307179586,
+    "joint_target_limit": 1.0471975511965976,
+    "distribution": "BetaDistribution",
+    "action_range": [
+      -1.0,
+      1.0
+    ]
+  },
+  "source_checkpoint_sha256": "9001840bb1d9f11ad8f70d4a68417ae1b0baf129b3c14c6e85f34abdc3ce41ce",
+  "notes": [
+    "训练结束后的最终检查点；不宣称其为所有迭代中的最优模型。",
+    "原样保留实际训练配置：motion_penalty_min_scale=0.25，motion_penalty_speed_gain=5。",
+    "训练标量来自原始TensorBoard；不作为独立策略评估成绩。"
+  ]
+}

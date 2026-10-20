@@ -9,6 +9,8 @@ PROJECT_DIR="$(dirname "$BESTS_DIR")"
 
 task_of() {
   case "$1" in
+    snake_site_omni_*) echo "Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher" ;;
+    snake_world_x_*) echo "Mjlab-Zbot-6dof-Snake-Omni-Teacher" ;;
     transform_snake_biped_bidirectional_*) echo "Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional" ;;
     transform_snake_to_biped_teacher_*) echo "Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Robust-Teacher" ;;
     transform_snake_to_biped_beta_*) echo "Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta" ;;
@@ -37,5 +39,10 @@ if [[ "$pick" =~ ^[0-9]+$ ]]; then
 fi
 checkpoint="$(ls "$BESTS_DIR/$pick"/model_*.pt | head -n1)"
 
+playback_args=()
+if [[ -f "$BESTS_DIR/$pick/playback_args.json" ]]; then
+  mapfile -t playback_args < <(python3 -c 'import json, sys; print("\n".join(json.load(open(sys.argv[1]))))' "$BESTS_DIR/$pick/playback_args.json")
+fi
+
 exec "$PROJECT_DIR/scripts/python.sh" "$PROJECT_DIR/play.py" "$(task_of "$pick")" \
-  --checkpoint-file "$checkpoint" "$@"
+  --checkpoint-file "$checkpoint" "${playback_args[@]}" "$@"

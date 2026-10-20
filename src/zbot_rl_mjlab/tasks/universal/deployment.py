@@ -10,7 +10,7 @@ from mjlab.managers.manager_base import ManagerTermBase
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 
-from ..common import PartialBaseImpulse
+from ..common import PartialBaseImpulse, constant
 from ..transformation import mdp as transform
 from ..transformation import teacher_observations as teacher
 from ..transformation.poses import SNAKE_ROOT_POS, SNAKE_ROOT_QUAT
@@ -90,6 +90,12 @@ class DeploymentCommand(UniversalCommand):
         super()._sample_velocity(ids)
         if not self.cfg.training or self.pretraining:
             return
+        if self.cfg.snake_teacher_enabled:
+            # 第一版蛇教师只覆盖前爬；先稳定学习已有能力，再扩展方向课程。
+            crawl = ids[~self.standing_mode[ids] & ~self.manual_control[ids]]
+            moving = self.requested_velocity[crawl].norm(dim=-1) > 0
+            self.requested_velocity[crawl] = 0
+            self.requested_velocity[crawl[moving], 0] = .08
         cfg = cast(DeploymentCommandCfg, self.cfg)
         # 保留停车、其他构型和部分原采样；补充四方向均衡平移。
         eligible = self.standing_mode[ids] & ~self.manual_control[ids] & (self.requested_velocity[ids].norm(dim=-1) > 0)
@@ -128,15 +134,18 @@ class DeploymentCommand(UniversalCommand):
         robot = self._env.scene['robot']
         joints = robot.data.joint_pos_biased
         target = self._env.action_manager.get_term('joint_pos').commanded_target
-        goal = joints.new_tensor(self._env.cfg.standing_joint_pos)
+        goal = constant(joints, self._env.cfg.standing_joint_pos)
         # 重力对齐仅使用 IMU 方向，与学生的 projected_gravity 同源。
         already_standing = ((joints - goal).abs().amax(-1) < .3) & (mdp.standing.base_gravity_alignment_cost(self._env) < .45)
-        pending = ids[self._straightening_pending[ids]]
-        self.straightening_mask[pending] = self.standing_mode[pending] & ~already_standing[pending]
-        self._straightening_pending[ids] = False
+        # 以全长掩码表达 ids 子集，避免布尔索引逐步同步。
+        chosen = torch.zeros_like(self._straightening_pending)
+        chosen[ids] = True
+        pending = chosen & self._straightening_pending
+        mask = torch.where(pending, self.standing_mode & ~already_standing, self.straightening_mask)
+        self._straightening_pending &= ~chosen
         straight = (joints.abs().amax(-1) <= .08) & (target.abs().amax(-1) <= .08)
         # 完成后保持释放；后续正常弯腿不重新触发归直。
-        self.straightening_mask[ids] &= ~(straight[ids] | already_standing[ids]) & self.standing_mode[ids]
+        self.straightening_mask.copy_(torch.where(chosen, mask & ~(straight | already_standing) & self.standing_mode, mask))
 
     def _update_command(self, env_ids):
         self._update_straightening(self._ids(env_ids))
@@ -163,6 +172,14 @@ def command(env):
     return torch.cat((mode[:, None], term.requested_velocity), -1)
 
 
+def _sanitized(func):
+    """NaN/Inf 置零（等价于 nan_policy="sanitize"），保留原函数名便于诊断。"""
+    def observe(env):
+        return torch.nan_to_num(func(env), nan=0.0, posinf=0.0, neginf=0.0)
+    observe.__name__ = observe.__qualname__ = getattr(func, "__name__", "observe")
+    return observe
+
+
 def configure_deployment(cfg, play=False):
     """直接定义单帧 37 维可测状态，训练与回放均使用五帧无噪声历史。"""
     cfg.straighten_before_stand = True
@@ -183,12 +200,13 @@ def configure_deployment(cfg, play=False):
         "gait": mdp.gait_observation,
     }
     cfg.observations["actor"] = ObservationGroupCfg(
-        terms={name: ObservationTermCfg(func=func) for name, func in functions.items()},
+        terms={name: ObservationTermCfg(func=_sanitized(func)) for name, func in functions.items()},
         concatenate_terms=True,
         enable_corruption=False,
         history_length=5,
         flatten_history_dim=True,
-        nan_policy="sanitize",
+        # 逐项无条件清理与 MJLab 的 sanitize 结果相同，但不在每项先 .any() 同步。
+        nan_policy="disabled",
     )
 
 
@@ -211,6 +229,10 @@ class BentSnakeReset(ManagerTermBase):
         ids = torch.arange(env.num_envs, device=env.device) if env_ids is None else env_ids
         # 基础重置已决定双足/蛇形；只改写其中仍为零关节的蛇形。
         snake = robot.data.joint_pos[ids].abs().amax(-1) < 1e-6
+        if getattr(env.cfg, 'snake_teacher_enabled', False):
+            command = mdp.command_term(env)
+            crawl = (ids % 5 == 4) if command.pretraining else ~command.standing_mode[ids]
+            snake &= ~crawl
         selected = ids[snake & (torch.rand(len(ids), device=env.device) < bend_fraction)]
         if not len(selected):
             return

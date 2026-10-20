@@ -37,6 +37,8 @@ class MultiTeacherPpoCfg(RslRlPpoAlgorithmCfg):
     class_name: str = "zbot_rl_mjlab.distillation:MultiTeacherPPO"
     distillation_enabled: bool = True
     teacher_checkpoints: dict[str, str] | None = None
+    enabled_teachers: tuple[str, ...] | None = None
+    teacher_warmup_enabled: bool = True
     warmup_iterations: int = 100
     anneal_iterations: int = 1000
     start_coef: float = 1.0
@@ -64,6 +66,7 @@ class MultiTeacherRunnerCfg(RslRlOnPolicyRunnerCfg):
     algorithm: RslRlPpoAlgorithmCfg = field(default_factory=MultiTeacherPpoCfg)
     validation_randomized: bool = True
     robust_validation_interval: int = 0
+    console_mode: str = "compact"
 
 
 def universal_ppo_cfg() -> MultiTeacherRunnerCfg:
@@ -89,6 +92,7 @@ class MultiTeacherPPO(PPO):
 
     def __init__(
         self, *args, distillation_enabled=True, teacher_checkpoints=None,
+        enabled_teachers=None, teacher_warmup_enabled=True,
         warmup_iterations=100, anneal_iterations=1000,
         start_coef=1.0, floor_coef=0.02, distillation_batch_size=1024,
         distillation_max_samples=8192, distillation_updates=32, replay_iterations=8, anchor_max_samples=4096, anchor_coef=100.0,
@@ -125,11 +129,24 @@ class MultiTeacherPPO(PPO):
                 raise ValueError(f"{name} 必须是有限正数")
         if not math.isfinite(distillation_nll_coef) or distillation_nll_coef < 0:
             raise ValueError("distillation_nll_coef 必须是有限非负数")
+        from .teachers import validate_teacher_selection
+
+        enabled_teachers = validate_teacher_selection(enabled_teachers)
+        if type(teacher_warmup_enabled) is not bool:
+            raise ValueError("teacher_warmup_enabled 必须是布尔值")
+        if teacher_checkpoints:
+            unknown = set(teacher_checkpoints) - {"walking", "omni", "transform", "snake"}
+            if unknown:
+                raise ValueError(f"未知教师：{sorted(unknown)}")
+            if enabled_teachers is not None and set(teacher_checkpoints) - set(enabled_teachers):
+                raise ValueError("检查点覆盖包含未启用教师")
         super().__init__(*args, **kwargs)
         if self.actor.is_recurrent or self.critic.is_recurrent:
             raise ValueError("多教师蒸馏目前只支持非循环网络")
         self.distillation_enabled = distillation_enabled
         self.teacher_checkpoints = teacher_checkpoints
+        self.enabled_teachers = enabled_teachers
+        self.teacher_warmup_enabled = teacher_warmup_enabled
         self.warmup_iterations = warmup_iterations
         self.anneal_iterations = anneal_iterations
         self.start_coef = start_coef
@@ -158,7 +175,7 @@ class MultiTeacherPPO(PPO):
         self._anchor_observation_source: str | None = None
         self._pending_observation: TensorDict | None = None
         self.validation_passes = 0
-        self.ppo_start_iteration: int | None = None
+        self.ppo_start_iteration: int | None = None if teacher_warmup_enabled else 0
         self.validation_metrics: dict[str, float] = {}
         self.distillation_iteration = 0
         self.teachers: TeacherEnsemble | None = None
@@ -172,14 +189,22 @@ class MultiTeacherPPO(PPO):
         self._current_chunks = 0
         self._sample_count = 0
         self._queried_count = 0
-        self._valid_count = 0
-        self._teacher_counts: dict[str, int] = {}
-        self._cached_counts = [0, 0, 0]
-        self._warmup_student_count = self._warmup_action_count = 0
+        self._valid_count: int | torch.Tensor = 0
+        self._teacher_counts: dict[str, int | torch.Tensor] = {}
+        self._cached_counts = [0] * len(self.teacher_names)
+        self._warmup_student_count: int | torch.Tensor = 0
+        self._warmup_action_count = 0
+
+    @property
+    def teacher_names(self) -> tuple[str, ...]:
+        default = self.enabled_teachers or ("walking", "omni", "transform")
+        if self.enabled_teachers is None and self.teacher_checkpoints and "snake" in self.teacher_checkpoints:
+            default += ("snake",)
+        return getattr(self.teachers, "teacher_names", default)
 
     @property
     def is_warmup(self) -> bool:
-        return self.distillation_enabled and self.ppo_start_iteration is None
+        return self.distillation_enabled and self.teacher_warmup_enabled and self.ppo_start_iteration is None
 
     @property
     def rl_iteration(self) -> int:
@@ -197,7 +222,7 @@ class MultiTeacherPPO(PPO):
     @staticmethod
     def _balanced_indices(ids: torch.Tensor, limit: int) -> torch.Tensor:
         """各教师等额抽样，少数教师不会被大量变形样本淹没。"""
-        groups = [torch.where(ids == index)[0] for index in range(3)]
+        groups = [torch.where(ids == index)[0] for index in ids.unique()]
         present = [group for group in groups if len(group)]
         if not present:
             return ids.new_empty(0)
@@ -223,17 +248,19 @@ class MultiTeacherPPO(PPO):
                 ids = torch.full_like(targets.weights, -1, dtype=torch.long)
                 names = [name for name, count in targets.counts.items() if count]
                 if len(names) == 1:
-                    ids[valid] = ("walking", "omni", "transform").index(names[0])
-            valid &= (ids >= 0) & (ids < 3)
+                    ids[valid] = self.teacher_names.index(names[0])
+            valid &= (ids >= 0) & (ids < len(self.teacher_names))
             self._queried_count += len(valid)
-            self._valid_count += int(valid.sum().item())
-            for index, name in enumerate(("walking", "omni", "transform")):
-                self._teacher_counts[name] = self._teacher_counts.get(name, 0) + int((valid & (ids == index)).sum())
+            self._valid_count += valid.sum()
+            for index, name in enumerate(self.teacher_names):
+                self._teacher_counts[name] = self._teacher_counts.get(name, 0) + (valid & (ids == index)).sum()
             # 各教师分别限制容量；跨整个 rollout 保留覆盖。
             selected = []
-            quota = math.ceil(self.distillation_max_samples / (3 * self.storage.num_transitions_per_env))
-            capacity = math.ceil(self.distillation_max_samples / 3)
-            for index in range(3):
+            quota = math.ceil(self.distillation_max_samples / (len(self.teacher_names) * self.storage.num_transitions_per_env))
+            capacity = math.ceil(self.distillation_max_samples / len(self.teacher_names))
+            if len(self._cached_counts) != len(self.teacher_names):
+                self._cached_counts = [0] * len(self.teacher_names)
+            for index in range(len(self.teacher_names)):
                 candidates = torch.where(valid & (ids == index))[0]
                 cached = self._cached_counts[index]
                 count = min(len(candidates), quota, capacity - cached, self.distillation_max_samples - self._sample_count)
@@ -247,7 +274,7 @@ class MultiTeacherPPO(PPO):
                 with torch.inference_mode(False), torch.no_grad():
                     sample_ids = ids[indices].detach().clone()
                     held_out = torch.zeros(len(indices), device=ids.device, dtype=torch.bool)
-                    for index in range(3):
+                    for index in range(len(self.teacher_names)):
                         group = torch.where(sample_ids == index)[0]
                         if len(group) > 1:
                             held_out[group[:max(1, len(group) // 5)]] = True
@@ -256,17 +283,20 @@ class MultiTeacherPPO(PPO):
                     self._current_chunks += 1
         actions = super().act(obs)
         if self.is_warmup:
-            actions = self.actor(obs, stochastic_output=False).detach()
+            # PPO.act already populated the same deterministic distribution mean.
+            # Keep its stochastic sample/log-prob/critic work to preserve RNG and storage.
+            actions = self.actor.output_mean.detach()
             use_teacher = torch.zeros(len(actions), device=actions.device, dtype=torch.bool)
             if targets is not None and valid is not None:
                 use_teacher = valid.clone()
                 if self.distillation_iteration >= self.warmup_iterations:
-                    # 最低预热后保留四种能力中的固定学生试跑组，补充自身偏差下的恢复监督。
+                    # 最低预热后保留各能力中的固定学生试跑组，补充自身偏差下的恢复监督。
                     env_ids = torch.arange(len(actions), device=actions.device)
-                    probes = env_ids[(env_ids // 4) % 4 == 0][:max(1, len(actions) // 4)]
+                    capability_count = 5 if "snake" in self.teacher_names else 4
+                    probes = env_ids[(env_ids // capability_count) % 4 == 0][:max(1, len(actions) // 4)]
                     use_teacher[probes] = False
                 actions = torch.where(use_teacher[:, None], targets.actions.detach(), actions)
-            self._warmup_student_count += int((~use_teacher).sum())
+            self._warmup_student_count += (~use_teacher).sum()
             self._warmup_action_count += len(actions)
             self.transition.actions = actions
         return actions
@@ -285,8 +315,8 @@ class MultiTeacherPPO(PPO):
             ids = torch.cat([sample[3] for sample in self._samples], dim=0)
             held_out = torch.cat([sample[4] for sample in self._samples], dim=0)
             self._anchor_observation_source = "rolling_replay"
-        groups = [torch.where(ids == index)[0] for index in range(3)]
-        quota = min(self.anchor_max_samples // 3, *(len(group) for group in groups))
+        groups = [torch.where(ids == index)[0] for index in range(len(self.teacher_names))]
+        quota = min(self.anchor_max_samples // len(self.teacher_names), *(len(group) for group in groups))
         selected = []
         for group in groups:
             train = group[~held_out[group]]
@@ -301,7 +331,7 @@ class MultiTeacherPPO(PPO):
             selected.append(torch.cat((fixed, remaining[torch.randperm(len(remaining), device=ids.device)[:quota - len(fixed)]])))
         indices = torch.cat(selected)
         if observations['actor'].shape[-1] == 185 and 'critic' in observations and observations['critic'].shape[-1] == 53:
-            indices = select_protection(observations, ids, held_out, self.anchor_max_samples, required_teacher_training=True)
+            indices = select_protection(observations, ids, held_out, self.anchor_max_samples, required_teacher_training=True, expected_teacher_count=len(self.teacher_names))
         anchor_observations = observations[indices].detach().clone()
         with torch.no_grad():
             # 保护的是刚通过闭环验收的学生控制器，避免继续逼近旧教师而改变成功步态。
@@ -342,7 +372,7 @@ class MultiTeacherPPO(PPO):
         anchor_strata = protection_strata(observations, ids)
         train_indices = torch.where(~held_out & ~anchor_mask)[0]
         anchor_indices = torch.where(~held_out & anchor_mask)[0]
-        used = torch.zeros(3, dtype=torch.long, device=ids.device)
+        used = torch.zeros(len(self.teacher_names), dtype=torch.long, device=ids.device)
         anchor_used = torch.zeros_like(used)
         total = anchor_total = 0.0
         for _ in range(self.distillation_updates):
@@ -379,8 +409,8 @@ class MultiTeacherPPO(PPO):
             self.optimizer.step()
             total += teacher_mse.item()
             anchor_total += anchor_mse.item()
-            used += torch.bincount(ids[indices], minlength=3)
-            anchor_used += torch.bincount(ids[fixed], minlength=3)
+            used += torch.bincount(ids[indices], minlength=len(self.teacher_names))
+            anchor_used += torch.bincount(ids[fixed], minlength=len(self.teacher_names))
         with torch.no_grad():
             errors = (self.actor(observations, stochastic_output=False) - actions).square().mean(dim=-1)
             self.actor(observations, stochastic_output=True)
@@ -390,7 +420,7 @@ class MultiTeacherPPO(PPO):
                    "distillation_anchor_optimized": float(anchor_used.sum()),
                    "distillation_rolling_optimized": float(used.sum() - anchor_used.sum()),
                    "distillation_anchor_loss": anchor_total / self.distillation_updates}
-        for index, name in enumerate(("walking", "omni", "transform")):
+        for index, name in enumerate(self.teacher_names):
             group = ids == index
             validation = group & held_out & ~anchor_mask
             anchor_validation = group & held_out & anchor_mask
@@ -427,16 +457,22 @@ class MultiTeacherPPO(PPO):
         losses["distillation_coefficient"] = coefficient
         losses["distillation_anchor_coefficient"] = self.anchor_coef if self.distillation_enabled else 0.0
         losses["distillation_warmup"] = float(warmup)
-        losses["warmup_student_fraction"] = self._warmup_student_count / max(1, self._warmup_action_count)
+        # Transfer collection counters together once per update, rather than forcing
+        # device synchronization for each teacher on every rollout step.
+        collection_counts = torch.stack([
+            torch.as_tensor(count, device=self.device)
+            for count in (self._valid_count, self._warmup_student_count, *self._teacher_counts.values())
+        ]).tolist()
+        losses["warmup_student_fraction"] = collection_counts[1] / max(1, self._warmup_action_count)
         losses["distillation_samples"] = float(self._sample_count)
         losses["distillation_replay_samples"] = float(sum(len(sample[1]) for sample in self._samples))
         losses["distillation_replay_iterations"] = float(len(self._replay_chunk_counts))
-        losses["distillation_coverage"] = self._valid_count / max(1, self._queried_count)
-        losses.update({f"teacher_{name}_candidates": float(count) for name, count in self._teacher_counts.items()})
+        losses["distillation_coverage"] = collection_counts[0] / max(1, self._queried_count)
+        losses.update({f"teacher_{name}_candidates": float(count) for name, count in zip(self._teacher_counts, collection_counts[2:], strict=True)})
         if warmup:
             eligible = self.distillation_iteration + 1 >= self.warmup_iterations
             checked = eligible and (self.distillation_iteration + 1 - self.warmup_iterations) % self.validation_interval_iterations == 0
-            for name in ("walking", "omni", "transform"):
+            for name in self.teacher_names:
                 covered = metrics.get(f"teacher_{name}_validation_samples", 0) >= self.validation_min_samples
                 mse = metrics.get(f"teacher_{name}_validation_mse", -1)
                 std = metrics.get(f"teacher_{name}_validation_std", -1)
@@ -445,7 +481,7 @@ class MultiTeacherPPO(PPO):
             if checked:
                 result = self.validation_callback() if self.validation_callback is not None else {"validation_passed": False}
                 self.validation_metrics = {str(key): float(value) for key, value in result.items()}
-                passed = bool(result.get("validation_passed", False)) and all(losses[f"warmup_blocked_{name}"] == 0 for name in ("walking", "omni", "transform"))
+                passed = bool(result.get("validation_passed", False)) and all(losses[f"warmup_blocked_{name}"] == 0 for name in self.teacher_names)
                 self.validation_passes = self.validation_passes + 1 if passed else 0
                 if self.validation_passes >= self.validation_required_passes:
                     self._capture_anchor()
@@ -483,7 +519,7 @@ class MultiTeacherPPO(PPO):
         self._current_chunks = 0
         self._sample_count = self._queried_count = self._valid_count = 0
         self._teacher_counts.clear()
-        self._cached_counts = [0, 0, 0]
+        self._cached_counts = [0] * len(self.teacher_names)
         self._warmup_student_count = self._warmup_action_count = 0
 
     def save(self) -> dict:
@@ -491,6 +527,8 @@ class MultiTeacherPPO(PPO):
         saved = super().save()
         saved["multi_teacher"] = {
             "iteration": self.distillation_iteration,
+            "teacher_names": self.teacher_names,
+            "teacher_warmup_enabled": self.teacher_warmup_enabled,
             "provenance": self.teacher_provenance,
             "anchor": tuple(value.detach().to("cpu").clone() for value in self._anchor) if self._anchor is not None else None,
             "anchor_kind": "accepted_student_mean",
@@ -509,6 +547,17 @@ class MultiTeacherPPO(PPO):
     def load(self, loaded_dict: dict, load_cfg: dict | None = None, strict: bool = True) -> bool:
         full_resume = _full_resume(load_cfg)
         metadata = loaded_dict.get('multi_teacher', {}) if full_resume else {}
+        if full_resume:
+            saved_warmup = metadata.get("teacher_warmup_enabled", True)
+            saved_names = metadata.get("teacher_names")
+            if type(saved_warmup) is not bool or saved_warmup != self.teacher_warmup_enabled:
+                raise ValueError("检查点教师预热语义不兼容，请显式选择 actor 热启动")
+            if saved_names is None:
+                # Unversioned checkpoints used only the legacy teacher defaults.
+                if self.enabled_teachers is not None:
+                    raise ValueError("旧检查点缺少教师选择语义，请显式选择 actor 热启动")
+            elif tuple(saved_names) != self.teacher_names:
+                raise ValueError("检查点教师选择不兼容，请显式选择 actor 热启动")
         foundation_count = metadata.get('anchor_foundation_count', 0)
         source_anchor = metadata.get('anchor')
         if type(foundation_count) is not int or foundation_count < 0 or (foundation_count and (source_anchor is None or foundation_count > len(source_anchor[1]))):
@@ -528,7 +577,7 @@ class MultiTeacherPPO(PPO):
                 if name in schedule:
                     setattr(self, name, schedule[name])
         gate = loaded_dict.get("multi_teacher", {}).get("gate", {}) if full_resume else {}
-        self.ppo_start_iteration = gate.get("ppo_start_iteration")
+        self.ppo_start_iteration = gate.get("ppo_start_iteration") if self.teacher_warmup_enabled else 0
         self.validation_passes = int(gate.get("passes", 0))
         self.validation_metrics = dict(gate.get("metrics", {}))
         metadata = loaded_dict.get("multi_teacher", {})
@@ -539,7 +588,7 @@ class MultiTeacherPPO(PPO):
         self._anchor_recent = cast(Anchor, tuple(value[foundation_count:].detach().clone() for value in self._anchor)) if self._anchor is not None and self._anchor_foundation is not None else None
         self._anchor_refresh_count = int(metadata.get('anchor_refresh_count', 0)) if full_resume else 0
         self._anchor_observation_source = metadata.get("anchor_observation_source", "rolling_replay") if self._anchor is not None else None
-        if self.ppo_start_iteration is not None and self._anchor is None:
+        if self.teacher_warmup_enabled and self.ppo_start_iteration is not None and self._anchor is None:
             # 旧联合训练检查点缺少已验收学生的基础保护数据，必须重过预热门控再开始 PPO。
             self.ppo_start_iteration = None
             self.validation_passes = 0
@@ -558,7 +607,14 @@ class MultiTeacherRunner(MjlabOnPolicyRunner):
     _motion_directions = ("forward", "backward", "left", "right")
 
     def __init__(self, env: RslRlVecEnvWrapper, train_cfg, log_dir=None, device="cpu"):
+        console_mode = train_cfg.get("console_mode", "compact")
+        if console_mode not in ("compact", "full"):
+            raise ValueError("console_mode 必须为 compact 或 full")
         super().__init__(env, train_cfg, log_dir, device)
+        if console_mode == "compact" and log_dir is not None:
+            from .training_console import install_compact_logging
+
+            install_compact_logging(self.logger)
         algorithm = cast(MultiTeacherPPO, self.alg)
         self._training = log_dir is not None
         self._training_distillation = self._training and algorithm.distillation_enabled
@@ -578,14 +634,21 @@ class MultiTeacherRunner(MjlabOnPolicyRunner):
         if self._training_distillation:
             from .teachers import TeacherEnsemble
 
-            algorithm.teachers = TeacherEnsemble(env.unwrapped, device=device, checkpoints=algorithm.teacher_checkpoints)
+            algorithm.teachers = TeacherEnsemble(env.unwrapped, device=device, checkpoints=algorithm.teacher_checkpoints,
+                                                 enabled_teachers=algorithm.enabled_teachers)
             algorithm.teacher_provenance = self._teacher_provenance()
         speed_command = self._forward_speed_command()
-        if self._training_distillation or speed_command is not None:
+        omni_training = self._training and getattr(getattr(env.unwrapped, 'cfg', None), 'omni_site_frame', False)
+        if self._training_distillation or speed_command is not None or omni_training:
             from .universal_evaluation import UniversalEvaluator
 
             source_cfg = getattr(env.unwrapped, "cfg", None)
-            evaluator = UniversalEvaluator(device=device, env_cfg=source_cfg, randomized=train_cfg.get("validation_randomized", True))
+            evaluator_cls = UniversalEvaluator
+            if omni_training:
+                from .universal_omni_evaluation import UniversalOmniEvaluator
+
+                evaluator_cls = UniversalOmniEvaluator
+            evaluator = evaluator_cls(device=device, env_cfg=source_cfg, randomized=train_cfg.get("validation_randomized", True))
             self._evaluator = evaluator
             algorithm.validation_callback = self._run_validation
             if self._training_distillation:
@@ -600,12 +663,14 @@ class MultiTeacherRunner(MjlabOnPolicyRunner):
                     forward_tolerance=.25, strict_forward=True, keyboard_protocol=True,
                 )
             if robust_interval:
-                self._robust_evaluator = UniversalEvaluator(device=device, env_cfg=source_cfg, randomized=True)
+                self._robust_evaluator = evaluator_cls(device=device, env_cfg=source_cfg, randomized=True)
                 algorithm.robust_validation_callback = self._run_robust_validation
 
     def _forward_speed_command(self) -> DeploymentCommand | None:
         """基础综合任务和回放不启用部署学生专属速度课程。"""
         if not getattr(self, "_training", False):
+            return None
+        if getattr(getattr(self.env.unwrapped, 'cfg', None), 'omni_site_frame', False):
             return None
         from .tasks.universal.mdp import command_term
 
@@ -620,6 +685,8 @@ class MultiTeacherRunner(MjlabOnPolicyRunner):
         assert self._evaluator is not None
         algorithm = cast(MultiTeacherPPO, self.alg)
         result = dict(self._evaluator(algorithm.actor))
+        if getattr(getattr(self.env.unwrapped, 'cfg', None), 'omni_site_frame', False):
+            return result
         command = self._forward_speed_command()
         if algorithm.is_warmup:
             return result
@@ -804,12 +871,13 @@ class MultiTeacherRunner(MjlabOnPolicyRunner):
         return state
 
     def _teacher_provenance(self) -> dict:
-        from .teachers import DEFAULT_CHECKPOINTS
+        from .teachers import DEFAULT_CHECKPOINTS, SNAKE_CHECKPOINT
 
         algorithm = cast(MultiTeacherPPO, self.alg)
-        paths = DEFAULT_CHECKPOINTS | (algorithm.teacher_checkpoints or {})
+        paths = DEFAULT_CHECKPOINTS | {'snake': SNAKE_CHECKPOINT} | (algorithm.teacher_checkpoints or {})
         records = {}
-        for name, checkpoint in paths.items():
+        for name in algorithm.teacher_names:
+            checkpoint = paths[name]
             path = Path(checkpoint).expanduser()
             if not path.is_absolute():
                 path = Path(__file__).resolve().parents[2] / path

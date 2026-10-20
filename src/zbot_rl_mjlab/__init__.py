@@ -6,6 +6,15 @@
 
 from .experiments.bidirectional import SnakeBipedBidirectional
 from .experiments.flat_foot_velocity_energy import FlatFootVelocityEnergy
+from .experiments.omni_teacher import (
+    SnakeLegOmniGroupedTeacher,
+    SnakeLegOmniGuidedTeacher,
+    SnakeLegOmniTaskRoutedTeacher,
+    SnakeLegOmniTaskTeacher,
+    SnakeLegOmniTeacher,
+    SnakeLegOmniWideBipedTeacher,
+)
+from .experiments.site_snake import SnakeSiteOmniTeacher
 from .experiments.snake import SnakeOmniTeacher
 from .experiments.transformation import (
     BipedToSnake,
@@ -15,7 +24,12 @@ from .experiments.transformation import (
     SnakeToBipedRobust,
     SnakeToBipedTeacher,
 )
-from .experiments.universal import DeployUniversalLocomotion, UniversalLocomotion
+from .experiments.universal import (
+    DeployUniversalLocomotion,
+    SnakeLegDeploy,
+    SnakeLegOmniDeploy,
+    UniversalLocomotion,
+)
 from .experiments.variants import (
     DeployFlatFoot,
     DeployWalking,
@@ -54,7 +68,16 @@ EXPERIMENTS = (
     SnakeBipedBidirectional,
     UniversalLocomotion,
     DeployUniversalLocomotion,
+    SnakeLegDeploy,
+    SnakeLegOmniDeploy,
+    SnakeLegOmniTeacher,
+    SnakeLegOmniWideBipedTeacher,
+    SnakeLegOmniGroupedTeacher,
+    SnakeLegOmniTaskTeacher,
+    SnakeLegOmniTaskRoutedTeacher,
+    SnakeLegOmniGuidedTeacher,
     SnakeOmniTeacher,
+    SnakeSiteOmniTeacher,
 )
 
 for experiment in EXPERIMENTS:

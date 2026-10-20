@@ -1,4 +1,4 @@
-"""头倾终止扣分是真实的一次性-0.5，不随控制步长或其他复位变化。"""
+"""头倾终止扣分是真实的一次性-5，不随控制步长或其他复位变化。"""
 
 import math
 
@@ -17,7 +17,7 @@ def test_head_tilt_event_charges_once_and_is_independent_of_control_dt(dt):
     env.max_episode_length_s = 30.
     manager = TerminationManager({'head_tilt': env.cfg.terminations['head_tilt']}, env)
     env.termination_manager = manager
-    rewards = RewardManager(env.cfg.rewards, env)
+    rewards = RewardManager({'head_tilt_reset_cost': env.cfg.rewards['head_tilt_reset_cost']}, env)
     manager.compute()
     torch.testing.assert_close(rewards.compute(dt), torch.zeros(2))
     quaternions = env.scene['robot'].data.body_link_quat_w
@@ -25,10 +25,10 @@ def test_head_tilt_event_charges_once_and_is_independent_of_control_dt(dt):
     tilt = torch.tensor([math.cos(math.pi / 6), math.sin(math.pi / 6), 0., 0.])
     quaternions[0, 0] = quat_mul(tilt, initial)
     torch.testing.assert_close(manager.compute(), torch.tensor([True, False]))
-    torch.testing.assert_close(rewards.compute(dt), torch.tensor([-.5, 0.]))
-    # 原生回合日志按最大回合秒数归一化，实际事件费用仍为-0.5。
+    torch.testing.assert_close(rewards.compute(dt), torch.tensor([-5., 0.]))
+    # 原生回合日志按最大回合秒数归一化，实际事件费用仍为-5。
     logged = rewards.reset(torch.tensor([0]))
-    assert logged['Episode_Reward/head_tilt_reset_cost'].item() == pytest.approx(-.5 / 30)
+    assert logged['Episode_Reward/head_tilt_reset_cost'].item() == pytest.approx(-5. / 30)
     manager.reset(torch.tensor([0]))
     quaternions[0, 0] = initial
     assert not manager.compute().any()
@@ -45,5 +45,5 @@ def test_other_reset_reasons_do_not_charge_head_tilt_fee(reason):
     }, env)
     env.termination_manager = manager
     assert manager.compute().all()
-    rewards = RewardManager(env.cfg.rewards, env)
+    rewards = RewardManager({'head_tilt_reset_cost': env.cfg.rewards['head_tilt_reset_cost']}, env)
     torch.testing.assert_close(rewards.compute(env.step_dt), torch.zeros(2))

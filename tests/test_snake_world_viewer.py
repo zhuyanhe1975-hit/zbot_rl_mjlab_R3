@@ -1,4 +1,4 @@
-"""世界X任务可视化不随蛇头旋转，旧指令控制仅供旧模型。"""
+"""蛇形奖励方向箭头随头部旋转，独立于头尾连线。"""
 
 import math
 from types import SimpleNamespace
@@ -19,7 +19,8 @@ def test_snake_forward_and_actual_velocity_arrows_share_site_origin(yaw):
     data = env.scene['robot'].data
     rotation = torch.tensor([math.cos(yaw / 2), 0., 0., math.sin(yaw / 2)])
     data.body_link_quat_w[:, 0] = quat_mul(rotation.expand(2, -1), data.body_link_quat_w[:, 0])
-    data.site_pos_w = torch.tensor([[[1., 2., .3]], [[3., 4., .5]]])
+    data.site_pos_w = torch.tensor([[[1., 2., .3], [1., 2., .3]], [[3., 4., .5], [3., 4., .5]]])
+    data.site_pos_w[:, 1, :2] -= torch.tensor([.6, 0.])
     velocity = torch.tensor([.2, -.1, .1])
     data.body_com_lin_vel_w[:] = velocity
     term = SnakeVelocityCommandCfg(resampling_time_range=(5., 9.), debug_vis=True).build(env)

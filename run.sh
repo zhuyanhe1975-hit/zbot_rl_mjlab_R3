@@ -1,5 +1,14 @@
 source /home/yhzhu/AI/mjlab/.venv/bin/activate
 
+# 特权全能教师回放。
+# python play.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided \
+#   --log-root logs/rsl_rl_guided \
+#   --env.commands.transform.mode source \
+#   --env.scene.num-envs 16 \
+#   --viewer native \
+#   --follow-smoothing-time 0.2 \
+#   "$@"
+
 # 1、按照指定频率迈步+基本平地行走
 # python play.py Mjlab-Zbot-6dof-Walking \
 #     --env.step-frequency-min 0.3 \
@@ -28,8 +37,9 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
 
 # 5、全方位行走实验
 # python play.py Mjlab-Zbot-6dof-Omni-Velocity-Energy-Walking \
-#     --checkpoint-file bests/omni_velocity_energy_2026-10-10_iter499/model_499.pt \
 #     --env.scene.num-envs 1 \
+#     "$@"
+    # --checkpoint-file bests/omni_velocity_energy_2026-10-10_iter499/model_499.pt
 
 # 6、实机部署实验-1 （扰动 + 域随机化）
 # python play.py Mjlab-Zbot-6dof-Deploy-Walking \
@@ -68,7 +78,23 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
 #   --env.scene.num-envs 1
 
 # 15、蛇形运动：覆盖前进、后退、左右侧移、双向转动及组合运动
-  python play.py Mjlab-Zbot-6dof-Snake-Omni-Teacher \
-  --env.scene.num-envs 16 \
-  # --stochastic True
-  
+  # python play.py Mjlab-Zbot-6dof-Snake-Omni-Teacher \
+  # --env.scene.num-envs 1 \
+  # --checkpoint-file bests/snake_world_x_2026-10-19_iter1499/model_1499.pt \
+  # # --stochastic True
+
+# 16、蛇足全能部署学生：腿走 + 蛇前爬 + 双向变形，四教师从头蒸馏。
+# python play.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Deploy \
+#   --env.scene.num-envs 16 \
+
+# 17、纯双足对照：只读取本次对照的检查点。
+# python play.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Wide-Biped \
+#   --log-root logs/ablations/biped_scalar_only \
+#   --env.commands.transform.mode stand \
+#   --env.scene.num-envs 16 \
+#   --viewer native \
+#   --follow-smoothing-time 0.2
+
+# 18、新蛇形全向回放：前后、侧移、转向及组合运动。
+python play.py Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher \
+  --env.scene.num-envs 1

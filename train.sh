@@ -1,5 +1,15 @@
 source /home/yhzhu/AI/mjlab/.venv/bin/activate
 
+# 特权全能教师：按任务归档指导 + PPO。
+# python train.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided \
+#   --log-root logs/rsl_rl_guided \
+#   --env.commands.transform.mode source \
+#   --env.scene.num-envs 8192 \
+#   --env.omni-frame-backend cuda_graph \
+#   --agent.max-iterations 6000 \
+#   --agent.run-name task_guidance_ppo_v2 \
+#   "$@"
+
 # 1、按照指定频率迈步+基本平地行走
 # python train.py Mjlab-Zbot-6dof-Walking \
 #     --env.step-frequency-min 0.25 \
@@ -35,7 +45,8 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
 #全方位行走实验
 # python train.py Mjlab-Zbot-6dof-Omni-Velocity-Energy-Walking \
 #     --env.scene.num-envs 8192 \
-#     --agent.max-iterations 500
+#     --agent.max-iterations 500 \
+#     "$@"
 
 #实机部署实验
 # --disturbance	基座受推
@@ -117,7 +128,35 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
 #   --agent.max-iterations 500 \
 #   --agent.run-name translation_stall_v2
 
-python train.py Mjlab-Zbot-6dof-Snake-Omni-Teacher \
+# python train.py Mjlab-Zbot-6dof-Snake-Omni-Teacher \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 1500 \
+#   --agent.run-name beta_body_v3
+
+# python train.py Mjlab-Zbot-6dof-Snake-Omni-Teacher \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 1500 \
+#   --agent.run-name beta_body_v3
+  # --agent.resume True \
+  # --agent.load-run 2026-10-19_16-45-28_beta_body_v3 \
+  # --agent.load-checkpoint model_200.pt \
+  # --env.allow-resume-joint-limit-change True \
+  # --env.actions.joint-pos.target-limit 3.141592653589793 \
+
+# 16、蛇足全能部署学生：腿走 + 蛇前爬 + 双向变形，四教师从头蒸馏。
+# python train.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Deploy \
+#   --env.scene.num-envs 16 \
+
+# 17、纯双足全向训练。
+# python train.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Wide-Biped \
+#   --log-root logs/ablations/biped_scalar_only \
+#   --env.commands.transform.mode stand \
+#   --env.scene.num-envs 8192 \
+#   --env.omni-frame-backend cuda_graph \
+#   --agent.max-iterations 6000 \
+#   --agent.run-name biped_scalar_only_v1
+
+# 18、新蛇形全向训练：前后、侧移、转向及组合运动。
+python train.py Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher \
   --env.scene.num-envs 8192 \
-  --agent.max-iterations 500 \
-  --agent.run-name beta_body_v3
+  --agent.max-iterations 600

@@ -214,15 +214,15 @@ def test_direction_metrics_use_selected_group_and_signed_projection(monkeypatch,
 def test_stall_is_diagnostic_only_and_preserves_observations_and_physical_safety():
     env = state_env()
     cfg = env.cfg
-    assert set(cfg.terminations) == {'unsafe', 'head_tilt', 'self_collision', 'time_out'}
+    assert set(cfg.terminations) == {'unsafe', 'head_tilt', 'head_yaw', 'body_yaw', 'self_collision', 'time_out'}
     assert set(cfg.events) == {'reset_scene', 'reset_snake'}
-    assert mdp.actor_state(env).shape == (2, 40)
-    assert mdp.critic_state(env).shape == (2, 55)
+    assert mdp.actor_state(env).shape == (2, 51)
+    assert mdp.critic_state(env).shape == (2, 66)
     assert 'translation_stall' not in cfg.rewards
     assert 'translation_stall_fraction' not in cfg.metrics
-    assert set(cfg.rewards) == {'forward_speed', 'lateral_speed_cost', 'vertical_speed_cost', 'joint_pose_deviation', 'head_tilt_reset_cost', 'target_saturation_fraction'}
-    assert cfg.rewards['forward_speed'].weight == 1.
-    assert cfg.rewards['joint_pose_deviation'].weight == -.01
+    assert set(cfg.rewards) == {'head_forward_speed', 'head_lateral_speed_cost', 'head_vertical_speed_cost', 'joint_pose_deviation', 'head_tilt_reset_cost', 'target_saturation_fraction', 'head_angular_velocity_cost', 'self_collision_reset_cost', 'action_rate', 'head_yaw_cost', 'alive', 'head_yaw_reset_cost', 'body_yaw_cost', 'body_yaw_reset_cost', 'body_yaw_integral_cost', 'head_yaw_integral_cost', 'joint_fold_cost'}
+    assert cfg.rewards['head_forward_speed'].weight == 15.
+    assert cfg.rewards['joint_pose_deviation'].weight == -.02
     assert 'velocity_tracking' not in cfg.rewards
 
 

@@ -53,14 +53,15 @@ def test_snake_simulation_event_uses_smaller_steps_and_only_motion_term():
     instance = object.__new__(FollowCameraViewer)
     instance._snake_controls = True
     instance.env = cast(RslRlVecEnvWrapper, SimpleNamespace(unwrapped=env))
+    instance.env_idx = 0
     for payload in ("motion_forward", "motion_left", "motion_turn_left"):
         assert instance._handle_custom_action(ViewerAction.CUSTOM, payload)
     assert term.requested_velocity[0].tolist() == pytest.approx([.025, .025, .1])
-    assert term.manual_control.all()
+    assert term.manual_control[0] and not term.manual_control[1:].any()
     assert term.command.eq(0).all()
     assert instance._handle_custom_action(ViewerAction.CUSTOM, "motion_stop")
     assert term.requested_velocity.eq(0).all()
     assert not instance._handle_custom_action(ViewerAction.CUSTOM, "transform_stand")
     assert term_names == ["motion"] * 4
     assert len(observations) == 4
-    assert torch.isinf(term.time_left).all()
+    assert torch.isinf(term.time_left[0]) and not torch.isinf(term.time_left[1:]).any()

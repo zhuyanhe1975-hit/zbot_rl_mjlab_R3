@@ -160,7 +160,7 @@ def test_transform_conversion_obeys_teacher_bounds_and_student_limits(env, teach
 def test_nonfinite_teacher_output_has_no_teacher_id(env, teachers, key, dimension, index, bad_value):
     class NonfiniteTeacher:
         def __call__(self, inputs, stochastic_output=False):
-            return torch.full((env.num_envs, dimension), bad_value)
+            return torch.full((inputs["actor"].shape[0], dimension), bad_value)
 
     teachers.models[key] = NonfiniteTeacher()
     result = teachers.query()

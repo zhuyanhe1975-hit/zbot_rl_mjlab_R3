@@ -1,0 +1,48 @@
+{
+  "task": "Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher",
+  "source_run": "logs/rsl_rl/zbot_snake_site_omni_teacher/2026-10-20_19-07-44",
+  "source_checkpoint": "model_599.pt",
+  "iteration": 599,
+  "completed_ppo_iterations": 600,
+  "archived_at": "2026-10-20T19:18:00.478285+08:00",
+  "git_base": "dede12192387a183e58d4d1f3f52c942c7155192",
+  "checkpoint_sha256": "b5e1222947d66e90db89ed5fa5d505813dde350038868195c7ea628241008870",
+  "recipe": {
+    "role": "privileged_site_snake_omni_teacher",
+    "schema_version": 3,
+    "actor_obs_dim": 56,
+    "critic_obs_dim": 56,
+    "action_dim": 6,
+    "snake_omni_version": 3,
+    "objective": "site_velocity_tracking",
+    "tracking_point": "foot_0_sole",
+    "reward_recipe": "zbot_snake_velocity_limits_tilt_v5",
+    "motion_site": "foot_0_sole",
+    "command_axes": [
+      "site_minus_z_gravity_aligned",
+      "left",
+      "world_plus_z"
+    ],
+    "distribution": "BetaDistribution",
+    "action_range": [
+      -1.0,
+      1.0
+    ],
+    "action_control": "integrated_joint_target_velocity",
+    "qualification_protocol": "site_snake_omni_v3",
+    "velocity_limits": [
+      0.2,
+      0.2,
+      0.5
+    ],
+    "joint_target_limit": 1.0471975511965976,
+    "max_target_speed": 6.283185307179586,
+    "completed_ppo_iterations": 600,
+    "task_fsm_version": 1
+  },
+  "notes": [
+    "最终第599号检查点，已完成600次PPO更新；未从历史迭代择优。",
+    "训练指标与独立评测分开保存，不以训练奖励代替全向合格结论。",
+    "原始TensorBoard文件及其余检查点保留在source_run；未删除训练输出。"
+  ]
+}

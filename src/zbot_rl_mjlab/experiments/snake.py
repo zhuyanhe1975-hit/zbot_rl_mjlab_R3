@@ -1,11 +1,11 @@
 """单独培养蛇形全向运动教师，不加载尚未学会蛇行的综合学生。"""
 
 import math
-from typing import cast
+from typing import Any, cast
 
 import torch
 from mjlab.rl import MjlabOnPolicyRunner
-from rsl_rl.modules import BetaDistribution, GaussianDistribution
+from rsl_rl.modules import BetaDistribution
 
 from ..tasks.snake.commands import SnakeVelocityCommand
 from ..tasks.snake.env_cfg import TASK_ID, SnakeEnvCfg, snake_env_cfg
@@ -79,9 +79,17 @@ class CompactSnakeRunner(MjlabOnPolicyRunner):
                         ))
                     console_lines.extend((
                         (f"诊断：头倾{display('Episode_Metrics/head_tilt_rad', 180 / math.pi, 1)}° "
+                        f"航向偏差{display('Episode_Metrics/head_yaw_deviation_rad', 180 / math.pi, 1)}° "
+                        f"体轴偏差{display('Episode_Metrics/body_yaw_deviation_rad', 180 / math.pi, 1)}° "
+                        f"头部积分{display('Episode_Metrics/head_yaw_integral_abs_rad_s', 180 / math.pi, 1)}°·s "
+                        f"体轴积分{display('Episode_Metrics/body_yaw_integral_abs_rad_s', 180 / math.pi, 1)}°·s "
+                        f"头角速度{display('Episode_Metrics/head_angular_speed_rad_s')}rad/s "
+                        f"运动惩罚倍率{display('Episode_Metrics/motion_penalty_scale')} "
                         f"关节速度{display('Episode_Metrics/joint_velocity_rms_rad_s')}rad/s "
                         f"目标顶限{display('Episode_Metrics/target_saturation_fraction', 100, 1)}%"),
                         (f"复位计数：头倾{display('Episode_Termination/head_tilt', digits=2)} "
+                        f"航向{display('Episode_Termination/head_yaw', digits=2)} "
+                        f"体轴{display('Episode_Termination/body_yaw', digits=2)} "
                         f"自碰{display('Episode_Termination/self_collision', digits=2)} "
                         f"安全{display('Episode_Termination/unsafe', digits=2)}"),
                     ))
@@ -92,96 +100,132 @@ class CompactSnakeRunner(MjlabOnPolicyRunner):
                 print("\n".join(console_lines), flush=True)
             return result
 
-        self.logger.log = log_with_group_means
+        cast(Any, self.logger).log = log_with_group_means
 
 
 class SnakeTeacherRunner(CompactSnakeRunner):
-    """原生Beta训练；检查点区分动作分布和观测语义，不迁移高斯输出头。"""
+    """原生Beta教师训练，仅加载包含头部速度观测的新版检查点。"""
 
     @staticmethod
     def _describe_checkpoint(checkpoint):
         recipe = (checkpoint.get("infos") or {}).get("snake_recipe")
+        if not isinstance(recipe, dict) or recipe.get("version") != 22:
+            raise ValueError("旧蛇形检查点动作或观测不兼容，新蛇形教师任务请从零训练（需要第22版检查点）。")
+        if (recipe.get("motion_frame") not in ("body_gravity", "legacy_head")
+                or recipe.get("head_gyro_frame") not in ("head", "world")
+                or not isinstance(recipe.get("motion_body"), str) or not recipe["motion_body"]
+                or not isinstance(recipe.get("motion_site"), str) or not recipe["motion_site"]
+                or recipe.get("objective") != "snake_world_x_capped_speed"
+                or recipe.get("observation_reference") != "world_x"
+                or type(recipe.get("forward_speed_cap")) not in (float, int)
+                or not math.isfinite(recipe["forward_speed_cap"]) or recipe["forward_speed_cap"] <= 0):
+            raise ValueError("蛇形检查点任务或观测坐标元数据无效。")
+        speed_gain = recipe.get("motion_penalty_speed_gain")
+        min_scale = recipe.get("motion_penalty_min_scale")
+        if (recipe.get("motion_penalty_scaling") != "clipped_positive_world_x_ramp"
+                or type(speed_gain) not in (float, int)
+                or not math.isfinite(speed_gain) or speed_gain < 0
+                or type(min_scale) not in (float, int)
+                or not math.isfinite(min_scale) or not 0 <= min_scale <= 1):
+            raise ValueError("蛇形检查点运动惩罚速度缩放元数据无效。")
+        yaw_limit = recipe.get("head_yaw_limit")
+        if (recipe.get("yaw_reference") != "episode_initial_heading"
+                or recipe.get("head_orientation_observation") != "quaternion_wxyz_and_relative_yaw_sincos"
+                or type(yaw_limit) not in (float, int)
+                or not math.isfinite(yaw_limit) or not 0 < yaw_limit <= math.pi
+                or recipe.get("actor_observation_dim") != 51
+                or recipe.get("critic_observation_dim") != 66):
+            raise ValueError("蛇形检查点头部姿态或初始航向元数据无效。")
+        body_yaw_limit = recipe.get("body_yaw_limit")
+        if (recipe.get("body_yaw_reference") != "episode_initial_heading"
+                or not isinstance(recipe.get("tail_site"), str) or not recipe["tail_site"]
+                or type(body_yaw_limit) not in (float, int)
+                or not math.isfinite(body_yaw_limit) or not 0 < body_yaw_limit <= math.pi):
+            raise ValueError("蛇形检查点体轴初始航向元数据无效。")
+        integral_time_scale = recipe.get("body_yaw_integral_time_scale")
+        if (recipe.get("body_yaw_integral") != "signed_episode_dt_tanh_squared"
+                or type(integral_time_scale) not in (float, int)
+                or not math.isfinite(integral_time_scale) or integral_time_scale <= 0):
+            raise ValueError("蛇形检查点体轴航向积分元数据无效。")
+        head_integral_time_scale = recipe.get("head_yaw_integral_time_scale")
+        if (recipe.get("head_yaw_integral") != "signed_episode_dt_tanh_squared"
+                or type(head_integral_time_scale) not in (float, int)
+                or not math.isfinite(head_integral_time_scale) or head_integral_time_scale <= 0):
+            raise ValueError("蛇形检查点头部航向积分元数据无效。")
+        for network, expected in (("actor", 51), ("critic", 66)):
+            inputs = [(int(key.split('.')[1]), value)
+                      for key, value in checkpoint.get(f"{network}_state_dict", {}).items()
+                      if key.startswith("mlp.") and key.endswith(".weight")
+                      and key.split('.')[1].isdigit()]
+            first_weight = min(inputs, key=lambda item: item[0])[1] if inputs else None
+            if first_weight is None or first_weight.ndim != 2 or first_weight.shape[1] != expected:
+                raise ValueError("蛇形检查点头部姿态观测维度不兼容。")
+        target_limit = recipe.get("joint_target_limit")
+        max_target_speed = recipe.get("max_target_speed")
+        if (recipe.get("action_control") != "integrated_joint_velocity"
+                or type(max_target_speed) not in (float, int)
+                or not math.isfinite(max_target_speed) or max_target_speed <= 0
+                or type(target_limit) not in (float, int)
+                or not math.isfinite(target_limit) or target_limit <= 0):
+            raise ValueError("蛇形检查点关节速度积分动作元数据无效。")
+        action_range = recipe.get("action_range")
         actor = checkpoint.get("actor_state_dict", {})
-        scalar_std = "distribution.std_param" in actor
-        log_std = "distribution.log_std_param" in actor
-        gaussian = scalar_std or log_std
-        if scalar_std and log_std:
-            raise ValueError("检查点同时包含两种高斯标准差，无法识别动作分布。")
-        frames = {"motion_frame": "legacy_head", "head_gyro_frame": "world"}
-        if recipe is None:
-            if not gaussian:
-                raise ValueError("未标记动作分布的旧检查点不能作为Beta模型加载。")
-            version = 0
-        else:
-            if not isinstance(recipe, dict):
-                raise ValueError("蛇形检查点元数据无效。")
-            version = recipe.get("version")
-            if (recipe.get("motion_frame") not in ("body_gravity", "legacy_head")
-                    or recipe.get("head_gyro_frame") not in ("head", "world")):
-                raise ValueError("蛇形检查点观测坐标元数据无效。")
-            frames = {key: recipe[key] for key in frames}
-            if version == 2:
-                if not gaussian:
-                    raise ValueError("第2版检查点应为高斯策略，动作分布不匹配。")
-            elif version in (3, 4, 5, 6, 7):
-                action_range = recipe.get("action_range")
-                if (gaussian or recipe.get("distribution") != "BetaDistribution"
-                        or not isinstance(action_range, (tuple, list))
-                        or tuple(action_range) != (-1., 1.)):
-                    raise ValueError("Beta检查点动作分布或值域不匹配。")
-                if version in (4, 5, 6, 7) and (
-                    not isinstance(recipe.get("motion_body"), str) or not recipe["motion_body"]
-                ):
-                    raise ValueError("第4版蛇形检查点缺少运动坐标参考模块。")
-                if version in (5, 6, 7) and (
-                    not isinstance(recipe.get("motion_site"), str) or not recipe["motion_site"]
-                ):
-                    raise ValueError("第5版蛇形检查点缺少运动坐标参考site。")
-                if version in (6, 7) and (
-                    recipe.get("objective") != ("snake_forward_signed_speed" if version == 7 else "world_x_signed_speed")
-                    or recipe.get("observation_reference") != "world_x"
-                ):
-                    raise ValueError("蛇形检查点的推进任务或观测参考无效。")
-            else:
-                raise ValueError("不支持的蛇形检查点版本。")
+        if (recipe.get("distribution") != "BetaDistribution"
+                or not isinstance(action_range, (tuple, list))
+                or tuple(action_range) != (-1., 1.)
+                or "distribution.std_param" in actor or "distribution.log_std_param" in actor):
+            raise ValueError("Beta检查点动作分布或值域不匹配。")
         # 直接检查输出头，避免先加载部分权重后才遇到形状错误。
         heads = [(int(key.split('.')[1]), value) for key, value in actor.items()
                  if key.startswith('mlp.') and key.endswith('.weight')
                  and key.split('.')[1].isdigit()]
-        expected_rows = 6 if gaussian else 12
         if not heads:
             raise ValueError("检查点缺少动作输出头。")
         head_index, head_weight = max(heads, key=lambda item: item[0])
         head_bias = actor.get(f'mlp.{head_index}.bias')
-        if (head_weight.ndim != 2 or head_weight.shape[0] != expected_rows
-                or head_bias is None or head_bias.shape != (expected_rows,)):
+        if (head_weight.ndim != 2 or head_weight.shape[0] != 12
+                or head_bias is None or head_bias.shape != (12,)):
             raise ValueError("检查点动作输出头与声明的分布不匹配。")
-        frames["observation_reference"] = "world_x" if version in (6, 7) else "command"
-        return version, gaussian, log_std, frames
+        return recipe
 
     @staticmethod
     def prepare_playback_cfg(train_cfg, path):
-        """构造推理网络前选择真实分布；只为旧模型回放，不用于迁移训练。"""
+        """构造推理网络前验证新版教师检查点。"""
         checkpoint = torch.load(path, map_location="cpu", weights_only=False)
-        version, gaussian, log_std, _ = SnakeTeacherRunner._describe_checkpoint(checkpoint)
-        train_cfg["actor"]["distribution_cfg"] = (
-            {"class_name": "GaussianDistribution", "init_std": .25,
-             "std_type": "log" if log_std else "scalar",
-             "std_range": (.08, .45) if version == 2 else (1e-6, 1e6)}
-            if gaussian else {"class_name": "BetaDistribution", "action_range": (-1., 1.)}
-        )
+        SnakeTeacherRunner._describe_checkpoint(checkpoint)
+        train_cfg["actor"]["distribution_cfg"] = {
+            "class_name": "BetaDistribution", "action_range": (-1., 1.),
+        }
 
     def _recipe(self):
         distribution = self.alg.get_policy().distribution
         if not isinstance(distribution, BetaDistribution):
-            raise TypeError("旧高斯策略仅供回放，不能保存为Beta训练检查点。")
+            raise TypeError("蛇形教师检查点必须使用Beta策略。")
         if tuple(distribution.action_range) != (-1., 1.):
             raise ValueError("蛇形Beta动作值域必须为[-1, 1]。")
         cfg = cast(SnakeEnvCfg, self.env.unwrapped.cfg)
-        return {"version": 7, "motion_frame": cfg.motion_frame, "motion_body": cfg.head_body,
-                "motion_site": cfg.motion_site,
-                "objective": "snake_forward_signed_speed", "observation_reference": cfg.observation_reference,
+        return {"version": 22, "motion_frame": cfg.motion_frame, "motion_body": cfg.head_body,
+                "motion_site": cfg.motion_site, "tail_site": cfg.tail_site,
+                "body_yaw_limit": cfg.body_yaw_limit,
+                "body_yaw_reference": "episode_initial_heading",
+                "body_yaw_integral": "signed_episode_dt_tanh_squared",
+                "body_yaw_integral_time_scale": cfg.body_yaw_integral_time_scale,
+                "objective": "snake_world_x_capped_speed",
+                "forward_speed_cap": cfg.forward_speed_cap,
+                "motion_penalty_speed_gain": cfg.motion_penalty_speed_gain,
+                "motion_penalty_min_scale": cfg.motion_penalty_min_scale,
+                "motion_penalty_scaling": "clipped_positive_world_x_ramp",
+                "yaw_reference": "episode_initial_heading",
+                "head_yaw_limit": cfg.head_yaw_limit,
+                "head_yaw_integral": "signed_episode_dt_tanh_squared",
+                "head_yaw_integral_time_scale": cfg.head_yaw_integral_time_scale,
+                "head_orientation_observation": "quaternion_wxyz_and_relative_yaw_sincos",
+                "actor_observation_dim": 51, "critic_observation_dim": 66,
+                "observation_reference": cfg.observation_reference,
                 "head_gyro_frame": cfg.head_gyro_frame,
+                "action_control": "integrated_joint_velocity",
+                "max_target_speed": cast(Any, cfg.actions["joint_pos"]).max_target_speed,
+                "joint_target_limit": cast(Any, cfg.actions["joint_pos"]).target_limit,
                 "distribution": "BetaDistribution", "action_range": tuple(distribution.action_range)}
 
     def learn(self, num_learning_iterations: int, init_at_random_ep_len: bool = False):
@@ -189,11 +233,13 @@ class SnakeTeacherRunner(CompactSnakeRunner):
         if not isinstance(distribution, BetaDistribution) or tuple(distribution.action_range) != (-1., 1.):
             raise ValueError("新蛇形训练只使用原生Beta策略，请从零训练。")
         if cast(SnakeEnvCfg, self.env.unwrapped.cfg).observation_reference != "world_x":
-            raise ValueError("旧速度指令观测模型仅支持回放，蛇形前向任务请从零训练。")
+            raise ValueError("蛇形教师训练需要world_x观测参考，请从零训练。")
         return super().learn(num_learning_iterations, init_at_random_ep_len)
 
     def save(self, path: str, infos=None) -> None:
         saved_infos = {**(infos or {}), "snake_recipe": self._recipe()}
+        if hasattr(self, "_resume_joint_limit_change"):
+            saved_infos["snake_resume_joint_limit_change"] = self._resume_joint_limit_change
         manager = getattr(self.env.unwrapped, "command_manager", None)
         term = manager.get_term("motion") if manager is not None else None
         if isinstance(term, SnakeVelocityCommand) and term.cfg.translation_curriculum:
@@ -202,24 +248,45 @@ class SnakeTeacherRunner(CompactSnakeRunner):
 
     def load(self, path: str, load_cfg=None, strict=True, map_location=None):
         checkpoint = torch.load(path, map_location="cpu", weights_only=False)
-        version, gaussian, _, frames = self._describe_checkpoint(checkpoint)
+        recipe = self._describe_checkpoint(checkpoint)
         actor_only = load_cfg is not None and load_cfg.get("actor", False) and not any(
             load_cfg.get(key, False) for key in ("critic", "optimizer", "iteration", "rnd")
         )
         distribution = self.alg.get_policy().distribution
-        if not isinstance(distribution, (BetaDistribution, GaussianDistribution)):
-            raise TypeError("蛇形检查点仅支持原生Beta或旧高斯分布。")
-        if gaussian != isinstance(distribution, GaussianDistribution):
-            raise ValueError("高斯和Beta输出头不兼容：新训练请从零开始；旧回放请先prepare_playback_cfg或使用play.py。")
-        if not actor_only and (gaussian or version != 7
-                              or (checkpoint.get("infos") or {}).get("snake_recipe") != self._recipe()):
-            raise ValueError("检查点任务或观测语义不兼容，蛇形前向任务请从零训练。")
-        if (actor_only and version in (4, 5, 6, 7)
-                and checkpoint["infos"]["snake_recipe"]["motion_body"] != cast(SnakeEnvCfg, self.env.unwrapped.cfg).head_body):
+        if not isinstance(distribution, BetaDistribution):
+            raise TypeError("蛇形教师检查点仅支持原生Beta分布。")
+        if not actor_only:
+            current_recipe = self._recipe()
+            differences = sorted(key for key in recipe.keys() | current_recipe.keys()
+                                 if recipe.get(key) != current_recipe.get(key))
+            allowed_limit_change = (differences == ["joint_target_limit"]
+                                    and getattr(self.env.unwrapped.cfg, "allow_resume_joint_limit_change", False))
+            if differences and not allowed_limit_change:
+                details = "; ".join(f"{key}: 检查点={recipe.get(key)!r}, 当前={current_recipe.get(key)!r}"
+                                    for key in differences)
+                hint = "请使用训练时的配置续训；若有意改变任务或观测语义，请从零训练。"
+                if differences == ["joint_target_limit"]:
+                    hint = ("保持原关节目标范围续训可添加 "
+                            f"--env.actions.joint-pos.target-limit {recipe['joint_target_limit']}；"
+                            "有意改变范围继续训练可添加 --env.allow-resume-joint-limit-change True。")
+                raise ValueError(f"检查点任务或观测语义不兼容：{details}。{hint}")
+        cfg = cast(SnakeEnvCfg, self.env.unwrapped.cfg)
+        if actor_only and recipe["motion_body"] != cfg.head_body:
             raise ValueError("检查点运动坐标参考模块与回放配置不一致。")
-        if (actor_only and version in (5, 6, 7)
-                and checkpoint["infos"]["snake_recipe"]["motion_site"] != cast(SnakeEnvCfg, self.env.unwrapped.cfg).motion_site):
+        if actor_only and recipe["motion_site"] != cfg.motion_site:
             raise ValueError("检查点运动坐标参考site与回放配置不一致。")
+        if actor_only and recipe["head_yaw_limit"] != cfg.head_yaw_limit:
+            raise ValueError("检查点初始航向复位阈值与回放配置不一致。")
+        if actor_only and (recipe["tail_site"] != cfg.tail_site
+                           or recipe["body_yaw_limit"] != cfg.body_yaw_limit):
+            raise ValueError("检查点体轴参考site或初始航向复位阈值与回放配置不一致。")
+        if actor_only and recipe["body_yaw_integral_time_scale"] != cfg.body_yaw_integral_time_scale:
+            raise ValueError("检查点体轴航向积分时间尺度与回放配置不一致。")
+        if actor_only and recipe["head_yaw_integral_time_scale"] != cfg.head_yaw_integral_time_scale:
+            raise ValueError("检查点头部航向积分时间尺度与回放配置不一致。")
+        if actor_only and (recipe["motion_penalty_speed_gain"] != cfg.motion_penalty_speed_gain
+                           or recipe["motion_penalty_min_scale"] != cfg.motion_penalty_min_scale):
+            raise ValueError("检查点运动惩罚速度缩放与回放配置不一致。")
         curriculum = (checkpoint.get("infos") or {}).get("snake_curriculum")
         manager = getattr(self.env.unwrapped, "command_manager", None)
         term = manager.get_term("motion") if manager is not None else None
@@ -229,20 +296,25 @@ class SnakeTeacherRunner(CompactSnakeRunner):
             term.validate_curriculum_state(curriculum)
         previous_counter = self.env.unwrapped.common_step_counter
         infos = super().load(path, load_cfg, strict, map_location)
+        if not actor_only and allowed_limit_change:
+            self._resume_joint_limit_change = {
+                "source_checkpoint": str(path),
+                "source_iteration": checkpoint.get("iter"),
+                "old_limit": recipe["joint_target_limit"],
+                "new_limit": current_recipe["joint_target_limit"],
+            }
+            print(f"蛇形迁移续训：关节目标范围 ±{math.degrees(recipe['joint_target_limit']):g}° → "
+                  f"±{math.degrees(current_recipe['joint_target_limit']):g}°；恢复权重、优化器及迭代计数。")
         if not actor_only and curriculum is not None and isinstance(term, SnakeVelocityCommand):
             term.load_curriculum_state(curriculum)
         if actor_only:
             env = self.env.unwrapped
             cfg = cast(SnakeEnvCfg, env.cfg)
             env.common_step_counter = previous_counter
-            cfg.motion_frame = "legacy_head" if frames["motion_frame"] == "legacy_head" else "body_gravity"
-            cfg.head_gyro_frame = "world" if frames["head_gyro_frame"] == "world" else "head"
-            cfg.observation_reference = "world_x" if frames["observation_reference"] == "world_x" else "command"
+            cfg.motion_frame = "legacy_head" if recipe["motion_frame"] == "legacy_head" else "body_gravity"
+            cfg.head_gyro_frame = "world" if recipe["head_gyro_frame"] == "world" else "head"
+            cfg.observation_reference = "world_x" if recipe["observation_reference"] == "world_x" else "command"
             env.observation_manager.compute(update_history=True)
-            if gaussian:
-                print("旧高斯蛇形模型回放：保留原分布和观测坐标；新Beta策略需要从零训练。")
-            elif version == 3:
-                print("旧Beta检查点未记录运动参考模块；当前按foot_0解释速度指令，与原base训练定义可能不同。")
         return infos
 
 

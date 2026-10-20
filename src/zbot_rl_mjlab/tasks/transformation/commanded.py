@@ -12,6 +12,7 @@ from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationT
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg
 
+from ..common import constant
 from . import mdp, robust
 from . import snake_to_biped as standing
 from .roll_reset import collision_radial_envelope
@@ -137,7 +138,7 @@ def wants_stand(env):
 
 def goal_joints(env):
     positions = env.scene["robot"].data.joint_pos
-    return wants_stand(env)[:, None] * positions.new_tensor(env.cfg.standing_joint_pos)
+    return wants_stand(env)[:, None] * constant(positions, env.cfg.standing_joint_pos)
 
 
 def clear_command_memory(env, ids):

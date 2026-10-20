@@ -172,16 +172,22 @@ def test_native_play_keys_queue_and_apply_commands_without_pose_reset():
     env.observation_manager = SimpleNamespace(compute=lambda **kwargs: observation_updates.append(kwargs))
     instance = object.__new__(viewer.FollowCameraViewer)
     instance.env = cast(RslRlVecEnvWrapper, SimpleNamespace(unwrapped=env))
+    instance.env_idx = 0
     instance._actions = deque()
     joints = env.scene["robot"].data.joint_pos.clone()
+    other_command = term.command[1].clone()
     for key, expected in ((ord("]"), 1), (ord("["), -1)):
         instance._on_key(key)
         action, payload = instance._actions.popleft()
         assert action == ViewerAction.CUSTOM
         assert instance._handle_custom_action(action, payload)
-        assert term.command.eq(expected).all()
+        assert term.command[0].eq(expected).all()
+        torch.testing.assert_close(term.command[1], other_command)
         torch.testing.assert_close(env.scene["robot"].data.joint_pos, joints)
-    assert observation_updates == [{"update_history": True}, {"update_history": True}]
+    assert len(observation_updates) == 2
+    for update in observation_updates:
+        assert update['update_history'] is True
+        torch.testing.assert_close(update['env_ids'], torch.tensor([0]))
 
 
 def test_interactive_switch_can_clear_state_created_during_inference():

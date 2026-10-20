@@ -8,7 +8,7 @@ from typing import ClassVar
 import torch
 from mjlab.envs import mdp as common_mdp
 
-from ..common import PartialBaseImpulse
+from ..common import PartialBaseImpulse, constant
 from . import mdp as transformation_mdp
 from .actions import (
     MirroredJointTargetRateAction,
@@ -176,7 +176,7 @@ def abandoned_exploration(env):
     robot = env.scene["robot"]
     data = robot.data
     base_id = robot.find_bodies("base")[0][0]
-    target = data.joint_pos.new_tensor(cfg.standing_joint_pos)
+    target = constant(data.joint_pos, cfg.standing_joint_pos)
     near_goal = ((base_height(env) - cfg.standing_base_height).abs() < cfg.stagnation_height_tolerance)
     near_goal &= (data.joint_pos - target).abs().amax(-1) < cfg.stagnation_joint_tolerance
     quiet = data.joint_vel.square().mean(-1).sqrt() < cfg.stagnation_joint_speed

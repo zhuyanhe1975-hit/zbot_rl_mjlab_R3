@@ -7,6 +7,7 @@
 每次修改物理设置后都应执行。"""
 
 import fnmatch
+import hashlib
 import re
 from pathlib import Path
 
@@ -21,6 +22,8 @@ from tensordict import TensorDict
 
 import zbot_rl_mjlab  # noqa: F401  （注册任务）
 from zbot_rl_mjlab.robot import ARMATURE, DAMPING, SIM_EFFORT_LIMIT, STIFFNESS
+from zbot_rl_mjlab.site_snake_teacher import SiteSnakeTeacherRunner
+from zbot_rl_mjlab.tasks.snake.mdp import ACTOR_DIM
 from zbot_rl_mjlab.tasks.transformation.actions import MirroredJointTargetRateActionCfg
 from zbot_rl_mjlab.tasks.walking.env_cfg import ZbotEnvCfg
 
@@ -29,7 +32,8 @@ ENTRIES = sorted(p for p in BESTS.iterdir() if p.is_dir())
 
 # 每个策略观测项的维度。
 TERM_DIMS = {
-    "snake": 40,
+    "privileged": 59,
+    "snake": ACTOR_DIM,
     "teacher_state": 36,
     "universal_state": 50,
     "command": 4,
@@ -113,6 +117,24 @@ def live_actor_terms(task):
     return list(load_env_cfg(task, play=True).observations["actor"].terms)
 
 
+def actor_term_dim(name, saved):
+    if name == "support_state" and saved.get("support_observations", False):
+        return 13
+    if name == "privileged":
+        encoding = saved["commands"]["transform"].get(
+            "task_observation_encoding", "one_hot"
+        )
+        assert encoding in ("scalar", "one_hot")
+        return 56 if encoding == "scalar" else 59
+    return TERM_DIMS[name]
+
+
+@pytest.mark.parametrize("encoding, expected", [("scalar", 56), ("one_hot", 59), (None, 59)])
+def test_archived_privileged_observation_encoding(encoding, expected):
+    command = {} if encoding is None else {"task_observation_encoding": encoding}
+    assert actor_term_dim("privileged", {"commands": {"transform": command}}) == expected
+
+
 def test_every_actor_term_of_every_task_has_a_known_size():
     # 必须在此处为新观测项指定维度，否则下面的检查无法检测该项。
     for task in (t for t in list_tasks() if t.startswith("Mjlab-Zbot")):
@@ -122,6 +144,19 @@ def test_every_actor_term_of_every_task_has_a_known_size():
 
 def test_there_is_something_to_check():
     assert ENTRIES, "bests/ is empty"
+
+
+@pytest.mark.parametrize("entry", ENTRIES, ids=lambda p: p.name)
+def test_archived_files_match_sha256_manifest(entry):
+    manifest = entry / "SHA256SUMS"
+    if not manifest.exists():
+        assert not entry.name.startswith("snake_site_omni_"), "site snake archive needs SHA256SUMS"
+        return
+    for line in manifest.read_text().splitlines():
+        expected, name = line.split(maxsplit=1)
+        path = entry / name.removeprefix("*")
+        assert path.resolve().is_relative_to(entry.resolve())
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == expected, name
 
 
 @pytest.mark.parametrize("entry", ENTRIES, ids=lambda p: p.name)
@@ -135,13 +170,11 @@ def test_archived_model_matches_the_current_task(entry):
         f"{entry.name}: the actor's observation terms changed since it was trained"
     )
 
-    state = checkpoint(entry)["actor_state_dict"]
-    obs_dim = sum(
-        13
-        if name == "support_state" and saved.get("support_observations", False)
-        else TERM_DIMS[name]
-        for name in saved_terms
-    )
+    saved_checkpoint = checkpoint(entry)
+    if task == "Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher":
+        SiteSnakeTeacherRunner._validate_checkpoint(saved_checkpoint)
+    state = saved_checkpoint["actor_state_dict"]
+    obs_dim = sum(actor_term_dim(name, saved) for name in saved_terms)
     if "obs_normalizer._mean" in state:
         assert state["obs_normalizer._mean"].shape[-1] == obs_dim
     assert state["mlp.0.weight"].shape[1] == obs_dim

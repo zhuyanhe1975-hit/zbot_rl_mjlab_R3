@@ -1,7 +1,7 @@
 """统一物理场景下的双足、蛇形与双向变形任务。"""
 import math
 from dataclasses import dataclass
-from typing import cast
+from typing import Literal, cast
 
 from mjlab.envs import mdp as common_mdp
 from mjlab.managers.event_manager import EventTermCfg
@@ -22,14 +22,18 @@ TASK_ID = "Mjlab-Zbot-6dof-Universal-Locomotion"
 
 @dataclass
 class UniversalEnvCfg(TransformationEnvCfg):
+    omni_site_frame: bool = False
+    omni_frame_backend: Literal['eager', 'cuda_graph'] = 'eager'
+    motion_site: str = 'foot_0_sole'
+    snake_teacher_enabled: bool = False
     straighten_before_stand: bool = False
     standing_joint_pos: tuple[float, ...] = DEFAULT_JOINT_POS
     standing_base_height: float = .264
     workspace_radius: float = 15.
 
 
-def universal_env_cfg(play=False) -> UniversalEnvCfg:
-    cfg = cast(UniversalEnvCfg, transformation_scene_cfg(play=play, cfg_cls=UniversalEnvCfg))
+def universal_env_cfg(play=False, *, cfg_cls: type[UniversalEnvCfg] = UniversalEnvCfg) -> UniversalEnvCfg:
+    cfg = cast(UniversalEnvCfg, transformation_scene_cfg(play=play, cfg_cls=cfg_cls))
     cfg.scene.num_envs = 1 if play else 8192
     cfg.episode_length_s = 45.
     action = cast(JointTargetRateActionCfg, cfg.actions["joint_pos"])

@@ -1,0 +1,2037 @@
+diff --git a/bests/README.md b/bests/README.md
+index 6bb868e..e1188a9 100644
+--- a/bests/README.md
++++ b/bests/README.md
+@@ -1,6 +1,6 @@
+ # 已保存模型
+ 
+-本目录保留十个可供加载检查的模型、训练启动配置及简要结果。完整源码快照、训练日志和大型评估明细已移到项目外；位置见 [归档位置.json](归档位置.json)。原始归档中的文件和校验和保持原样。
++本目录保留十一个可供加载检查的模型、训练启动配置及简要结果。完整源码快照、训练日志和大型评估明细已移到项目外；位置见 [归档位置.json](归档位置.json)。原始归档中的文件和校验和保持原样。
+ 
+ ## 播放与校验
+ 
+@@ -21,6 +21,7 @@
+ 
+ | 目录 | 用途与验证边界 |
+ |---|---|
++| `snake_world_x_2026-10-19_iter1499` | 世界X推进、世界Y侧滑惩罚，51/66维观测、6维速度积分Beta动作。最终训练日志世界X速度约0.150 m/s；实际倍率下限0.25、增益5。8环境30秒确定性回放无失败，平均世界X速度0.083 m/s，有单侧漂移；见目录内配置和验证记录。 |
+ | `transform_snake_biped_bidirectional_2026-10-17_iter599` | 蛇形／双足双向变形，37/45 维观测、3 维镜像 Beta 动作。此前严格加载及 8 环境、18 秒回放通过，发生 23 次自动切换；未统计完整严格成功率或实机表现。 |
+ | `transform_snake_to_biped_teacher_2026-10-17_iter200` | 随机纵轴滚转 ±90° 的蛇形起立教师，36/44 维观测、3 维镜像 Beta 动作。此前 16 环境、16 秒评估严格成功 16/16，无外部扰动。 |
+ | `transform_snake_to_biped_beta_2026-10-17_iter2550` | 30 维 Actor、6 维 Beta 动作。此前原生任务 4 环境、16 秒评估严格成功 4/4；训练中手动热更新奖励，自动准备课程未完成从头训练验证。 |
+diff --git a/bests/test.sh b/bests/test.sh
+index f1452da..5baf124 100755
+--- a/bests/test.sh
++++ b/bests/test.sh
+@@ -9,6 +9,7 @@ PROJECT_DIR="$(dirname "$BESTS_DIR")"
+ 
+ task_of() {
+   case "$1" in
++    snake_world_x_*) echo "Mjlab-Zbot-6dof-Snake-Omni-Teacher" ;;
+     transform_snake_biped_bidirectional_*) echo "Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional" ;;
+     transform_snake_to_biped_teacher_*) echo "Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Robust-Teacher" ;;
+     transform_snake_to_biped_beta_*) echo "Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta" ;;
+@@ -37,5 +38,10 @@ if [[ "$pick" =~ ^[0-9]+$ ]]; then
+ fi
+ checkpoint="$(ls "$BESTS_DIR/$pick"/model_*.pt | head -n1)"
+ 
++playback_args=()
++if [[ -f "$BESTS_DIR/$pick/playback_args.json" ]]; then
++  mapfile -t playback_args < <(python3 -c 'import json, sys; print("\n".join(json.load(open(sys.argv[1]))))' "$BESTS_DIR/$pick/playback_args.json")
++fi
++
+ exec "$PROJECT_DIR/scripts/python.sh" "$PROJECT_DIR/play.py" "$(task_of "$pick")" \
+-  --checkpoint-file "$checkpoint" "$@"
++  --checkpoint-file "$checkpoint" "${playback_args[@]}" "$@"
+diff --git "a/bests/\345\275\222\346\241\243\344\275\215\347\275\256.json" "b/bests/\345\275\222\346\241\243\344\275\215\347\275\256.json"
+index 7c60ce6..8910001 100644
+--- "a/bests/\345\275\222\346\241\243\344\275\215\347\275\256.json"
++++ "b/bests/\345\275\222\346\241\243\344\275\215\347\275\256.json"
+@@ -1,5 +1,5 @@
+ {
+-  "说明": "完整训练输出、原始模型归档、源码快照和历史英文说明均保存在项目外；当前目录保留十个模型及其配置和简要结果。",
++  "说明": "完整训练输出、原始模型归档、源码快照和历史英文说明均保存在项目外；当前目录保留模型及其配置和简要结果；2026-10-19新增蛇形世界X推进归档，源码快照和训练指标保存在对应模型目录。",
+   "完整归档目录": "/home/yhzhu/myWorks_vips/zbot_rl_mjlab_R2_archives/20261018-090034",
+   "原始模型资料": "bests-original/",
+   "实验输出": "outputs/",
+diff --git a/docs/snake-omni-teacher.md b/docs/snake-omni-teacher.md
+index 53299b1..6f26643 100644
+--- a/docs/snake-omni-teacher.md
++++ b/docs/snake-omni-teacher.md
+@@ -1,59 +1,88 @@
+ # 蛇形前向推进
+ 
+-任务注册名仍为 `Mjlab-Zbot-6dof-Snake-Omni-Teacher`，日志目录为 `logs/rsl_rl/zbot_snake_omni_teacher/`。当前训练不跟踪速度指令，只学习沿蛇形自身前向推进。
++任务注册名仍为 `Mjlab-Zbot-6dof-Snake-Omni-Teacher`，日志目录为 `logs/rsl_rl/zbot_snake_omni_teacher/`。当前训练不跟踪速度指令，只学习沿世界 +X 推进。
+ 
+-## 速度、构型奖励与头倾终止扣分
++## 世界X推进与复位扣分
+ 
+-取所有刚体质量加权的质心速度，投影到蛇形前向、左向和向上轴，得到 `v=(vx,vy,vz)`，关节初始构型为 `q0`。复用 `motion_axes` 定义：由 `foot_0_sole` 的 Z 轴和重力确定水平前向、左向，向上与重力反向；转向后奖励方向随蛇旋转：
++取所有刚体质量加权的质心速度，并按头端 `foot_0_sole` 的水平坐标系投影。前向是 site 局部 -Z 在水平面的单位投影，左向与世界向上构成右手系，得到 `v=(vx,vy,vz)`。site Z接近竖直、水平前向退化时沿用最近有效方向。前进奖励使用质心世界X速度，不随蛇头朝向旋转；侧向成本使用世界Y速度，动态惩罚倍率使用世界X速度，不使用头尾连线；没有身体展开比或卷曲门控。关节初始构型为 `q0`。
+ 
+ ```text
+-reward_rate = vx - abs(vy) - abs(vz) - 0.01*mean((q-q0)²) - 0.1*target_saturation_fraction
+-step_reward = reward_rate * step_dt - 0.5 * head_tilt_terminated
++forward = min(v_world_x, 0.2)
++S = min(1, 5*max(v_world_x, 0))
++reward_rate = 0.02*alive + 15*forward - 5.0*S*abs(v_world_y) - 0.2*abs(vz) - 0.02*mean((q-q0)²) - 0.1*target_saturation_fraction - 0.2*S*sum(omega_head²) - 0.01*sum((action - prev_action)²) - 0.5*(yaw_error/(π/3))² - 0.1*(body_yaw_error/(π/6))² - 0.5*tanh(I_body/(π/6*1s))² - 0.5*tanh(I_head/(π/3*1s))²
++step_reward = reward_rate * step_dt - 5*head_tilt_terminated - 5*self_collision_terminated - 5*(head_yaw_terminated or body_yaw_terminated)
+ ```
+ 
+ | 配置项 | 原始值 | 权重 |
+ |---|---|---:|
+-| forward_speed | 带符号的蛇形前向 vx | +1 |
+-| lateral_speed_cost | 蛇形左右 abs(vy) | -1.0 |
+-| vertical_speed_cost | 蛇形上下 abs(vz) | -1.0 |
+-| joint_pose_deviation | 相对初始关节角的均方偏差 | -0.01 |
+-| target_saturation_fraction | 目标角距 ±90° 边界不超过 0.001 rad 的关节比例 | -0.1 |
+-| head_tilt_reset_cost | 头倾终止标记 / step_dt | -0.5 |
++| alive | 本步未发生失败终止为1，否则为0 | +0.02 |
++| action_rate | 六维原始动作相邻控制步差值的平方和 | -0.01 |
++| head_forward_speed | 整机质心世界X速度的线性奖励，0.2 m/s封顶 | +15 |
++| head_lateral_speed_cost | 整机质心世界Y的 abs(v_world_y) × S | -5.0 |
++| head_vertical_speed_cost | 蛇形上下 abs(vz) | -0.2 |
++| joint_pose_deviation | 相对初始关节角的均方偏差 | -0.02 |
++| target_saturation_fraction | 目标角距 ±60° 边界不超过 0.001 rad 的关节比例 | -0.1 |
++| head_angular_velocity_cost | 蛇头三轴角速度平方和 × S，单位 (rad/s)² | -0.2 |
++| self_collision_reset_cost | 自碰撞终止标记 / step_dt | -5.0 |
++| head_yaw_integral_cost | 有符号头部yaw积分，除以60°·1秒后取tanh平方 | -0.5 |
++| head_yaw_reset_cost | yaw越界终止标记 / step_dt | -5.0 |
++| body_yaw_integral_cost | 有符号体轴yaw积分，除以30°·1秒后取tanh平方 | -0.5 |
++| body_yaw_cost | 尾→头site连线相对初始yaw的最短偏差 / 30°，再平方 | -0.1 |
++| body_yaw_reset_cost | 体轴越界且本步头部yaw未越界的标记 / step_dt | -5.0 |
++| head_yaw_cost | 相对本回合初始朝向的最短 yaw 偏差 / 60°，再平方 | -0.5 |
++| head_tilt_reset_cost | 头倾终止标记 / step_dt | -5.0 |
+ 
+-沿蛇形前向前进得分，倒退扣分。左右/上下使用绝对速度成本，正负方向对称，当前权重均为 -1.0。构型惩罚权重为 -0.01，q0为六关节零角。目标顶限惩罚按六关节比例持续计费：一个关节顶限的奖励率约为 -0.01667，六个均顶限为 -0.1；离开边界即停止该项扣分。
++alive 使用 MJLab 原生 `is_alive`：`~termination_manager.terminated`。正常存活每秒 +0.02，由奖励管理器按 `step_dt` 缩放；yaw越界、头倾、自碰撞或unsafe的失败终止帧不给。正常超时属于truncation，不算失败，最后一步仍可获得该项。环境reset后恢复正常判据，不累计额外奖励。alive也会奖励安全静止，因此这里只作小额生存辅助，最大前进奖励率为 +3/秒。
+ 
+-头倾达到60°时，终止帧额外一次性扣0.5。奖励函数读取本步终止管理器的head_tilt标记，并除以step_dt抵消奖励管理器的dt缩放，因此实际事件费用恒为-0.5；复位后下一步不重复扣，其他复位原因不收费。没有恢复连续头倾姿态成本，也没有额外的速度/yaw跟踪、能耗、动作变化或接触冲击成本。使用整机质心而非蛇头速度，避免内部摆动冒充推进。
++奖励项保留 `head_` 前缀；前进项 `head_forward_speed` 使用整机质心世界X速度，侧向项使用世界Y速度，竖向项使用世界Z速度。数值均取整机质心速度。前进奖励采用 `min(v, 0.2)`：0.2 m/s以下按速度线性计分，达到后保持0.2，不再增加，也不衰减；静止为0，倒退保留线性负分，不做负向截断。上限可用 `forward_speed_cap` 调整。左右/上下使用绝对速度成本，正负方向对称，当前基础权重分别为 -5.0、-0.2。构型惩罚权重为 -0.02，q0为六关节零角。目标顶限惩罚按六关节比例持续计费：一个关节顶限的奖励率约为 -0.01667，六个均顶限为 -0.1；离开边界即停止该项扣分。
++
++左右速度和头部三轴角速度惩罚使用动态倍率 `S=min(1,5*max(vx,0))`。这里vx是未截断的实际质心世界X速度；静止或倒退倍率0，0.1 m/s为0.5，0.2 m/s及以上为1。左右速度的有效权重从0增加到-5.0，角速度有效权重从0增加到-0.2。每个环境独立计算，不修改共享RewardTermCfg权重。
++
++倍率下限由 `motion_penalty_min_scale=0` 配置，速度增益为 `motion_penalty_speed_gain=5`；倍率上限固定1。`head_angular_speed_rad_s` 仍是原始物理角速度模长，不含动态倍率。瞬时yaw、yaw积分、竖向速度、action_rate及各复位判据不随该倍率改变。
++
++头倾达到60°时，终止帧额外一次性扣5。奖励函数读取本步终止管理器的head_tilt标记，并除以step_dt抵消奖励管理器的dt缩放，因此实际事件费用恒为-5；自碰撞终止同样一次性扣5；yaw越界终止同样一次性扣5；头部和体轴yaw同时越界只计一次航向费用；航向、头倾和自碰撞之间仍独立计费。复位后下一步不重复扣，超时和unsafe不会触发这两项事件费用。没有恢复连续头倾姿态成本，也没有额外的速度/yaw跟踪、能耗或接触冲击成本。使用整机质心而非蛇头速度，避免内部摆动冒充推进。
+ 
+ ## 保留的初态与复位
+ 
+ - 初态从 XML 直立立柱绕 foot_0 局部 Y 轴旋转 -90°，四元数为 `(√0.5,0,-√0.5,0)`。foot_0.Z 指向世界 -X，foot_0.X 指向世界 +Z；初始高度 0.0555 m，关节零角。
+-- 训练保留全周随机初始 yaw，play 使用默认航向。每次 reset 都重建上述基础构型。
++- 训练保留全周随机初始 yaw，play 使用默认航向。每次 reset 都重建上述基础构型，并从实际写入的根四元数记录该环境本回合的初始水平 yaw。部分 reset 只更新选中的环境。
++- 头部 yaw 相对该初始朝向的最短角度差超过 ±60°时终止复位（恰好60°允许，带1e-6 rad浮点容差）。用 atan2(sin(delta),cos(delta)) 处理 ±180°跨界；不把随机初始朝向当作偏差。训练和手动回放均执行该边界。30°偏差的成本率为 -0.125，60°为 -0.5；yaw越界终止另计一次性 -5，与头倾、自碰撞一致。
++- 新增独立 `body_yaw` 约束：尾site `foot_1_sole → foot_0_sole` 的世界水平连线朝向，相对同一个本回合初始yaw计算最短角度差。不是相对当前头部yaw，也不替代头部yaw约束。超过±30°立即复位，恰好30°允许。头尾水平距离≤0.1 mm或非有限时朝向无定义，也触发该终止；这种退化状态使用π的有限误差计成本。
++- 体轴偏差成本为 `-0.1*(body_yaw_error/(π/6))²`；体轴单独越界的一次性费用为-5。若头部yaw同时越界，由已有head_yaw_reset_cost收费，body_yaw_reset_cost为0，避免一次航向失败重复收费。此机制不门控前进奖励，不恢复此前删除的展开比机制。
++- 新增整回合有符号积分 `I += body_yaw_error * step_dt`，单位rad·s。左右等时等幅偏差可相互抵消，持续偏向同一侧会累积。费用为 `-0.5*tanh(I/(body_yaw_limit*body_yaw_integral_time_scale))²`，归一化时间默认1秒；仅费用有界，积分本身无泄漏、不截断。这样不会因回合变长而产生无限惩罚。
++- 独立增加头部yaw积分 `I_head += head_yaw_error * step_dt`，同样相对本回合初始yaw。费用为 `-0.5*tanh(I_head/(head_yaw_limit*head_yaw_integral_time_scale))²`，时间尺度默认1秒、头部阈值60°。左右偏差可抵消，持续单侧偏转会累积；与体轴积分分别存储，均在回合reset时清零。
++- 两项积分按 `common_step_counter` 每个控制步最多更新一次，奖励、指标、Actor和Critic重复读取不重复累加。reset仅清零选中环境，reset当步的观测不重新积分；无效连线帧不注入任意方向的积分，由现有终止条件处理。
+ - 蛇头相对世界向上的总倾角达到 60°立即复位；头部向上基准为局部 +X。绕世界重力轴的转动不单独触发头倾复位。
+ - 非有限状态、离开 15 m 工作区、极端接触冲击、真实自碰撞及 30 秒回合时限的复位设计保留。
+ 
+-动作仍为六维有界关节目标速度，经积分形成关节目标角：
++动作恢复为六关节目标角速度积分：
+ 
+ ```text
+-q_target = clip(q_target + clip(action,-1,1) * 2π * dt, -π/2, π/2)
++q_target = clip(q_target + clip(action, -1, 1) * 2π * dt, -π/3, π/3)
+ ```
+ 
+-目标积分状态直接保存裁剪后的值，反向动作可立即离开边界。PD、摩擦、机械关节范围和原有安全条件未因本次奖励调整而修改。
++`action=±1` 对应 ±360°/s 的目标角速度，`action=±0.5` 对应 ±180°/s；控制步长0.02秒时单位动作每步改变目标角7.2°。`action=0` 保持当前目标角，不会回零。积分目标限制在 ±60°，裁剪后的目标直接作为下一步积分起点，反向动作能立即离开边界。沿用原 PD、机械限位和 reset 逻辑。
++
++
++增加与 G1 一致的 `action_rate` 成本：`sum((action_t - action_{t-1})²)`，权重 -0.01。它基于缩放前的原始六维动作，不除以 dt；奖励管理器再乘控制步长。恒定动作不持续扣分，快速往返目标比平滑周期动作扣分更多。历史由原生 ActionManager 维护，环境 reset 时清零。
++
++目标角仍与物理关节范围取交集，策略使用原生Beta默认初始化。
+ 
+ ## 观测、命令和兼容性
+ 
+-Actor 仍为 40 维，Critic 仍为 55 维。原来三维速度指令所在的 actor 槽位 `24:27`，现在存放“世界 +X 单位向量在 foot_0 身体坐标中的表示”。此次只修改奖励方向，保留这一观测槽位以维持输入结构；它不再决定奖励方向。
++Actor 为 51 维，Critic 为 66 维。保留原 40 维顺序：`24:27` 为世界 +X 在 foot_0 局部坐标中的表示，`33:36` 为头部局部三轴角速度（rad/s）。`40:43` 为头部原点在 foot_0 局部坐标中的三轴线速度（m/s），由世界线速度经过逆四元数旋转得到；原世界竖直速度槽位也保留。线速度和角速度均直接来自仿真状态，教师观测不加噪声。推进奖励使用整机质心世界X速度。追加 `43:47` 为头部世界姿态四元数 WXYZ（归一化且w非负），`47:49` 为相对初始yaw偏差的 sin/cos，使初始朝向约束直接可观测。`49:50` 为体轴归一化有符号积分 `I_body/(30°·1秒)`，新增 `50:51` 为头部归一化有符号积分 `I_head/(60°·1秒)`，提供历史状态，策略能判断累计偏向及需要恢复的方向。
+ 
+ 新任务关闭随机速度指令采样、速度课程和指令分组指标。命令项仍用于相位频率、旧模型回放和 reset 的训练标记，不再给策略随机运动目标。不要根据旧的速度跟踪 std 或课程状态判断当前任务。
+ 
+-检查点元数据为第 7 版，记录 `objective=snake_forward_signed_speed`、`observation_reference=world_x`，以及动作分布、foot_0 和 foot_0_sole 参考。旧模型虽然输入维数相同，观测语义也不同，不能直接续训。旧检查点仍可 actor-only 回放：入口恢复其对应观测，但不允许继续作为新任务训练。
++检查点元数据为第 22 版，记录 `objective=snake_world_x_capped_speed`、速度积分动作语义、最大目标角速度、目标角上限、前进奖励速度上限、初始yaw参考、头部与体轴阈值、尾site、头部姿态观测以及头部参考 site 等、坐标与分布信息。观测维度已变化，旧检查点不能直接续训；请从零训练。当前实验不再兼容旧检查点，回放和续训均使用第 22 版新模型。
+ 
+-策略保留 RSL 原生 Beta 分布，动作范围 [-1,1]；本次没有增加固定 CPG 或“关节摆动即可得分”的奖励。
++策略保留 RSL 原生 Beta 分布、默认MLP初始化和完整 [-1,1] 动作范围。没有额外的初始均值、标准差或alpha/beta偏置覆盖；探索参数由策略网络输出并由PPO学习。默认初始化的动作标准差通常约0.47，具体取决于随机初始化与观测。加载检查点时恢复已学习的策略参数。
+ 
+ ## 显示与运行
+ 
+-终端保留原生训练概览，完整列出六项 `Episode_Reward/*`，追加世界 XYZ 速度、关节速度/目标顶限、头倾与复位计数摘要。仅保留10项关键诊断，完整结果写TensorBoard。回合reward是框架归一化统计，不是单步速度数值；单次-0.5费用在30秒回合归一化日志中显示为约-0.01667，实际终止帧仍扣-0.5。
++终端保留原生训练概览，完整列出十六项 `Episode_Reward/*`，追加世界 XYZ 速度、关节速度/目标顶限、头倾与复位计数摘要。保留19项关键诊断（含动态运动惩罚倍率、头部和体轴yaw积分绝对值），完整结果写TensorBoard。回合reward是框架归一化统计，不是单步速度数值；单次-5费用在30秒回合归一化日志中显示为约-0.16667，实际终止帧仍扣-5。
+ 
+-蓝色箭头表示蛇形前向，绿色箭头表示实际整机质心速度，起点均为 foot_0_sole site 原点。当前蛇形前向任务不使用 W/S/A/D/Q/E 目标速度控制；Enter 复位，空格暂停，R 切换可视化，反斜杠切换相机跟随。旧指令模型回放保留其原有速度键。
++蓝色箭头表示蛇头水平前向，绿色箭头表示实际整机质心速度，起点均为 foot_0_sole site 原点。当前蛇形前向任务不使用 W/S/A/D/Q/E 目标速度控制；Enter 复位，空格暂停，R 切换可视化，反斜杠切换相机跟随。旧指令模型回放保留其原有速度键。
+ 
+ 新任务从零训练，例如：
+ 
+@@ -61,7 +90,7 @@ Actor 仍为 40 维，Critic 仍为 55 维。原来三维速度指令所在的 a
+ ./scripts/python.sh train.py Mjlab-Zbot-6dof-Snake-Omni-Teacher \
+   --env.scene.num-envs 8192 \
+   --agent.max-iterations 3000 \
+-  --agent.run-name snake_forward_v7
++  --agent.run-name snake_forward_v22
+ 
+ ./scripts/python.sh play.py Mjlab-Zbot-6dof-Snake-Omni-Teacher \
+   --env.scene.num-envs 1 \
+@@ -78,4 +107,4 @@ Actor 仍为 40 维，Critic 仍为 55 维。原来三维速度指令所在的 a
+ 
+ `reset_diagnosis.json` 对旧策略的回放反事实比较显示：在首次翻倒之前，旧回报约+0.148；采用YZ权重-0.2和一次性头倾费-0.5后，回报约-0.200（gamma=.99折扣后约-0.030）。这验证了当前旧策略“冲一下就翻”的收益被扭转，不等于新策略已经学会稳定运动。
+ 
+-验收应看确定性策略在后半段是否保持沿蛇形前向推进和关节周期运动，同时统计 Y/Z 漂移及真实复位，不能只看总奖励上升。低速、有限候选的对照结果不是最终学习性能保证。
++验收应看确定性策略在后半段是否保持沿世界+X推进和关节周期运动，同时统计 Y/Z 漂移及真实复位，不能只看总奖励上升。低速、有限候选的对照结果不是最终学习性能保证。
+diff --git a/run.sh b/run.sh
+index 068de78..a56c15e 100755
+--- a/run.sh
++++ b/run.sh
+@@ -69,6 +69,6 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
+ 
+ # 15、蛇形运动：覆盖前进、后退、左右侧移、双向转动及组合运动
+   python play.py Mjlab-Zbot-6dof-Snake-Omni-Teacher \
+-  --env.scene.num-envs 16 \
++  --env.scene.num-envs 1 \
+   # --stochastic True
+   
+\ No newline at end of file
+diff --git a/src/zbot_rl_mjlab/experiments/snake.py b/src/zbot_rl_mjlab/experiments/snake.py
+index 7df7a7f..1f1ec2b 100644
+--- a/src/zbot_rl_mjlab/experiments/snake.py
++++ b/src/zbot_rl_mjlab/experiments/snake.py
+@@ -1,11 +1,11 @@
+ """单独培养蛇形全向运动教师，不加载尚未学会蛇行的综合学生。"""
+ 
+ import math
+-from typing import cast
++from typing import Any, cast
+ 
+ import torch
+ from mjlab.rl import MjlabOnPolicyRunner
+-from rsl_rl.modules import BetaDistribution, GaussianDistribution
++from rsl_rl.modules import BetaDistribution
+ 
+ from ..tasks.snake.commands import SnakeVelocityCommand
+ from ..tasks.snake.env_cfg import TASK_ID, SnakeEnvCfg, snake_env_cfg
+@@ -79,9 +79,17 @@ class CompactSnakeRunner(MjlabOnPolicyRunner):
+                         ))
+                     console_lines.extend((
+                         (f"诊断：头倾{display('Episode_Metrics/head_tilt_rad', 180 / math.pi, 1)}° "
++                        f"航向偏差{display('Episode_Metrics/head_yaw_deviation_rad', 180 / math.pi, 1)}° "
++                        f"体轴偏差{display('Episode_Metrics/body_yaw_deviation_rad', 180 / math.pi, 1)}° "
++                        f"头部积分{display('Episode_Metrics/head_yaw_integral_abs_rad_s', 180 / math.pi, 1)}°·s "
++                        f"体轴积分{display('Episode_Metrics/body_yaw_integral_abs_rad_s', 180 / math.pi, 1)}°·s "
++                        f"头角速度{display('Episode_Metrics/head_angular_speed_rad_s')}rad/s "
++                        f"运动惩罚倍率{display('Episode_Metrics/motion_penalty_scale')} "
+                         f"关节速度{display('Episode_Metrics/joint_velocity_rms_rad_s')}rad/s "
+                         f"目标顶限{display('Episode_Metrics/target_saturation_fraction', 100, 1)}%"),
+                         (f"复位计数：头倾{display('Episode_Termination/head_tilt', digits=2)} "
++                        f"航向{display('Episode_Termination/head_yaw', digits=2)} "
++                        f"体轴{display('Episode_Termination/body_yaw', digits=2)} "
+                         f"自碰{display('Episode_Termination/self_collision', digits=2)} "
+                         f"安全{display('Episode_Termination/unsafe', digits=2)}"),
+                     ))
+@@ -92,96 +100,132 @@ class CompactSnakeRunner(MjlabOnPolicyRunner):
+                 print("\n".join(console_lines), flush=True)
+             return result
+ 
+-        self.logger.log = log_with_group_means
++        cast(Any, self.logger).log = log_with_group_means
+ 
+ 
+ class SnakeTeacherRunner(CompactSnakeRunner):
+-    """原生Beta训练；检查点区分动作分布和观测语义，不迁移高斯输出头。"""
++    """原生Beta教师训练，仅加载包含头部速度观测的新版检查点。"""
+ 
+     @staticmethod
+     def _describe_checkpoint(checkpoint):
+         recipe = (checkpoint.get("infos") or {}).get("snake_recipe")
++        if not isinstance(recipe, dict) or recipe.get("version") != 22:
++            raise ValueError("旧蛇形检查点动作或观测不兼容，新蛇形教师任务请从零训练（需要第22版检查点）。")
++        if (recipe.get("motion_frame") not in ("body_gravity", "legacy_head")
++                or recipe.get("head_gyro_frame") not in ("head", "world")
++                or not isinstance(recipe.get("motion_body"), str) or not recipe["motion_body"]
++                or not isinstance(recipe.get("motion_site"), str) or not recipe["motion_site"]
++                or recipe.get("objective") != "snake_world_x_capped_speed"
++                or recipe.get("observation_reference") != "world_x"
++                or type(recipe.get("forward_speed_cap")) not in (float, int)
++                or not math.isfinite(recipe["forward_speed_cap"]) or recipe["forward_speed_cap"] <= 0):
++            raise ValueError("蛇形检查点任务或观测坐标元数据无效。")
++        speed_gain = recipe.get("motion_penalty_speed_gain")
++        min_scale = recipe.get("motion_penalty_min_scale")
++        if (recipe.get("motion_penalty_scaling") != "clipped_positive_world_x_ramp"
++                or type(speed_gain) not in (float, int)
++                or not math.isfinite(speed_gain) or speed_gain < 0
++                or type(min_scale) not in (float, int)
++                or not math.isfinite(min_scale) or not 0 <= min_scale <= 1):
++            raise ValueError("蛇形检查点运动惩罚速度缩放元数据无效。")
++        yaw_limit = recipe.get("head_yaw_limit")
++        if (recipe.get("yaw_reference") != "episode_initial_heading"
++                or recipe.get("head_orientation_observation") != "quaternion_wxyz_and_relative_yaw_sincos"
++                or type(yaw_limit) not in (float, int)
++                or not math.isfinite(yaw_limit) or not 0 < yaw_limit <= math.pi
++                or recipe.get("actor_observation_dim") != 51
++                or recipe.get("critic_observation_dim") != 66):
++            raise ValueError("蛇形检查点头部姿态或初始航向元数据无效。")
++        body_yaw_limit = recipe.get("body_yaw_limit")
++        if (recipe.get("body_yaw_reference") != "episode_initial_heading"
++                or not isinstance(recipe.get("tail_site"), str) or not recipe["tail_site"]
++                or type(body_yaw_limit) not in (float, int)
++                or not math.isfinite(body_yaw_limit) or not 0 < body_yaw_limit <= math.pi):
++            raise ValueError("蛇形检查点体轴初始航向元数据无效。")
++        integral_time_scale = recipe.get("body_yaw_integral_time_scale")
++        if (recipe.get("body_yaw_integral") != "signed_episode_dt_tanh_squared"
++                or type(integral_time_scale) not in (float, int)
++                or not math.isfinite(integral_time_scale) or integral_time_scale <= 0):
++            raise ValueError("蛇形检查点体轴航向积分元数据无效。")
++        head_integral_time_scale = recipe.get("head_yaw_integral_time_scale")
++        if (recipe.get("head_yaw_integral") != "signed_episode_dt_tanh_squared"
++                or type(head_integral_time_scale) not in (float, int)
++                or not math.isfinite(head_integral_time_scale) or head_integral_time_scale <= 0):
++            raise ValueError("蛇形检查点头部航向积分元数据无效。")
++        for network, expected in (("actor", 51), ("critic", 66)):
++            inputs = [(int(key.split('.')[1]), value)
++                      for key, value in checkpoint.get(f"{network}_state_dict", {}).items()
++                      if key.startswith("mlp.") and key.endswith(".weight")
++                      and key.split('.')[1].isdigit()]
++            first_weight = min(inputs, key=lambda item: item[0])[1] if inputs else None
++            if first_weight is None or first_weight.ndim != 2 or first_weight.shape[1] != expected:
++                raise ValueError("蛇形检查点头部姿态观测维度不兼容。")
++        target_limit = recipe.get("joint_target_limit")
++        max_target_speed = recipe.get("max_target_speed")
++        if (recipe.get("action_control") != "integrated_joint_velocity"
++                or type(max_target_speed) not in (float, int)
++                or not math.isfinite(max_target_speed) or max_target_speed <= 0
++                or type(target_limit) not in (float, int)
++                or not math.isfinite(target_limit) or target_limit <= 0):
++            raise ValueError("蛇形检查点关节速度积分动作元数据无效。")
++        action_range = recipe.get("action_range")
+         actor = checkpoint.get("actor_state_dict", {})
+-        scalar_std = "distribution.std_param" in actor
+-        log_std = "distribution.log_std_param" in actor
+-        gaussian = scalar_std or log_std
+-        if scalar_std and log_std:
+-            raise ValueError("检查点同时包含两种高斯标准差，无法识别动作分布。")
+-        frames = {"motion_frame": "legacy_head", "head_gyro_frame": "world"}
+-        if recipe is None:
+-            if not gaussian:
+-                raise ValueError("未标记动作分布的旧检查点不能作为Beta模型加载。")
+-            version = 0
+-        else:
+-            if not isinstance(recipe, dict):
+-                raise ValueError("蛇形检查点元数据无效。")
+-            version = recipe.get("version")
+-            if (recipe.get("motion_frame") not in ("body_gravity", "legacy_head")
+-                    or recipe.get("head_gyro_frame") not in ("head", "world")):
+-                raise ValueError("蛇形检查点观测坐标元数据无效。")
+-            frames = {key: recipe[key] for key in frames}
+-            if version == 2:
+-                if not gaussian:
+-                    raise ValueError("第2版检查点应为高斯策略，动作分布不匹配。")
+-            elif version in (3, 4, 5, 6, 7):
+-                action_range = recipe.get("action_range")
+-                if (gaussian or recipe.get("distribution") != "BetaDistribution"
+-                        or not isinstance(action_range, (tuple, list))
+-                        or tuple(action_range) != (-1., 1.)):
+-                    raise ValueError("Beta检查点动作分布或值域不匹配。")
+-                if version in (4, 5, 6, 7) and (
+-                    not isinstance(recipe.get("motion_body"), str) or not recipe["motion_body"]
+-                ):
+-                    raise ValueError("第4版蛇形检查点缺少运动坐标参考模块。")
+-                if version in (5, 6, 7) and (
+-                    not isinstance(recipe.get("motion_site"), str) or not recipe["motion_site"]
+-                ):
+-                    raise ValueError("第5版蛇形检查点缺少运动坐标参考site。")
+-                if version in (6, 7) and (
+-                    recipe.get("objective") != ("snake_forward_signed_speed" if version == 7 else "world_x_signed_speed")
+-                    or recipe.get("observation_reference") != "world_x"
+-                ):
+-                    raise ValueError("蛇形检查点的推进任务或观测参考无效。")
+-            else:
+-                raise ValueError("不支持的蛇形检查点版本。")
++        if (recipe.get("distribution") != "BetaDistribution"
++                or not isinstance(action_range, (tuple, list))
++                or tuple(action_range) != (-1., 1.)
++                or "distribution.std_param" in actor or "distribution.log_std_param" in actor):
++            raise ValueError("Beta检查点动作分布或值域不匹配。")
+         # 直接检查输出头，避免先加载部分权重后才遇到形状错误。
+         heads = [(int(key.split('.')[1]), value) for key, value in actor.items()
+                  if key.startswith('mlp.') and key.endswith('.weight')
+                  and key.split('.')[1].isdigit()]
+-        expected_rows = 6 if gaussian else 12
+         if not heads:
+             raise ValueError("检查点缺少动作输出头。")
+         head_index, head_weight = max(heads, key=lambda item: item[0])
+         head_bias = actor.get(f'mlp.{head_index}.bias')
+-        if (head_weight.ndim != 2 or head_weight.shape[0] != expected_rows
+-                or head_bias is None or head_bias.shape != (expected_rows,)):
++        if (head_weight.ndim != 2 or head_weight.shape[0] != 12
++                or head_bias is None or head_bias.shape != (12,)):
+             raise ValueError("检查点动作输出头与声明的分布不匹配。")
+-        frames["observation_reference"] = "world_x" if version in (6, 7) else "command"
+-        return version, gaussian, log_std, frames
++        return recipe
+ 
+     @staticmethod
+     def prepare_playback_cfg(train_cfg, path):
+-        """构造推理网络前选择真实分布；只为旧模型回放，不用于迁移训练。"""
++        """构造推理网络前验证新版教师检查点。"""
+         checkpoint = torch.load(path, map_location="cpu", weights_only=False)
+-        version, gaussian, log_std, _ = SnakeTeacherRunner._describe_checkpoint(checkpoint)
+-        train_cfg["actor"]["distribution_cfg"] = (
+-            {"class_name": "GaussianDistribution", "init_std": .25,
+-             "std_type": "log" if log_std else "scalar",
+-             "std_range": (.08, .45) if version == 2 else (1e-6, 1e6)}
+-            if gaussian else {"class_name": "BetaDistribution", "action_range": (-1., 1.)}
+-        )
++        SnakeTeacherRunner._describe_checkpoint(checkpoint)
++        train_cfg["actor"]["distribution_cfg"] = {
++            "class_name": "BetaDistribution", "action_range": (-1., 1.),
++        }
+ 
+     def _recipe(self):
+         distribution = self.alg.get_policy().distribution
+         if not isinstance(distribution, BetaDistribution):
+-            raise TypeError("旧高斯策略仅供回放，不能保存为Beta训练检查点。")
++            raise TypeError("蛇形教师检查点必须使用Beta策略。")
+         if tuple(distribution.action_range) != (-1., 1.):
+             raise ValueError("蛇形Beta动作值域必须为[-1, 1]。")
+         cfg = cast(SnakeEnvCfg, self.env.unwrapped.cfg)
+-        return {"version": 7, "motion_frame": cfg.motion_frame, "motion_body": cfg.head_body,
+-                "motion_site": cfg.motion_site,
+-                "objective": "snake_forward_signed_speed", "observation_reference": cfg.observation_reference,
++        return {"version": 22, "motion_frame": cfg.motion_frame, "motion_body": cfg.head_body,
++                "motion_site": cfg.motion_site, "tail_site": cfg.tail_site,
++                "body_yaw_limit": cfg.body_yaw_limit,
++                "body_yaw_reference": "episode_initial_heading",
++                "body_yaw_integral": "signed_episode_dt_tanh_squared",
++                "body_yaw_integral_time_scale": cfg.body_yaw_integral_time_scale,
++                "objective": "snake_world_x_capped_speed",
++                "forward_speed_cap": cfg.forward_speed_cap,
++                "motion_penalty_speed_gain": cfg.motion_penalty_speed_gain,
++                "motion_penalty_min_scale": cfg.motion_penalty_min_scale,
++                "motion_penalty_scaling": "clipped_positive_world_x_ramp",
++                "yaw_reference": "episode_initial_heading",
++                "head_yaw_limit": cfg.head_yaw_limit,
++                "head_yaw_integral": "signed_episode_dt_tanh_squared",
++                "head_yaw_integral_time_scale": cfg.head_yaw_integral_time_scale,
++                "head_orientation_observation": "quaternion_wxyz_and_relative_yaw_sincos",
++                "actor_observation_dim": 51, "critic_observation_dim": 66,
++                "observation_reference": cfg.observation_reference,
+                 "head_gyro_frame": cfg.head_gyro_frame,
++                "action_control": "integrated_joint_velocity",
++                "max_target_speed": cast(Any, cfg.actions["joint_pos"]).max_target_speed,
++                "joint_target_limit": cast(Any, cfg.actions["joint_pos"]).target_limit,
+                 "distribution": "BetaDistribution", "action_range": tuple(distribution.action_range)}
+ 
+     def learn(self, num_learning_iterations: int, init_at_random_ep_len: bool = False):
+@@ -189,7 +233,7 @@ class SnakeTeacherRunner(CompactSnakeRunner):
+         if not isinstance(distribution, BetaDistribution) or tuple(distribution.action_range) != (-1., 1.):
+             raise ValueError("新蛇形训练只使用原生Beta策略，请从零训练。")
+         if cast(SnakeEnvCfg, self.env.unwrapped.cfg).observation_reference != "world_x":
+-            raise ValueError("旧速度指令观测模型仅支持回放，蛇形前向任务请从零训练。")
++            raise ValueError("蛇形教师训练需要world_x观测参考，请从零训练。")
+         return super().learn(num_learning_iterations, init_at_random_ep_len)
+ 
+     def save(self, path: str, infos=None) -> None:
+@@ -202,24 +246,36 @@ class SnakeTeacherRunner(CompactSnakeRunner):
+ 
+     def load(self, path: str, load_cfg=None, strict=True, map_location=None):
+         checkpoint = torch.load(path, map_location="cpu", weights_only=False)
+-        version, gaussian, _, frames = self._describe_checkpoint(checkpoint)
++        recipe = self._describe_checkpoint(checkpoint)
+         actor_only = load_cfg is not None and load_cfg.get("actor", False) and not any(
+             load_cfg.get(key, False) for key in ("critic", "optimizer", "iteration", "rnd")
+         )
+         distribution = self.alg.get_policy().distribution
+-        if not isinstance(distribution, (BetaDistribution, GaussianDistribution)):
+-            raise TypeError("蛇形检查点仅支持原生Beta或旧高斯分布。")
+-        if gaussian != isinstance(distribution, GaussianDistribution):
+-            raise ValueError("高斯和Beta输出头不兼容：新训练请从零开始；旧回放请先prepare_playback_cfg或使用play.py。")
+-        if not actor_only and (gaussian or version != 7
+-                              or (checkpoint.get("infos") or {}).get("snake_recipe") != self._recipe()):
++        if not isinstance(distribution, BetaDistribution):
++            raise TypeError("蛇形教师检查点仅支持原生Beta分布。")
++        if not actor_only and recipe != self._recipe():
+             raise ValueError("检查点任务或观测语义不兼容，蛇形前向任务请从零训练。")
+-        if (actor_only and version in (4, 5, 6, 7)
+-                and checkpoint["infos"]["snake_recipe"]["motion_body"] != cast(SnakeEnvCfg, self.env.unwrapped.cfg).head_body):
++        cfg = cast(SnakeEnvCfg, self.env.unwrapped.cfg)
++        if actor_only and any(recipe[key] != getattr(cfg.actions["joint_pos"], attribute)
++                              for key, attribute in (("joint_target_limit", "target_limit"),
++                                                     ("max_target_speed", "max_target_speed"))):
++            raise ValueError("检查点关节速度积分映射与回放配置不一致。")
++        if actor_only and recipe["motion_body"] != cfg.head_body:
+             raise ValueError("检查点运动坐标参考模块与回放配置不一致。")
+-        if (actor_only and version in (5, 6, 7)
+-                and checkpoint["infos"]["snake_recipe"]["motion_site"] != cast(SnakeEnvCfg, self.env.unwrapped.cfg).motion_site):
++        if actor_only and recipe["motion_site"] != cfg.motion_site:
+             raise ValueError("检查点运动坐标参考site与回放配置不一致。")
++        if actor_only and recipe["head_yaw_limit"] != cfg.head_yaw_limit:
++            raise ValueError("检查点初始航向复位阈值与回放配置不一致。")
++        if actor_only and (recipe["tail_site"] != cfg.tail_site
++                           or recipe["body_yaw_limit"] != cfg.body_yaw_limit):
++            raise ValueError("检查点体轴参考site或初始航向复位阈值与回放配置不一致。")
++        if actor_only and recipe["body_yaw_integral_time_scale"] != cfg.body_yaw_integral_time_scale:
++            raise ValueError("检查点体轴航向积分时间尺度与回放配置不一致。")
++        if actor_only and recipe["head_yaw_integral_time_scale"] != cfg.head_yaw_integral_time_scale:
++            raise ValueError("检查点头部航向积分时间尺度与回放配置不一致。")
++        if actor_only and (recipe["motion_penalty_speed_gain"] != cfg.motion_penalty_speed_gain
++                           or recipe["motion_penalty_min_scale"] != cfg.motion_penalty_min_scale):
++            raise ValueError("检查点运动惩罚速度缩放与回放配置不一致。")
+         curriculum = (checkpoint.get("infos") or {}).get("snake_curriculum")
+         manager = getattr(self.env.unwrapped, "command_manager", None)
+         term = manager.get_term("motion") if manager is not None else None
+@@ -235,14 +291,10 @@ class SnakeTeacherRunner(CompactSnakeRunner):
+             env = self.env.unwrapped
+             cfg = cast(SnakeEnvCfg, env.cfg)
+             env.common_step_counter = previous_counter
+-            cfg.motion_frame = "legacy_head" if frames["motion_frame"] == "legacy_head" else "body_gravity"
+-            cfg.head_gyro_frame = "world" if frames["head_gyro_frame"] == "world" else "head"
+-            cfg.observation_reference = "world_x" if frames["observation_reference"] == "world_x" else "command"
++            cfg.motion_frame = "legacy_head" if recipe["motion_frame"] == "legacy_head" else "body_gravity"
++            cfg.head_gyro_frame = "world" if recipe["head_gyro_frame"] == "world" else "head"
++            cfg.observation_reference = "world_x" if recipe["observation_reference"] == "world_x" else "command"
+             env.observation_manager.compute(update_history=True)
+-            if gaussian:
+-                print("旧高斯蛇形模型回放：保留原分布和观测坐标；新Beta策略需要从零训练。")
+-            elif version == 3:
+-                print("旧Beta检查点未记录运动参考模块；当前按foot_0解释速度指令，与原base训练定义可能不同。")
+         return infos
+ 
+ 
+diff --git a/src/zbot_rl_mjlab/tasks/snake/commands.py b/src/zbot_rl_mjlab/tasks/snake/commands.py
+index 2cfe921..32a3578 100644
+--- a/src/zbot_rl_mjlab/tasks/snake/commands.py
++++ b/src/zbot_rl_mjlab/tasks/snake/commands.py
+@@ -146,7 +146,11 @@ class SnakeVelocityCommand(CommandTerm):
+ 
+     def _debug_vis_impl(self, visualizer):
+         """运动site原点显示平滑后的指令：蓝色平移、橙色偏航（向上为正）。"""
+-        from .mdp import motion_axes, motion_site_index, world_com_velocity
++        from .mdp import (
++            motion_axes,
++            motion_site_index,
++            world_com_velocity,
++        )
+ 
+         indices = visualizer.get_env_indices(self.num_envs)
+         if not indices:
+diff --git a/src/zbot_rl_mjlab/tasks/snake/env_cfg.py b/src/zbot_rl_mjlab/tasks/snake/env_cfg.py
+index b3d7c56..0735b3b 100644
+--- a/src/zbot_rl_mjlab/tasks/snake/env_cfg.py
++++ b/src/zbot_rl_mjlab/tasks/snake/env_cfg.py
+@@ -18,7 +18,8 @@ from . import mdp
+ from .commands import SnakeVelocityCommandCfg
+ 
+ TASK_ID = "Mjlab-Zbot-6dof-Snake-Omni-Teacher"
+-SNAKE_JOINT_LIMIT = math.pi / 2
++SNAKE_JOINT_LIMIT = math.pi
++SNAKE_MAX_TARGET_SPEED = 2 * math.pi
+ 
+ 
+ @dataclass
+@@ -28,9 +29,17 @@ class SnakeEnvCfg(TransformationEnvCfg):
+     head_gyro_frame: Literal['head', 'world'] = 'head'
+     head_body: str = "foot_0"
+     motion_site: str = "foot_0_sole"
++    tail_site: str = "foot_1_sole"
+     head_forward_axis: tuple[float, float, float] = (0., 0., -1.)
+     head_up_axis: tuple[float, float, float] = (1., 0., 0.)
+     head_tilt_limit: float = math.pi / 3
++    head_yaw_limit: float = math.pi / 3
++    body_yaw_limit: float = math.pi / 6
++    body_yaw_integral_time_scale: float = 1.
++    head_yaw_integral_time_scale: float = 1.
++    forward_speed_cap: float = .2
++    motion_penalty_min_scale: float = 0.25
++    motion_penalty_speed_gain: float = 5.
+     workspace_radius: float = 15.
+     max_contact_bodyweights: float = 8.
+     stall_min_speed: float = .01
+@@ -41,7 +50,7 @@ class SnakeEnvCfg(TransformationEnvCfg):
+ 
+ def snake_env_cfg(play=False) -> SnakeEnvCfg:
+     # 复用全身摩擦、平地、伺服和求解器，替换任务行为，不继承变形奖励。
+-    cfg = cast(SnakeEnvCfg, transformation_scene_cfg(play=play, cfg_cls=SnakeEnvCfg))
++    cfg = cast(SnakeEnvCfg, transformation_scene_cfg(play=play, cfg_cls=SnakeEnvCfg, action_cfg_cls=JointTargetRateActionCfg))
+     cfg.scene.num_envs = 1 if play else 4096
+     cfg.episode_length_s = 30.
+     robot = cfg.scene.entities["robot"]
+@@ -50,9 +59,9 @@ def snake_env_cfg(play=False) -> SnakeEnvCfg:
+     robot.init_state.rot = (math.sqrt(.5), 0., -math.sqrt(.5), 0.)
+     robot.init_state.joint_pos = {".*": 0.}
+     action = cast(JointTargetRateActionCfg, cfg.actions["joint_pos"])
+-    action.max_target_speed = 2 * math.pi
+     # 只限制本任务的控制目标，不改XML或运行时模型的机械关节范围。
+     action.target_limit = SNAKE_JOINT_LIMIT
++    action.max_target_speed = SNAKE_MAX_TARGET_SPEED
+     cfg.commands = {"motion": SnakeVelocityCommandCfg(
+         training=not play, resampling_time_range=(5., 9.), debug_vis=True,
+         translation_probability=.5, turn_probability=.2, stop_probability=.1,
+@@ -83,16 +92,28 @@ def snake_env_cfg(play=False) -> SnakeEnvCfg:
+         "critic": ObservationGroupCfg({"snake": ObservationTermCfg(func=mdp.critic_state)}, concatenate_terms=True, enable_corruption=False),
+     }
+     cfg.rewards = {
+-        "forward_speed": RewardTermCfg(func=mdp.forward_speed, weight=2.),
+-        "lateral_speed_cost": RewardTermCfg(func=mdp.lateral_speed_cost, weight=-1.0),
+-        "vertical_speed_cost": RewardTermCfg(func=mdp.vertical_speed_cost, weight=-1.0),
+-        "joint_pose_deviation": RewardTermCfg(func=mdp.joint_pose_deviation_cost, weight=-.01),
++        "alive": RewardTermCfg(func=common_mdp.is_alive, weight=.02),
++        "head_forward_speed": RewardTermCfg(func=mdp.head_forward_speed, weight=15.),
++        "action_rate": RewardTermCfg(func=common_mdp.action_rate_l2, weight=-.01),
++        "head_lateral_speed_cost": RewardTermCfg(func=mdp.head_lateral_speed_cost, weight=-5.0),
++        "head_vertical_speed_cost": RewardTermCfg(func=mdp.head_vertical_speed_cost, weight=-0.2),
++        "joint_pose_deviation": RewardTermCfg(func=mdp.joint_pose_deviation_cost, weight=-.02),
+         "target_saturation_fraction": RewardTermCfg(func=mdp.target_saturation_fraction, weight=-.1),
+-        "head_tilt_reset_cost": RewardTermCfg(func=mdp.head_tilt_reset_cost, weight=-.5),
++        "body_yaw_integral_cost": RewardTermCfg(func=mdp.body_yaw_integral_cost, weight=-.5),
++        "body_yaw_cost": RewardTermCfg(func=mdp.body_yaw_cost, weight=-.1),
++        "body_yaw_reset_cost": RewardTermCfg(func=mdp.body_yaw_reset_cost, weight=-5.),
++        "head_yaw_integral_cost": RewardTermCfg(func=mdp.head_yaw_integral_cost, weight=-.5),
++        "head_yaw_cost": RewardTermCfg(func=mdp.head_yaw_cost, weight=-.5),
++        "head_yaw_reset_cost": RewardTermCfg(func=mdp.head_yaw_reset_cost, weight=-5.),
++        "head_tilt_reset_cost": RewardTermCfg(func=mdp.head_tilt_reset_cost, weight=-5.0),
++        "head_angular_velocity_cost": RewardTermCfg(func=mdp.head_angular_velocity_cost, weight=-.2),
++        "self_collision_reset_cost": RewardTermCfg(func=mdp.self_collision_reset_cost, weight=-5.0),
+     }
+     cfg.terminations = {
+         "unsafe": TerminationTermCfg(func=mdp.unsafe),
+         "head_tilt": TerminationTermCfg(func=mdp.head_tilt_limit_reached),
++        "head_yaw": TerminationTermCfg(func=mdp.head_yaw_limit_reached),
++        "body_yaw": TerminationTermCfg(func=mdp.body_yaw_limit_reached),
+         "self_collision": TerminationTermCfg(func=mdp.self_collision),
+         "time_out": TerminationTermCfg(func=mdp.play_time_out if play else common_mdp.time_out, time_out=True),
+     }
+@@ -104,6 +125,15 @@ def snake_env_cfg(play=False) -> SnakeEnvCfg:
+         "action_clip_fraction": MetricsTermCfg(func=mdp.action_clip_fraction),
+         "joint_pose_rms_rad": MetricsTermCfg(func=mdp.joint_pose_rms),
+         "joint_velocity_rms_rad_s": MetricsTermCfg(func=mdp.joint_velocity_rms),
++        "motion_penalty_scale": MetricsTermCfg(func=mdp.motion_penalty_scale),
++        "head_forward_velocity_m_s": MetricsTermCfg(func=mdp.head_forward_velocity),
++        "head_angular_speed_rad_s": MetricsTermCfg(func=mdp.head_angular_speed),
++        "body_yaw_integral_abs_rad_s": MetricsTermCfg(func=mdp.body_yaw_integral_abs),
++        "body_yaw_deviation_rad": MetricsTermCfg(func=mdp.body_yaw_abs_deviation),
++        "body_yaw_peak_rad": MetricsTermCfg(func=mdp.body_yaw_abs_deviation, reduce="max"),
++        "head_yaw_integral_abs_rad_s": MetricsTermCfg(func=mdp.head_yaw_integral_abs),
++        "head_yaw_deviation_rad": MetricsTermCfg(func=mdp.head_yaw_abs_deviation),
++        "head_yaw_peak_rad": MetricsTermCfg(func=mdp.head_yaw_abs_deviation, reduce="max"),
+         "head_tilt_rad": MetricsTermCfg(func=mdp.head_tilt),
+         "head_tilt_peak_rad": MetricsTermCfg(func=mdp.head_tilt, reduce="max"),
+         "ground_force_peak_bodyweights": MetricsTermCfg(func=mdp.normalized_ground_peak, reduce="max"),
+diff --git a/src/zbot_rl_mjlab/tasks/snake/mdp.py b/src/zbot_rl_mjlab/tasks/snake/mdp.py
+index dcae4b0..2f93abd 100644
+--- a/src/zbot_rl_mjlab/tasks/snake/mdp.py
++++ b/src/zbot_rl_mjlab/tasks/snake/mdp.py
+@@ -10,8 +10,8 @@ from mjlab.utils.lab_api.math import quat_apply, quat_apply_inverse, quat_mul
+ from ..transformation.mdp import body_masses, com_state
+ from .commands import SnakeVelocityCommand
+ 
+-ACTOR_DIM = 40
+-CRITIC_DIM = 55
++ACTOR_DIM = 51
++CRITIC_DIM = 66
+ LINEAR_TRACKING_STD = .05  # m/s，匹配Zbot厘米每秒量级的平移速度。
+ YAW_TRACKING_STD = .3  # rad/s。
+ 
+@@ -78,6 +78,173 @@ def motion_axes(env):
+     return forward, left
+ 
+ 
++def head_orientation(env):
++    """头部世界姿态四元数WXYZ，归一化并统一q/-q符号。"""
++    quat = env.scene["robot"].data.body_link_quat_w[:, head_index(env)]
++    quat = quat / quat.norm(dim=-1, keepdim=True).clamp_min(1e-6)
++    return torch.where(quat[:, :1] < 0., -quat, quat)
++
++
++def _initial_yaw_reference(env):
++    if not hasattr(env, '_snake_initial_yaw'):
++        # 观测管理器会早于首次事件reset构造，使用默认根姿态初始化参考。
++        roots = env.scene["robot"].data.default_root_state
++        forward = _body_motion_forward(roots[:, 3:7])[0]
++        env._snake_initial_yaw = torch.atan2(forward[:, 1], forward[:, 0])
++    return env._snake_initial_yaw
++
++
++def head_yaw_deviation(env):
++    """相对本回合初始头部朝向的最短有符号yaw差，范围[-pi,pi]。"""
++    initial = _initial_yaw_reference(env)
++    forward = head_forward(env)
++    delta = torch.atan2(forward[:, 1], forward[:, 0]) - initial
++    return torch.atan2(delta.sin(), delta.cos())
++
++
++def head_yaw_abs_deviation(env):
++    return head_yaw_deviation(env).abs()
++
++
++def _head_yaw_limit(env):
++    limit = env.cfg.head_yaw_limit
++    if not math.isfinite(limit) or not 0 < limit <= math.pi:
++        raise ValueError('yaw偏差阈值必须是(0, pi]内的有限值')
++    return limit
++
++
++def head_yaw_cost(env):
++    """以终止角度归一化的yaw偏差平方，不累计历史转动。"""
++    return (head_yaw_deviation(env) / _head_yaw_limit(env)).square()
++
++
++def head_yaw_limit_reached(env):
++    # 严格超过阈值才复位；容差避免恰好60度的浮点舍入误判。
++    return head_yaw_abs_deviation(env) > _head_yaw_limit(env) + 1e-6
++
++
++def _body_yaw_state(env):
++    """尾site指向头site的水平连线，相对同一回合初始yaw参考。"""
++    robot = env.scene["robot"]
++    tail = robot.find_sites(env.cfg.tail_site)[0][0]
++    delta = robot.data.site_pos_w[:, motion_site_index(env), :2] - robot.data.site_pos_w[:, tail, :2]
++    valid = torch.isfinite(delta).all(-1) & (delta.norm(dim=-1) > 1e-4)
++    error = torch.atan2(delta[:, 1], delta[:, 0]) - _initial_yaw_reference(env)
++    wrapped = torch.atan2(error.sin(), error.cos())
++    return torch.where(valid, wrapped, torch.full_like(wrapped, math.pi)), valid
++
++
++def body_yaw_deviation(env):
++    return _body_yaw_state(env)[0]
++
++
++def body_yaw_abs_deviation(env):
++    return body_yaw_deviation(env).abs()
++
++
++def _body_yaw_limit(env):
++    limit = env.cfg.body_yaw_limit
++    if not math.isfinite(limit) or not 0 < limit <= math.pi:
++        raise ValueError('体轴yaw偏差阈值必须是(0, pi]内的有限值')
++    return limit
++
++
++def body_yaw_cost(env):
++    return (body_yaw_deviation(env) / _body_yaw_limit(env)).square()
++
++
++def body_yaw_limit_reached(env):
++    error, valid = _body_yaw_state(env)
++    return ~valid | (error.abs() > _body_yaw_limit(env) + 1e-6)
++
++
++def body_yaw_reset_cost(env):
++    """独立体轴越界收取一次失败费用；与头部yaw越界同时发生不重复收费。"""
++    body = env.termination_manager.get_term('body_yaw')
++    head = env.termination_manager.get_term('head_yaw')
++    return (body & ~head).float() / env.step_dt
++
++
++class BodyYawIntegralState:
++    """有符号偏差的整回合时间积分；同一控制步读取不重复累加。"""
++
++    def __init__(self, num_envs, device, dtype, step):
++        self.value = torch.zeros(num_envs, device=device, dtype=dtype)
++        self.last_step = torch.full((num_envs,), int(step), device=device, dtype=torch.long)
++
++    def reset(self, env_ids, step):
++        ids = slice(None) if env_ids is None else env_ids
++        self.value[ids] = 0.
++        self.last_step[ids] = int(step)
++
++    def update(self, error, step, dt):
++        if not math.isfinite(dt) or dt <= 0:
++            raise ValueError('yaw积分控制步长必须为正有限值')
++        fresh = self.last_step < step
++        self.value.add_(torch.where(fresh, error * dt, torch.zeros_like(error)))
++        self.last_step[fresh] = int(step)
++        return self.value
++
++
++def body_yaw_integral_state(env):
++    if not hasattr(env, '_snake_body_yaw_integral'):
++        env._snake_body_yaw_integral = BodyYawIntegralState(
++            env.num_envs, env.device, env.scene['robot'].data.joint_pos.dtype, env.common_step_counter,
++        )
++    return env._snake_body_yaw_integral
++
++
++def body_yaw_integral(env):
++    error, valid = _body_yaw_state(env)
++    error = torch.where(valid, error, torch.zeros_like(error))
++    return body_yaw_integral_state(env).update(error, env.common_step_counter, env.step_dt)
++
++
++def body_yaw_integral_abs(env):
++    return body_yaw_integral(env).abs()
++
++
++def body_yaw_integral_normalized(env):
++    scale = env.cfg.body_yaw_integral_time_scale
++    if not math.isfinite(scale) or scale <= 0:
++        raise ValueError('yaw积分归一化时间必须为正有限值')
++    return body_yaw_integral(env) / (_body_yaw_limit(env) * scale)
++
++
++def body_yaw_integral_cost(env):
++    """左右偏差相抵，持续单边累积；费用有界以免长期积分鼓励提前退出。"""
++    return body_yaw_integral_normalized(env).tanh().square()
++
++
++def head_yaw_integral_state(env):
++    if not hasattr(env, '_snake_head_yaw_integral'):
++        env._snake_head_yaw_integral = BodyYawIntegralState(
++            env.num_envs, env.device, env.scene['robot'].data.joint_pos.dtype, env.common_step_counter,
++        )
++    return env._snake_head_yaw_integral
++
++
++def head_yaw_integral(env):
++    error = head_yaw_deviation(env)
++    error = torch.where(torch.isfinite(error), error, torch.zeros_like(error))
++    return head_yaw_integral_state(env).update(error, env.common_step_counter, env.step_dt)
++
++
++def head_yaw_integral_abs(env):
++    return head_yaw_integral(env).abs()
++
++
++def head_yaw_integral_normalized(env):
++    scale = env.cfg.head_yaw_integral_time_scale
++    if not math.isfinite(scale) or scale <= 0:
++        raise ValueError('头部yaw积分归一化时间必须为正有限值')
++    return head_yaw_integral(env) / (_head_yaw_limit(env) * scale)
++
++
++def head_yaw_integral_cost(env):
++    return head_yaw_integral_normalized(env).tanh().square()
++
++
+ def head_gravity(env):
+     data = env.scene["robot"].data
+     quat = data.body_link_quat_w[:, head_index(env)]
+@@ -101,6 +268,11 @@ def head_tilt_reset_cost(env):
+     return env.termination_manager.get_term('head_tilt').float() / env.step_dt
+ 
+ 
++def head_yaw_reset_cost(env):
++    """yaw越界终止的一次性事件成本，与奖励管理器dt缩放抵消。"""
++    return env.termination_manager.get_term('head_yaw').float() / env.step_dt
++
++
+ def head_height(env):
+     return env.scene["robot"].data.body_link_pos_w[:, head_index(env), 2] - env.scene.env_origins[:, 2]
+ 
+@@ -112,19 +284,42 @@ def world_com_velocity(env):
+     return (velocity * mass[..., None]).sum(-2) / mass.sum(-1, keepdim=True).clamp_min(1e-6)
+ 
+ 
+-def forward_speed(env):
+-    """整机质心沿蛇形前向的带符号速度；倒退得负分。"""
++def self_collision_reset_cost(env):
++    """使用本步终止结果计一次性事件费；与奖励管理器dt缩放抵消。"""
++    return env.termination_manager.get_term('self_collision').float() / env.step_dt
++
++
++def head_forward_velocity(env):
++    """整机质心速度在蛇头水平前向的带符号投影（m/s）。"""
+     forward, _ = motion_axes(env)
+     return (world_com_velocity(env)[:, :2] * forward).sum(-1)
+ 
+ 
+-def lateral_speed_cost(env):
+-    """整机质心沿蛇形左向的速度绝对值。"""
+-    _, left = motion_axes(env)
+-    return (world_com_velocity(env)[:, :2] * left).sum(-1).abs()
++def head_forward_speed(env):
++    """整机质心世界X速度线性奖励，上限截断；负向速度保留线性负分。"""
++    cap = env.cfg.forward_speed_cap
++    if not math.isfinite(cap) or cap <= 0:
++        raise ValueError('前进奖励速度上限必须为正有限值')
++    return world_velocity_component(env, 0).clamp(max=cap)
++
++
++def motion_penalty_scale(env):
++    """世界X前进速度提高时，惩罚倍率由基础下限线性增至1。"""
++    minimum = env.cfg.motion_penalty_min_scale
++    if not math.isfinite(minimum) or not 0 <= minimum <= 1:
++        raise ValueError('运动惩罚倍率下限必须是[0, 1]内的有限值')
++    gain = env.cfg.motion_penalty_speed_gain
++    if not math.isfinite(gain) or gain < 0:
++        raise ValueError('运动惩罚速度增益必须为非负有限值')
++    return (minimum + gain * world_velocity_component(env, 0).clamp_min(0.)).clamp(max=1.)
++
++
++def head_lateral_speed_cost(env):
++    """整机质心世界Y速度绝对值，按世界X前进速度放大惩罚。"""
++    return world_velocity_component(env, 1).abs() * motion_penalty_scale(env)
+ 
+ 
+-def vertical_speed_cost(env):
++def head_vertical_speed_cost(env):
+     """蛇形向上轴与重力反向，上下运动均计费。"""
+     return world_com_velocity(env)[:, 2].abs()
+ 
+@@ -336,6 +531,24 @@ def head_tilt_cost(env):
+     return 1 - cosine.clamp(math.cos(env.cfg.head_tilt_limit), 1.)
+ 
+ 
++def head_linear_velocity(env):
++    """头部原点的真实线速度，表达在头部局部坐标中（m/s）。"""
++    data = env.scene["robot"].data
++    i = head_index(env)
++    return quat_apply_inverse(data.body_link_quat_w[:, i], data.body_link_lin_vel_w[:, i])
++
++
++def head_angular_velocity_cost(env):
++    """三轴角速度平方和，按实际前进速度放大；不豁免偏航。"""
++    angular = env.scene["robot"].data.body_link_ang_vel_w[:, head_index(env)]
++    return angular.square().sum(-1) * motion_penalty_scale(env)
++
++
++def head_angular_speed(env):
++    """真实角速度模长指标，不包含奖励动态权重。"""
++    return env.scene["robot"].data.body_link_ang_vel_w[:, head_index(env)].norm(dim=-1)
++
++
+ def head_rotation_cost(env):
+     angular = env.scene["robot"].data.body_link_ang_vel_w[:, head_index(env)]
+     # 有意偏航按指令跟踪，不以固定朝向或总角速度压制转向。
+@@ -424,11 +637,16 @@ def reset_snake(env, env_ids):
+     joints = torch.zeros((len(ids), 6), device=env.device)
+     robot.write_root_state_to_sim(root, env_ids=ids)
+     robot.write_joint_state_to_sim(joints, torch.zeros_like(joints), env_ids=ids)
++    initial_forward = _body_motion_forward(root[:, 3:7])[0]
++    initial_yaw = _initial_yaw_reference(env)
++    initial_yaw[ids] = torch.atan2(initial_forward[:, 1], initial_forward[:, 0])
+     if env.cfg.motion_frame == 'body_gravity':
+         if not hasattr(env, '_snake_forward_w'):
+             env._snake_forward_w = torch.zeros((env.num_envs, 2), device=env.device, dtype=root.dtype)
+         # foot_0_sole与root同向，避免读取尚未前向更新的site姿态。
+-        env._snake_forward_w[ids] = _body_motion_forward(root[:, 3:7])[0]
++        env._snake_forward_w[ids] = initial_forward
++    body_yaw_integral_state(env).reset(ids, env.common_step_counter)
++    head_yaw_integral_state(env).reset(ids, env.common_step_counter)
+ 
+ 
+ def actor_state(env):
+@@ -446,6 +664,9 @@ def actor_state(env):
+               observation_reference(env), planar_velocity(env), head_gravity(env), gyro,
+               head_height(env)[:, None], data.body_link_lin_vel_w[:, i, 2:3],
+               torch.stack((phase.sin(), phase.cos()), -1))
++    yaw = head_yaw_deviation(env)
++    values += (head_linear_velocity(env), head_orientation(env), torch.stack((yaw.sin(), yaw.cos()), -1),
++               body_yaw_integral_normalized(env)[:, None], head_yaw_integral_normalized(env)[:, None])
+     return torch.nan_to_num(torch.cat(values, -1))
+ 
+ 
+diff --git a/tests/test_bests.py b/tests/test_bests.py
+index 3f537ed..ca1bee9 100644
+--- a/tests/test_bests.py
++++ b/tests/test_bests.py
+@@ -21,6 +21,7 @@ from tensordict import TensorDict
+ 
+ import zbot_rl_mjlab  # noqa: F401  （注册任务）
+ from zbot_rl_mjlab.robot import ARMATURE, DAMPING, SIM_EFFORT_LIMIT, STIFFNESS
++from zbot_rl_mjlab.tasks.snake.mdp import ACTOR_DIM
+ from zbot_rl_mjlab.tasks.transformation.actions import MirroredJointTargetRateActionCfg
+ from zbot_rl_mjlab.tasks.walking.env_cfg import ZbotEnvCfg
+ 
+@@ -29,7 +30,7 @@ ENTRIES = sorted(p for p in BESTS.iterdir() if p.is_dir())
+ 
+ # 每个策略观测项的维度。
+ TERM_DIMS = {
+-    "snake": 40,
++    "snake": ACTOR_DIM,
+     "teacher_state": 36,
+     "universal_state": 50,
+     "command": 4,
+diff --git a/tests/test_snake_console.py b/tests/test_snake_console.py
+index a95fa0f..9a50eaa 100644
+--- a/tests/test_snake_console.py
++++ b/tests/test_snake_console.py
+@@ -160,13 +160,14 @@ def test_detailed_metrics_do_not_expand_console_output(monkeypatch, capsys):
+ 
+ def test_world_task_shows_signed_velocity_and_all_reward_parts(monkeypatch, capsys):
+     writer = RecordingWriter()
+-    names = ('forward_speed', 'lateral_speed_cost', 'vertical_speed_cost', 'joint_pose_deviation', 'target_saturation_fraction', 'head_tilt_reset_cost')
++    names = ('head_forward_speed', 'head_lateral_speed_cost', 'head_vertical_speed_cost', 'joint_pose_deviation', 'target_saturation_fraction', 'head_tilt_reset_cost', 'head_angular_velocity_cost', 'self_collision_reset_cost', 'action_rate', 'head_yaw_cost', 'alive', 'head_yaw_reset_cost', 'body_yaw_cost', 'body_yaw_reset_cost', 'body_yaw_integral_cost', 'head_yaw_integral_cost')
+     logger = make_runner(monkeypatch, writer, names, observation_reference='world_x').logger
+     logger.ep_extras = [{
+-        **{f'Episode_Reward/{name}': value for name, value in zip(names, (.04, -.002, -.001, -.003, -.05, -.0167), strict=True)},
++        **{f'Episode_Reward/{name}': value for name, value in zip(names, (.04, -.002, -.001, -.003, -.05, -.0167, -.002, -.0167, -.01, -.001, .02, -.1667, -.001, 0., -.001, -.001), strict=True)},
+         'Episode_Metrics/world_velocity_x': .04,
+         'Episode_Metrics/world_velocity_y': -.01,
+         'Episode_Metrics/world_velocity_z': .002,
++        'Episode_Metrics/head_angular_speed_rad_s': .3,
+     }]
+     log(logger)
+     shown = capsys.readouterr().out
+diff --git a/tests/test_snake_continuous.py b/tests/test_snake_continuous.py
+index b38df5c..8c9ba39 100644
+--- a/tests/test_snake_continuous.py
++++ b/tests/test_snake_continuous.py
+@@ -10,7 +10,12 @@ from test_snake_task import state_env
+ 
+ from zbot_rl_mjlab.tasks.snake import mdp
+ from zbot_rl_mjlab.tasks.snake.commands import SnakeVelocityCommandCfg
+-from zbot_rl_mjlab.tasks.snake.env_cfg import SNAKE_JOINT_LIMIT, snake_env_cfg
++from zbot_rl_mjlab.tasks.snake.env_cfg import (
++    SNAKE_JOINT_LIMIT,
++    SNAKE_MAX_TARGET_SPEED,
++    snake_env_cfg,
++)
++from zbot_rl_mjlab.tasks.transformation.actions import JointTargetRateActionCfg
+ 
+ 
+ def continuous_env():
+@@ -92,7 +97,7 @@ def test_legacy_tracking_and_visual_share_site_pose_instead_of_body_pose(play):
+     data.site_quat_w[:, 0] = quat_mul(
+         yaw_quat(math.pi / 2).expand(2, -1), data.site_quat_w[:, 0],
+     )
+-    data.site_pos_w = torch.tensor([[[2., 3., .5]], [[4., 5., .7]]])
++    data.site_pos_w = torch.tensor([[[2., 3., .5], [1.4, 3., .5]], [[4., 5., .7], [3.4, 5., .7]]])
+     data.body_com_lin_vel_w[..., 1] = .05
+     data.site_ang_vel_w = data.site_ang_vel_w.clone()
+     data.site_ang_vel_w[:, 0, 2] = .2
+@@ -188,15 +193,17 @@ def test_actor_world_x_reference_changes_under_yaw_but_body_features_are_invaria
+         value[1] = quat_apply(q.expand(12, -1), value[1])
+     data.body_link_quat_w[1] = quat_mul(q.expand(12, -1), data.body_link_quat_w[1])
+     obs = mdp.actor_state(env)
+-    invariant = torch.cat((obs[:, :24], obs[:, 27:]), -1)
++    invariant = torch.cat((obs[:, :24], obs[:, 27:43]), -1)
+     torch.testing.assert_close(invariant[0], invariant[1], atol=2e-6, rtol=1e-5)
+     assert not torch.allclose(obs[0, 24:27], obs[1, 24:27])
++    torch.testing.assert_close(obs[:, 43:47], mdp.head_orientation(env))
++    torch.testing.assert_close(obs[:, 47:49], torch.tensor([[0., 1.], [1., 0.]]), atol=1e-6, rtol=0)
+     world_reference = quat_apply(data.body_link_quat_w[:, 0], obs[:, 24:27])
+     torch.testing.assert_close(world_reference, torch.tensor([[1., 0., 0.]]).expand(2, -1), atol=1e-6, rtol=0)
+     expected = quat_apply_inverse(data.body_link_quat_w[:, 0], data.body_link_ang_vel_w[:, 0])
+     torch.testing.assert_close(obs[:, 33:36], expected)
+-    assert obs.shape == (2, 40)
+-    assert mdp.critic_state(env).shape == (2, 55)
++    assert obs.shape == (2, 51)
++    assert mdp.critic_state(env).shape == (2, 66)
+ 
+ 
+ def test_legacy_head_motion_and_world_gyro_keep_old_checkpoint_semantics():
+@@ -261,18 +268,30 @@ def test_world_speed_rewards_preserve_physical_action_bounds():
+     assert cfg.motion_frame == 'body_gravity'
+     assert cfg.head_gyro_frame == 'head'
+     assert {name: term.weight for name, term in cfg.rewards.items()} == {
+-        'forward_speed': 1., 'lateral_speed_cost': -1., 'vertical_speed_cost': -1.,
+-        'joint_pose_deviation': -.01, 'head_tilt_reset_cost': -.5, 'target_saturation_fraction': -.1,
++        'head_forward_speed': 15., 'head_lateral_speed_cost': -5., 'head_vertical_speed_cost': -.2,
++        'joint_pose_deviation': -.02, 'head_tilt_reset_cost': -5., 'target_saturation_fraction': -.1,
++        'head_angular_velocity_cost': -.2,
++        'head_yaw_cost': -.5,
++        'head_yaw_integral_cost': -.5,
++        'body_yaw_cost': -.1,
++        'body_yaw_integral_cost': -.5,
++        'body_yaw_reset_cost': -5.,
++        'head_yaw_reset_cost': -5.,
++        'alive': .02,
++        'action_rate': -.01,
++        'self_collision_reset_cost': -5.,
+     }
+-    assert cfg.actions['joint_pos'].target_limit == SNAKE_JOINT_LIMIT == math.pi / 2
+-    assert cfg.actions['joint_pos'].max_target_speed == 2 * math.pi
++    assert cfg.actions['joint_pos'].target_limit == SNAKE_JOINT_LIMIT == math.pi / 3
++    assert isinstance(cfg.actions['joint_pos'], JointTargetRateActionCfg)
++    assert cfg.actions['joint_pos'].max_target_speed == SNAKE_MAX_TARGET_SPEED == 2 * math.pi
++    assert not cfg.actions['joint_pos'].use_default_offset
+     assert 'translation_stall_fraction' not in cfg.metrics
+ 
+ 
+ def test_target_saturation_adds_penalty_but_action_clipping_is_only_a_metric():
+     env = continuous_env()
+     action = env.action_manager.get_term('joint_pos')
+-    action.commanded_target[0, :3] = math.pi / 2
++    action.commanded_target[0, :3] = SNAKE_JOINT_LIMIT
+     action.raw_action[1, :2] = torch.tensor([-1., 1.])
+     assert mdp.target_saturation_fraction(env).tolist() == pytest.approx([.5, 0.])
+     assert mdp.action_clip_fraction(env).tolist() == pytest.approx([0., 1 / 3])
+@@ -283,7 +302,7 @@ def test_target_saturation_adds_penalty_but_action_clipping_is_only_a_metric():
+ def test_target_windup_only_penalizes_ineffective_outward_requests():
+     env = continuous_env()
+     action = env.action_manager.get_term('joint_pos')
+-    action.commanded_target[:] = torch.tensor([math.pi / 2, -math.pi / 2, .5, -.5, 0., 0.])
++    action.commanded_target[:] = torch.tensor([SNAKE_JOINT_LIMIT, -SNAKE_JOINT_LIMIT, .5, -.5, 0., 0.])
+     env.action_manager.action = torch.tensor([[2., -2., 2., -2., 2., -2.], [-2., 2., 2., -2., 2., -2.]])
+     # 原始输出2不能被执行层的±1裁剪掩盖；反向脱离边界没有惩罚。
+     assert mdp.target_windup_cost(env).tolist() == pytest.approx([8 / 6, 0.])
+diff --git a/tests/test_snake_group_metrics.py b/tests/test_snake_group_metrics.py
+index 8bbbe4d..8a42235 100644
+--- a/tests/test_snake_group_metrics.py
++++ b/tests/test_snake_group_metrics.py
+@@ -75,7 +75,7 @@ def test_metrics_manager_keeps_matching_episode_exposure_denominators(monkeypatc
+ def test_current_task_omits_group_metrics_but_keeps_legacy_helpers(monkeypatch):
+     env, _, _ = group_env(monkeypatch)
+     cfg = snake_env_cfg()
+-    assert len(cfg.metrics) == 10
++    assert len(cfg.metrics) == 19
+     assert not any(name.startswith(('group_', 'translation_curriculum_')) for name in cfg.metrics)
+     for axis, name in enumerate(('x', 'y', 'z')):
+         assert cfg.metrics[f'world_velocity_{name}'].func is mdp.world_velocity_component
+diff --git a/tests/test_snake_head_tilt_reset_reward.py b/tests/test_snake_head_tilt_reset_reward.py
+index 21ebc16..efc12b2 100644
+--- a/tests/test_snake_head_tilt_reset_reward.py
++++ b/tests/test_snake_head_tilt_reset_reward.py
+@@ -1,4 +1,4 @@
+-"""头倾终止扣分是真实的一次性-0.5，不随控制步长或其他复位变化。"""
++"""头倾终止扣分是真实的一次性-5，不随控制步长或其他复位变化。"""
+ 
+ import math
+ 
+@@ -17,7 +17,7 @@ def test_head_tilt_event_charges_once_and_is_independent_of_control_dt(dt):
+     env.max_episode_length_s = 30.
+     manager = TerminationManager({'head_tilt': env.cfg.terminations['head_tilt']}, env)
+     env.termination_manager = manager
+-    rewards = RewardManager(env.cfg.rewards, env)
++    rewards = RewardManager({'head_tilt_reset_cost': env.cfg.rewards['head_tilt_reset_cost']}, env)
+     manager.compute()
+     torch.testing.assert_close(rewards.compute(dt), torch.zeros(2))
+     quaternions = env.scene['robot'].data.body_link_quat_w
+@@ -25,10 +25,10 @@ def test_head_tilt_event_charges_once_and_is_independent_of_control_dt(dt):
+     tilt = torch.tensor([math.cos(math.pi / 6), math.sin(math.pi / 6), 0., 0.])
+     quaternions[0, 0] = quat_mul(tilt, initial)
+     torch.testing.assert_close(manager.compute(), torch.tensor([True, False]))
+-    torch.testing.assert_close(rewards.compute(dt), torch.tensor([-.5, 0.]))
+-    # 原生回合日志按最大回合秒数归一化，实际事件费用仍为-0.5。
++    torch.testing.assert_close(rewards.compute(dt), torch.tensor([-5., 0.]))
++    # 原生回合日志按最大回合秒数归一化，实际事件费用仍为-5。
+     logged = rewards.reset(torch.tensor([0]))
+-    assert logged['Episode_Reward/head_tilt_reset_cost'].item() == pytest.approx(-.5 / 30)
++    assert logged['Episode_Reward/head_tilt_reset_cost'].item() == pytest.approx(-5. / 30)
+     manager.reset(torch.tensor([0]))
+     quaternions[0, 0] = initial
+     assert not manager.compute().any()
+@@ -45,5 +45,5 @@ def test_other_reset_reasons_do_not_charge_head_tilt_fee(reason):
+     }, env)
+     env.termination_manager = manager
+     assert manager.compute().all()
+-    rewards = RewardManager(env.cfg.rewards, env)
++    rewards = RewardManager({'head_tilt_reset_cost': env.cfg.rewards['head_tilt_reset_cost']}, env)
+     torch.testing.assert_close(rewards.compute(env.step_dt), torch.zeros(2))
+diff --git a/tests/test_snake_motion_only_rewards.py b/tests/test_snake_motion_only_rewards.py
+index 814c1e3..f8dee77 100644
+--- a/tests/test_snake_motion_only_rewards.py
++++ b/tests/test_snake_motion_only_rewards.py
+@@ -28,13 +28,23 @@ def historical_tracking_env():
+ def test_world_speed_pose_rewards_and_tilt_reset_are_active(play):
+     cfg = snake_env_cfg(play=play)
+     assert {name: term.weight for name, term in cfg.rewards.items()} == {
+-        'forward_speed': 1.,
+-        'lateral_speed_cost': -1.,
+-        'vertical_speed_cost': -1.,
+-        'joint_pose_deviation': -.01,
+-        'head_tilt_reset_cost': -.5, 'target_saturation_fraction': -.1,
++        'head_forward_speed': 15.,
++        'head_lateral_speed_cost': -5.,
++        'head_vertical_speed_cost': -.2,
++        'joint_pose_deviation': -.02,
++        'head_tilt_reset_cost': -5., 'target_saturation_fraction': -.1,
++        'head_angular_velocity_cost': -.2,
++        'head_yaw_cost': -.5,
++        'head_yaw_integral_cost': -.5,
++        'body_yaw_cost': -.1,
++        'body_yaw_integral_cost': -.5,
++        'body_yaw_reset_cost': -5.,
++        'head_yaw_reset_cost': -5.,
++        'alive': .02,
++        'action_rate': -.01,
++        'self_collision_reset_cost': -5.,
+     }
+-    assert set(cfg.terminations) == {'unsafe', 'head_tilt', 'self_collision', 'time_out'}
++    assert set(cfg.terminations) == {'unsafe', 'head_tilt', 'head_yaw', 'body_yaw', 'self_collision', 'time_out'}
+     assert cfg.head_tilt_limit == pytest.approx(math.pi / 3)
+     assert cfg.terminations['head_tilt'].func is mdp.head_tilt_limit_reached
+     assert not cfg.terminations['head_tilt'].time_out
+diff --git a/tests/test_snake_runner_recipe.py b/tests/test_snake_runner_recipe.py
+index 111a238..3b79f77 100644
+--- a/tests/test_snake_runner_recipe.py
++++ b/tests/test_snake_runner_recipe.py
+@@ -1,5 +1,6 @@
+-"""真实 CPU 策略检查有界 Beta 探索、检查点语义与旧 Gaussian 回放。"""
++"""真实 CPU 策略检查有界 Beta 探索、检查点语义与新版教师回放。"""
+ 
++import math
+ from dataclasses import asdict
+ from types import SimpleNamespace
+ from typing import Any, cast
+@@ -7,11 +8,13 @@ from typing import Any, cast
+ import pytest
+ import torch
+ from rsl_rl.env import VecEnv
+-from rsl_rl.modules import BetaDistribution, GaussianDistribution
++from rsl_rl.modules import BetaDistribution
+ from tensordict import TensorDict
+ 
+-from zbot_rl_mjlab.experiments.snake import SnakeOmniTeacher, SnakeTeacherRunner
+-from zbot_rl_mjlab.tasks.snake.env_cfg import SnakeEnvCfg
++from zbot_rl_mjlab.experiments.snake import (
++    SnakeOmniTeacher,
++    SnakeTeacherRunner,
++)
+ 
+ 
+ def runner_cfg():
+@@ -24,11 +27,11 @@ def runner_cfg():
+ def make_runner(cfg=None):
+     refreshes = []
+     env = SimpleNamespace(
+-        cfg=SimpleNamespace(motion_frame="body_gravity", head_gyro_frame="head", head_body="foot_0", motion_site="foot_0_sole", observation_reference="world_x"),
++        cfg=SimpleNamespace(motion_penalty_min_scale=0., motion_penalty_speed_gain=5., forward_speed_cap=.2, head_yaw_limit=math.pi / 3, head_yaw_integral_time_scale=1., body_yaw_limit=math.pi / 3, body_yaw_integral_time_scale=1., tail_site="foot_1_sole", actions={"joint_pos": SimpleNamespace(target_limit=math.pi / 3, max_target_speed=2 * math.pi, use_default_offset=False)}, motion_frame="body_gravity", head_gyro_frame="head", head_body="foot_0", motion_site="foot_0_sole", observation_reference="world_x"),
+         common_step_counter=0,
+         observation_manager=SimpleNamespace(compute=lambda **kwargs: refreshes.append(kwargs)),
+     )
+-    obs = TensorDict({"actor": torch.randn(8, 40), "critic": torch.randn(8, 55)}, [8])
++    obs = TensorDict({"actor": torch.randn(8, 51), "critic": torch.randn(8, 66)}, [8])
+     wrapped = SimpleNamespace(
+         unwrapped=env, cfg={}, num_envs=8, num_actions=6, get_observations=lambda: obs,
+     )
+@@ -49,7 +52,11 @@ def update_once(runner):
+     samples = actor(obs, stochastic_output=True)
+     old_params = tuple(parameter.detach().clone() for parameter in distribution(runner).params)
+     before = state_copy(runner)
+-    loss = -distribution(runner).log_prob(samples.detach()).mean() - .002 * distribution(runner).entropy.mean()
++    old_log_prob = distribution(runner).log_prob(samples.detach()).detach()
++    advantages = torch.linspace(-1., 1., samples.shape[0])
++    ratio = (distribution(runner).log_prob(samples.detach()) - old_log_prob).exp()
++    surrogate = torch.minimum(ratio * advantages, ratio.clamp(.8, 1.2) * advantages)
++    loss = -surrogate.mean() - .002 * distribution(runner).entropy.mean()
+     runner.alg.optimizer.zero_grad()
+     loss.backward()
+     assert all(parameter.grad is None or torch.isfinite(parameter.grad).all() for parameter in actor.parameters())
+@@ -91,12 +98,29 @@ def test_save_and_full_resume_preserve_beta_optimizer_weights_and_counters(tmp_p
+     source.env.unwrapped.common_step_counter = 765
+     path = tmp_path / "new.pt"
+     source.save(str(path), {"user": "保留"})
++    assert source.env.get_observations()["actor"].shape == (8, 51)
++    assert source.env.get_observations()["critic"].shape == (8, 66)
+     checkpoint = torch.load(path, weights_only=False)
+     assert checkpoint["infos"]["snake_recipe"] == {
+-        "version": 7, "motion_frame": "body_gravity", "head_gyro_frame": "head", "motion_body": "foot_0",
+-        "motion_site": "foot_0_sole",
+-        "objective": "snake_forward_signed_speed", "observation_reference": "world_x",
++        "version": 22, "motion_frame": "body_gravity", "head_gyro_frame": "head", "motion_body": "foot_0",
++        "motion_site": "foot_0_sole", "tail_site": "foot_1_sole",
++        "body_yaw_limit": math.pi / 3, "body_yaw_reference": "episode_initial_heading",
++        "body_yaw_integral": "signed_episode_dt_tanh_squared",
++        "body_yaw_integral_time_scale": 1.,
++        "objective": "snake_world_x_capped_speed",
++        "forward_speed_cap": .2,
++        "motion_penalty_speed_gain": 5.,
++        "motion_penalty_min_scale": 0.,
++        "motion_penalty_scaling": "clipped_positive_world_x_ramp",
++        "yaw_reference": "episode_initial_heading", "head_yaw_limit": math.pi / 3,
++        "head_yaw_integral": "signed_episode_dt_tanh_squared",
++        "head_yaw_integral_time_scale": 1.,
++        "head_orientation_observation": "quaternion_wxyz_and_relative_yaw_sincos",
++        "actor_observation_dim": 51, "critic_observation_dim": 66,
++        "observation_reference": "world_x",
+         "distribution": "BetaDistribution", "action_range": (-1., 1.),
++        "action_control": "integrated_joint_velocity", "joint_target_limit": math.pi / 3,
++        "max_target_speed": 2 * math.pi,
+     }
+     assert checkpoint["infos"]["user"] == "保留"
+     target, _ = make_runner()
+@@ -115,7 +139,7 @@ def last_head_key(checkpoint):
+             if key.startswith("mlp.") and key.endswith("weight") and value.ndim == 2][-1]
+ 
+ 
+-@pytest.mark.parametrize("fault", ["no_recipe", "version_2", "version_3", "version_4", "version_5", "missing_body", "base_body", "missing_site", "other_site", "frame", "gyro", "distribution", "range", "head", "objective", "observation_reference"])
++@pytest.mark.parametrize("fault", ["no_recipe", "version_2", "version_3", "version_4", "version_5", "version_6", "version_7", "version_10", "version_11", "missing_body", "base_body", "missing_site", "other_site", "frame", "gyro", "distribution", "range", "head", "objective", "observation_reference"])
+ def test_full_resume_preflight_rejects_incompatible_inputs_without_side_effects(tmp_path, fault):
+     source, _ = make_runner()
+     path = tmp_path / "incompatible.pt"
+@@ -137,6 +161,12 @@ def test_full_resume_preflight_rejects_incompatible_inputs_without_side_effects(
+         recipe["version"] = 5
+         recipe.pop("objective")
+         recipe.pop("observation_reference")
++    elif fault in ("version_6", "version_7"):
++        recipe["version"] = int(fault[-1])
++        if fault == "version_6":
++            recipe["objective"] = "world_x_signed_speed"
++    elif fault in ("version_10", "version_11"):
++        recipe["version"] = int(fault.split("_")[1])
+     elif fault == "missing_body":
+         recipe.pop("motion_body")
+     elif fault == "base_body":
+@@ -167,81 +197,13 @@ def test_full_resume_preflight_rejects_incompatible_inputs_without_side_effects(
+     target.current_learning_iteration = 9
+     with pytest.raises(ValueError):
+         target.load(str(path))
+-    for key, value in target.alg.get_policy().state_dict().items():
+-        torch.testing.assert_close(value, before[key])
++    for key, parameter in target.alg.get_policy().state_dict().items():
++        torch.testing.assert_close(parameter, before[key])
+     assert target.env.unwrapped.common_step_counter == 123
+     assert target.current_learning_iteration == 9
+     assert not target.alg.optimizer.state and not refreshes
+ 
+ 
+-def gaussian_checkpoint(path, versioned, std_type="scalar"):
+-    cfg = runner_cfg()
+-    cfg["actor"]["distribution_cfg"] = {
+-        "class_name": "GaussianDistribution", "init_std": .25,
+-        "std_range": (.08, .45) if versioned else (1e-6, 1e6), "std_type": std_type,
+-    }
+-    runner, _ = make_runner(cfg)
+-    with torch.no_grad():
+-        value = .3 if versioned else 1.7
+-        if std_type == "log":
+-            distribution(runner).log_std_param.fill_(torch.log(torch.tensor(value)).item())
+-        else:
+-            distribution(runner).std_param.fill_(value)
+-    payload: dict[str, Any] = runner.alg.save()
+-    payload["iter"] = 77
+-    infos: dict[str, Any] = {"env_state": {"common_step_counter": 876}}
+-    if versioned:
+-        infos["snake_recipe"] = {
+-            "version": 2, "motion_frame": "body_gravity", "head_gyro_frame": "head",
+-        }
+-    payload["infos"] = infos
+-    torch.save(payload, path)
+-    return payload
+-
+-
+-@pytest.mark.parametrize("versioned", [False, True])
+-@pytest.mark.parametrize("std_type", ["scalar", "log"])
+-def test_prepare_gaussian_playback_preserves_original_distribution_and_frame(tmp_path, versioned, std_type):
+-    path = tmp_path / "gaussian.pt"
+-    gaussian_checkpoint(path, versioned, std_type)
+-    cfg = runner_cfg()
+-    SnakeTeacherRunner.prepare_playback_cfg(cfg, str(path))
+-    assert cfg["actor"]["distribution_cfg"]["class_name"] == "GaussianDistribution"
+-    assert cfg["actor"]["distribution_cfg"]["std_type"] == std_type
+-    expected_range = (.08, .45) if versioned else (1e-6, 1e6)
+-    assert tuple(cfg["actor"]["distribution_cfg"]["std_range"]) == expected_range
+-    runner, refreshes = make_runner(cfg)
+-    runner.env.unwrapped.common_step_counter = 123
+-    runner.current_learning_iteration = 9
+-    runner.load(str(path), load_cfg={"actor": True})
+-    assert isinstance(distribution(runner), GaussianDistribution)
+-    assert tuple(distribution(runner).std_range) == expected_range
+-    if std_type == "log":
+-        actual_std = distribution(runner).log_std_param.exp()
+-    else:
+-        actual_std = distribution(runner).std_param
+-    torch.testing.assert_close(actual_std, torch.full_like(actual_std, .3 if versioned else 1.7))
+-    env_cfg = cast(SnakeEnvCfg, runner.env.unwrapped.cfg)
+-    assert env_cfg.motion_frame == ("body_gravity" if versioned else "legacy_head")
+-    assert env_cfg.head_gyro_frame == ("head" if versioned else "world")
+-    assert env_cfg.observation_reference == 'command'
+-    assert runner.env.unwrapped.common_step_counter == 123
+-    assert runner.current_learning_iteration == 9
+-    assert not runner.alg.optimizer.state and len(refreshes) == 1
+-
+-
+-def test_direct_beta_runner_rejects_old_gaussian_actor_before_loading_any_weights(tmp_path):
+-    path = tmp_path / "gaussian.pt"
+-    gaussian_checkpoint(path, versioned=True)
+-    runner, _ = make_runner()
+-    before = state_copy(runner)
+-    with pytest.raises(ValueError):
+-        runner.load(str(path), load_cfg={"actor": True})
+-    for key, value in runner.alg.get_policy().state_dict().items():
+-        torch.testing.assert_close(value, before[key])
+-    assert runner.env.unwrapped.common_step_counter == 0
+-
+-
+ def test_prepare_new_beta_actor_only_keeps_training_state_untouched(tmp_path):
+     source, _ = make_runner()
+     update_once(source)
+@@ -312,39 +274,368 @@ def test_incompatible_curriculum_rejected_before_weights_change(tmp_path):
+     with pytest.raises(ValueError, match='课程'):
+         target.load(str(path))
+     assert term.translation_stage == 0
+-    for key, value in target.alg.get_policy().state_dict().items():
+-        torch.testing.assert_close(value, before[key])
++    for key, parameter in target.alg.get_policy().state_dict().items():
++        torch.testing.assert_close(parameter, before[key])
+ 
+ 
+-def test_legacy_beta_actor_restores_command_reference_but_cannot_resume_world_task(tmp_path):
++@pytest.mark.parametrize("version", [None, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21])
++def test_legacy_checkpoints_rejected_before_playback_network_or_weights_change(tmp_path, version):
+     source, _ = make_runner()
+-    path = tmp_path / 'legacy_beta.pt'
++    path = tmp_path / 'legacy.pt'
+     source.save(str(path))
+     checkpoint = torch.load(path, weights_only=False)
+-    recipe = checkpoint['infos']['snake_recipe']
+-    recipe['version'] = 5
+-    recipe.pop('objective')
+-    recipe.pop('observation_reference')
++    if version is None:
++        checkpoint['infos'].pop('snake_recipe')
++    else:
++        checkpoint['infos']['snake_recipe']['version'] = version
+     torch.save(checkpoint, path)
+-    playback, _ = make_runner()
+-    playback.load(str(path), load_cfg={'actor': True})
+-    assert playback.env.unwrapped.cfg.observation_reference == 'command'
+-    with pytest.raises(ValueError, match='蛇形前向'):
+-        playback.learn(1)
+-    fresh, _ = make_runner()
+-    with pytest.raises(ValueError, match='蛇形前向'):
+-        fresh.load(str(path))
++    cfg = runner_cfg()
++    cfg['actor']['distribution_cfg'] = {'class_name': 'UnchangedDistribution'}
++    with pytest.raises(ValueError, match='从零训练'):
++        SnakeTeacherRunner.prepare_playback_cfg(cfg, str(path))
++    assert cfg['actor']['distribution_cfg'] == {'class_name': 'UnchangedDistribution'}
++    target, refreshes = make_runner()
++    before = state_copy(target)
++    for load_cfg in (None, {'actor': True}):
++        with pytest.raises(ValueError, match='从零训练'):
++            target.load(str(path), load_cfg=load_cfg)
++    assert not refreshes
++    assert not target.alg.optimizer.state
++    for key, parameter in target.alg.get_policy().state_dict().items():
++        torch.testing.assert_close(parameter, before[key])
++
++
++@pytest.mark.parametrize("key,value", [
++    ("action_control", None),
++    ("action_control", "default_pose_joint_position"),
++    ("action_control", "direct_joint_position"),
++    ("max_target_speed", None),
++    ("max_target_speed", 0.),
++    ("max_target_speed", -1.),
++    ("max_target_speed", float("nan")),
++    ("max_target_speed", float("inf")),
++    ("max_target_speed", True),
++    ("max_target_speed", {".*": 1 / 3}),
++    ("joint_target_limit", None),
++    ("joint_target_limit", 0.),
++    ("joint_target_limit", -1.),
++    ("joint_target_limit", True),
++    ("joint_target_limit", float("nan")),
++    ("joint_target_limit", float("inf")),
++])
++def test_invalid_action_recipe_rejected_before_playback_or_weights_change(tmp_path, key, value):
++    source, _ = make_runner()
++    path = tmp_path / "wrong_action.pt"
++    source.save(str(path))
++    checkpoint = torch.load(path, weights_only=False)
++    recipe = checkpoint["infos"]["snake_recipe"]
++    if value is None:
++        recipe.pop(key)
++    else:
++        recipe[key] = value
++    torch.save(checkpoint, path)
++    cfg = runner_cfg()
++    cfg["actor"]["distribution_cfg"] = {"class_name": "UnchangedDistribution"}
++    with pytest.raises(ValueError, match="动作元数据"):
++        SnakeTeacherRunner.prepare_playback_cfg(cfg, str(path))
++    assert cfg["actor"]["distribution_cfg"] == {"class_name": "UnchangedDistribution"}
++    target, refreshes = make_runner()
++    before = state_copy(target)
++    for load_cfg in (None, {"actor": True}):
++        with pytest.raises(ValueError, match="动作元数据"):
++            target.load(str(path), load_cfg=load_cfg)
++    assert not refreshes and not target.alg.optimizer.state
++    for parameter_name, parameter in target.alg.get_policy().state_dict().items():
++        torch.testing.assert_close(parameter, before[parameter_name])
++
++
++@pytest.mark.parametrize("actor_only", [False, True])
++@pytest.mark.parametrize("attribute,value", [("target_limit", math.pi / 2),
++                                            ("max_target_speed", 1.)])
++def test_joint_action_mapping_mismatch_rejected_before_weights_change(tmp_path, actor_only, attribute, value):
++    source, _ = make_runner()
++    path = tmp_path / "other_limit.pt"
++    source.save(str(path))
++    target, refreshes = make_runner()
++    setattr(target.env.unwrapped.cfg.actions["joint_pos"], attribute, value)
++    before = state_copy(target)
++    with pytest.raises(ValueError):
++        target.load(str(path), load_cfg={"actor": True} if actor_only else None)
++    assert not refreshes and not target.alg.optimizer.state
++    for key, parameter in target.alg.get_policy().state_dict().items():
++        torch.testing.assert_close(parameter, before[key])
++
++
++@pytest.mark.parametrize("key,value", [
++    ("yaw_reference", None), ("yaw_reference", "world_x"),
++    ("head_orientation_observation", None), ("head_orientation_observation", "quaternion_xyzw"),
++    ("head_yaw_limit", None), ("head_yaw_limit", 0.), ("head_yaw_limit", -1.),
++    ("head_yaw_limit", math.pi + .01), ("head_yaw_limit", float("nan")),
++    ("head_yaw_limit", float("inf")), ("head_yaw_limit", True),
++    ("actor_observation_dim", 43), ("critic_observation_dim", 58),
++    ("actor_observation_dim", 49), ("critic_observation_dim", 64),
++    ("actor_observation_dim", 50), ("critic_observation_dim", 65),
++])
++def test_invalid_heading_metadata_rejected_before_playback_or_weights_change(tmp_path, key, value):
++    source, _ = make_runner()
++    path = tmp_path / "wrong_heading.pt"
++    source.save(str(path))
++    checkpoint = torch.load(path, weights_only=False)
++    recipe = checkpoint["infos"]["snake_recipe"]
++    if value is None:
++        recipe.pop(key)
++    else:
++        recipe[key] = value
++    torch.save(checkpoint, path)
++    cfg = runner_cfg()
++    cfg["actor"]["distribution_cfg"] = {"class_name": "UnchangedDistribution"}
++    with pytest.raises(ValueError, match="初始航向元数据"):
++        SnakeTeacherRunner.prepare_playback_cfg(cfg, str(path))
++    assert cfg["actor"]["distribution_cfg"] == {"class_name": "UnchangedDistribution"}
++    target, refreshes = make_runner()
++    before = state_copy(target)
++    for load_cfg in (None, {"actor": True}):
++        with pytest.raises(ValueError, match="初始航向元数据"):
++            target.load(str(path), load_cfg=load_cfg)
++    assert not refreshes and not target.alg.optimizer.state
++    for name, parameter in target.alg.get_policy().state_dict().items():
++        torch.testing.assert_close(parameter, before[name])
+ 
+ 
+-def test_world_x_v6_checkpoint_can_play_but_cannot_resume_new_objective(tmp_path):
++@pytest.mark.parametrize("actor_only", [False, True])
++def test_heading_limit_mismatch_rejected_before_weights_change(tmp_path, actor_only):
+     source, _ = make_runner()
+-    path = tmp_path / 'world_x_v6.pt'
++    path = tmp_path / "heading_limit.pt"
++    source.save(str(path))
++    target, refreshes = make_runner()
++    target.env.unwrapped.cfg.head_yaw_limit = math.pi / 2
++    before = state_copy(target)
++    with pytest.raises(ValueError):
++        target.load(str(path), load_cfg={"actor": True} if actor_only else None)
++    assert not refreshes and not target.alg.optimizer.state
++    for name, parameter in target.alg.get_policy().state_dict().items():
++        torch.testing.assert_close(parameter, before[name])
++
++
++@pytest.mark.parametrize("network,width", [("actor", 43), ("critic", 58), ("actor", 49), ("critic", 64), ("actor", 50), ("critic", 65)])
++def test_old_observation_weights_rejected_even_with_current_recipe(tmp_path, network, width):
++    source, _ = make_runner()
++    path = tmp_path / "old_observations.pt"
+     source.save(str(path))
+     checkpoint = torch.load(path, weights_only=False)
+-    checkpoint['infos']['snake_recipe'].update(version=6, objective='world_x_signed_speed')
++    weights = checkpoint[f"{network}_state_dict"]
++    first = min((int(key.split('.')[1]), key) for key in weights
++                if key.startswith("mlp.") and key.endswith(".weight"))[1]
++    weights[first] = weights[first][:, :width].clone()
+     torch.save(checkpoint, path)
++    with pytest.raises(ValueError, match="观测维度"):
++        SnakeTeacherRunner.prepare_playback_cfg(runner_cfg(), str(path))
++
++
++
++
++
++
++def test_full_resume_preserves_learned_action_mean_and_std(tmp_path):
++    source, _ = make_runner()
++    actor = source.alg.get_policy()
++    head = [layer for layer in actor.mlp.modules() if isinstance(layer, torch.nn.Linear)][-1]
++    with torch.no_grad():
++        head.bias[:6].add_(20.)
++        head.bias[6:].sub_(10.)
++    obs = source.env.get_observations()
++    actor(obs, stochastic_output=True)
++    expected_mean = distribution(source).mean.clone()
++    expected_std = distribution(source).std.clone()
++    assert expected_mean.abs().min() > .1
++    path = tmp_path / "learned.pt"
++    source.save(str(path))
+     target, _ = make_runner()
+-    target.load(str(path), load_cfg={'actor': True})
+-    assert target.env.unwrapped.cfg.observation_reference == 'world_x'
+-    with pytest.raises(ValueError, match='蛇形前向'):
+-        target.load(str(path))
++    target.load(str(path))
++    target.alg.get_policy()(obs, stochastic_output=True)
++    torch.testing.assert_close(distribution(target).mean, expected_mean)
++    torch.testing.assert_close(distribution(target).std, expected_std)
++
++
++@pytest.mark.parametrize("key,value", [
++    ("body_yaw_reference", None), ("body_yaw_reference", "world_x"),
++    ("tail_site", None), ("tail_site", ""), ("tail_site", 1),
++    ("body_yaw_limit", None), ("body_yaw_limit", 0.), ("body_yaw_limit", -1.),
++    ("body_yaw_limit", math.pi + .01), ("body_yaw_limit", float("nan")),
++    ("body_yaw_limit", float("inf")), ("body_yaw_limit", True),
++])
++def test_invalid_body_heading_metadata_rejected_before_playback_or_weights_change(tmp_path, key, value):
++    source, _ = make_runner()
++    path = tmp_path / "wrong_body_heading.pt"
++    source.save(str(path))
++    checkpoint = torch.load(path, weights_only=False)
++    recipe = checkpoint["infos"]["snake_recipe"]
++    if value is None:
++        recipe.pop(key)
++    else:
++        recipe[key] = value
++    torch.save(checkpoint, path)
++    cfg = runner_cfg()
++    cfg["actor"]["distribution_cfg"] = {"class_name": "UnchangedDistribution"}
++    with pytest.raises(ValueError, match="体轴初始航向元数据"):
++        SnakeTeacherRunner.prepare_playback_cfg(cfg, str(path))
++    assert cfg["actor"]["distribution_cfg"] == {"class_name": "UnchangedDistribution"}
++    target, refreshes = make_runner()
++    before = state_copy(target)
++    for load_cfg in (None, {"actor": True}):
++        with pytest.raises(ValueError, match="体轴初始航向元数据"):
++            target.load(str(path), load_cfg=load_cfg)
++    assert not refreshes and not target.alg.optimizer.state
++    for name, parameter in target.alg.get_policy().state_dict().items():
++        torch.testing.assert_close(parameter, before[name])
++
++
++@pytest.mark.parametrize("actor_only", [False, True])
++@pytest.mark.parametrize("attribute,value", [("tail_site", "other_tail"),
++                                            ("body_yaw_limit", math.pi / 2)])
++def test_body_heading_mismatch_rejected_before_weights_change(tmp_path, actor_only, attribute, value):
++    source, _ = make_runner()
++    path = tmp_path / "body_heading_limit.pt"
++    source.save(str(path))
++    target, refreshes = make_runner()
++    setattr(target.env.unwrapped.cfg, attribute, value)
++    before = state_copy(target)
++    with pytest.raises(ValueError):
++        target.load(str(path), load_cfg={"actor": True} if actor_only else None)
++    assert not refreshes and not target.alg.optimizer.state
++    for name, parameter in target.alg.get_policy().state_dict().items():
++        torch.testing.assert_close(parameter, before[name])
++
++
++@pytest.mark.parametrize("integral_kind", ["body", "head"])
++@pytest.mark.parametrize("key,value", [
++    ("body_yaw_integral", None), ("body_yaw_integral", "absolute_episode_dt"),
++    ("body_yaw_integral_time_scale", None), ("body_yaw_integral_time_scale", 0.),
++    ("body_yaw_integral_time_scale", -1.), ("body_yaw_integral_time_scale", True),
++    ("body_yaw_integral_time_scale", float("nan")),
++    ("body_yaw_integral_time_scale", float("inf")),
++])
++def test_invalid_yaw_integral_metadata_rejected_before_playback_or_weights_change(tmp_path, key, value, integral_kind):
++    key = key.replace("body_yaw", f"{integral_kind}_yaw")
++    source, _ = make_runner()
++    path = tmp_path / "wrong_body_integral.pt"
++    source.save(str(path))
++    checkpoint = torch.load(path, weights_only=False)
++    recipe = checkpoint["infos"]["snake_recipe"]
++    if value is None:
++        recipe.pop(key)
++    else:
++        recipe[key] = value
++    torch.save(checkpoint, path)
++    cfg = runner_cfg()
++    cfg["actor"]["distribution_cfg"] = {"class_name": "UnchangedDistribution"}
++    with pytest.raises(ValueError, match="积分元数据"):
++        SnakeTeacherRunner.prepare_playback_cfg(cfg, str(path))
++    assert cfg["actor"]["distribution_cfg"] == {"class_name": "UnchangedDistribution"}
++    target, refreshes = make_runner()
++    before = state_copy(target)
++    for load_cfg in (None, {"actor": True}):
++        with pytest.raises(ValueError, match="积分元数据"):
++            target.load(str(path), load_cfg=load_cfg)
++    assert not refreshes and not target.alg.optimizer.state
++    for name, parameter in target.alg.get_policy().state_dict().items():
++        torch.testing.assert_close(parameter, before[name])
++
++
++@pytest.mark.parametrize("actor_only", [False, True])
++@pytest.mark.parametrize("integral_kind", ["body", "head"])
++def test_integral_time_scale_mismatch_rejected_before_weights_change(tmp_path, actor_only, integral_kind):
++    source, _ = make_runner()
++    path = tmp_path / "integral_time_scale.pt"
++    source.save(str(path))
++    target, refreshes = make_runner()
++    setattr(target.env.unwrapped.cfg, f"{integral_kind}_yaw_integral_time_scale", 2.)
++    before = state_copy(target)
++    with pytest.raises(ValueError):
++        target.load(str(path), load_cfg={"actor": True} if actor_only else None)
++    assert not refreshes and not target.alg.optimizer.state
++    for name, parameter in target.alg.get_policy().state_dict().items():
++        torch.testing.assert_close(parameter, before[name])
++
++
++@pytest.mark.parametrize("key,value", [
++    ("motion_penalty_scaling", None),
++    ("motion_penalty_scaling", "positive_raw_forward_linear"),
++    ("motion_penalty_min_scale", None), ("motion_penalty_min_scale", -.01),
++    ("motion_penalty_min_scale", 1.01), ("motion_penalty_min_scale", True),
++    ("motion_penalty_min_scale", "0.25"),
++    ("motion_penalty_min_scale", float("nan")),
++    ("motion_penalty_min_scale", float("inf")),
++    ("motion_penalty_speed_gain", None), ("motion_penalty_speed_gain", -1.),
++    ("motion_penalty_speed_gain", True), ("motion_penalty_speed_gain", "5"),
++    ("motion_penalty_speed_gain", float("nan")),
++    ("motion_penalty_speed_gain", float("inf")),
++])
++def test_invalid_motion_penalty_metadata_rejected_before_playback_or_weights_change(tmp_path, key, value):
++    source, _ = make_runner()
++    path = tmp_path / "wrong_motion_penalty.pt"
++    source.save(str(path))
++    checkpoint = torch.load(path, weights_only=False)
++    recipe = checkpoint["infos"]["snake_recipe"]
++    if value is None:
++        recipe.pop(key)
++    else:
++        recipe[key] = value
++    torch.save(checkpoint, path)
++    cfg = runner_cfg()
++    cfg["actor"]["distribution_cfg"] = {"class_name": "UnchangedDistribution"}
++    with pytest.raises(ValueError, match="速度缩放元数据"):
++        SnakeTeacherRunner.prepare_playback_cfg(cfg, str(path))
++    assert cfg["actor"]["distribution_cfg"] == {"class_name": "UnchangedDistribution"}
++    target, refreshes = make_runner()
++    before = state_copy(target)
++    for load_cfg in (None, {"actor": True}):
++        with pytest.raises(ValueError, match="速度缩放元数据"):
++            target.load(str(path), load_cfg=load_cfg)
++    assert not refreshes and not target.alg.optimizer.state
++    for name, parameter in target.alg.get_policy().state_dict().items():
++        torch.testing.assert_close(parameter, before[name])
++
++
++@pytest.mark.parametrize("actor_only", [False, True])
++@pytest.mark.parametrize("attribute,value", [("motion_penalty_speed_gain", 10.),
++                                            ("motion_penalty_min_scale", .5)])
++def test_motion_penalty_mapping_mismatch_rejected_before_weights_change(tmp_path, actor_only, attribute, value):
++    source, _ = make_runner()
++    path = tmp_path / "motion_penalty_speed_gain.pt"
++    source.save(str(path))
++    target, refreshes = make_runner()
++    setattr(target.env.unwrapped.cfg, attribute, value)
++    before = state_copy(target)
++    with pytest.raises(ValueError):
++        target.load(str(path), load_cfg={"actor": True} if actor_only else None)
++    assert not refreshes and not target.alg.optimizer.state
++    for name, parameter in target.alg.get_policy().state_dict().items():
++        torch.testing.assert_close(parameter, before[name])
++
++
++def test_motion_penalty_zero_gain_metadata_is_valid(tmp_path):
++    runner, _ = make_runner()
++    runner.env.unwrapped.cfg.motion_penalty_speed_gain = 0.
++    path = tmp_path / "constant_motion_penalty.pt"
++    runner.save(str(path))
++    checkpoint = torch.load(path, weights_only=False)
++    assert SnakeTeacherRunner._describe_checkpoint(checkpoint)["motion_penalty_speed_gain"] == 0.
++
++
++@pytest.mark.parametrize("min_scale", [0., 1.])
++def test_motion_penalty_min_scale_boundary_metadata_is_valid(tmp_path, min_scale):
++    runner, _ = make_runner()
++    runner.env.unwrapped.cfg.motion_penalty_min_scale = min_scale
++    path = tmp_path / "motion_penalty_floor.pt"
++    runner.save(str(path))
++    checkpoint = torch.load(path, weights_only=False)
++    assert SnakeTeacherRunner._describe_checkpoint(checkpoint)["motion_penalty_min_scale"] == min_scale
++
++
++def test_previous_head_frame_objective_is_rejected():
++    runner, _ = make_runner()
++    checkpoint = {"infos": {"snake_recipe": runner._recipe()}}
++    checkpoint['infos']['snake_recipe']['objective'] = 'snake_head_frame_capped_speed'
++    with pytest.raises(ValueError, match='坐标'):
++        SnakeTeacherRunner._describe_checkpoint(checkpoint)
+diff --git a/tests/test_snake_task.py b/tests/test_snake_task.py
+index 284f973..1c7f36d 100644
+--- a/tests/test_snake_task.py
++++ b/tests/test_snake_task.py
+@@ -33,12 +33,13 @@ def state_env():
+     )
+     data.body_link_pos_w[..., 2] = .055
+     data.body_com_pos_w[..., 2] = .055
++    data.body_link_pos_w[:, -1, 0] = -.6
+     # 此site在foot_0上无局部旋转，视图随刚体测试姿态同步更新。
+-    data.site_pos_w = data.body_link_pos_w[:, :1]
++    data.site_pos_w = data.body_link_pos_w[:, ::11]
+     data.site_quat_w = data.body_link_quat_w[:, :1]
+     data.site_ang_vel_w = data.body_link_ang_vel_w[:, :1]
+-    robot = SimpleNamespace(data=data, find_bodies=lambda name: ([0], [name]),
+-                            find_sites=lambda name: ([0], [name]),
++    robot = SimpleNamespace(data=data, find_bodies=lambda name, preserve_order=False: (list(range(12)), list(name)) if not isinstance(name, str) else ([11 if name == 'foot_1' else 0], [name]),
++                            find_sites=lambda name: ([1 if name == 'foot_1_sole' else 0], [name]),
+                             indexing=SimpleNamespace(body_ids=torch.arange(bodies)))
+     ground = SimpleNamespace(found=torch.ones(n, bodies), force=torch.zeros(n, bodies, 3), force_history=torch.zeros(n, 4, bodies, 3))
+     own = SimpleNamespace(found=torch.zeros(n, 1), force_history=torch.zeros(n, 4, 1, 3), dist_history=torch.zeros(n, 4, 1))
+@@ -48,10 +49,10 @@ def state_env():
+     term = SimpleNamespace(command=torch.zeros(n, 3), requested_velocity=torch.zeros(n, 3), cfg=SimpleNamespace(frequency=.7, velocity_limits=(.25, .25, math.pi / 2)))
+     action = SimpleNamespace(commanded_target=torch.zeros(n, 6), raw_action=torch.zeros(n, 6))
+     return SimpleNamespace(
+-        num_envs=n, device='cpu', cfg=cfg, scene=scene, step_dt=.02, episode_length_buf=torch.zeros(n),
++        num_envs=n, device='cpu', cfg=cfg, common_step_counter=0, _snake_initial_yaw=torch.zeros(n), scene=scene, step_dt=.02, episode_length_buf=torch.zeros(n),
+         command_manager=SimpleNamespace(get_term=lambda name: term),
+-        termination_manager=SimpleNamespace(get_term=lambda name: torch.zeros(n, dtype=torch.bool)),
+-        action_manager=SimpleNamespace(get_term=lambda name: action),
++        termination_manager=SimpleNamespace(get_term=lambda name: torch.zeros(n, dtype=torch.bool), terminated=torch.zeros(n, dtype=torch.bool)),
++        action_manager=SimpleNamespace(get_term=lambda name: action, action=torch.zeros(n, 6), prev_action=torch.zeros(n, 6)),
+         sim=SimpleNamespace(model=SimpleNamespace(body_mass=torch.ones(n, bodies))),
+     )
+ 
+@@ -81,7 +82,7 @@ def test_snake_only_limits_action_targets_and_preserves_model_ranges():
+     for play in (False, True):
+         cfg = snake_env_cfg(play=play)
+         model = cfg.scene.entities['robot'].spec_fn().compile()
+-        assert cfg.actions['joint_pos'].target_limit == pytest.approx(math.pi / 2)
++        assert cfg.actions['joint_pos'].target_limit == pytest.approx(math.pi / 3)
+         for name in JOINT_NAMES:
+             joint = model.joint(name)
+             assert model.jnt_limited[joint.id]
+@@ -179,8 +180,8 @@ def test_self_collision_catches_transient_force_and_penetration():
+ 
+ def test_teacher_observation_and_safety_are_finite_at_standard_snake_pose():
+     env = state_env()
+-    assert mdp.actor_state(env).shape == (2, 40)
+-    assert mdp.critic_state(env).shape == (2, 55)
++    assert mdp.actor_state(env).shape == (2, 51)
++    assert mdp.critic_state(env).shape == (2, 66)
+     assert torch.isfinite(mdp.actor_state(env)).all()
+     assert not mdp.unsafe(env).any()
+     assert mdp.head_acceleration_cost(env).eq(0).all()
+@@ -209,7 +210,7 @@ def test_joint_pose_penalty_and_diagnostic_are_independent_of_world_heading():
+     env = state_env()
+     cfg = env.cfg
+     assert cfg.rewards['joint_pose_deviation'].func is mdp.joint_pose_deviation_cost
+-    assert cfg.rewards['joint_pose_deviation'].weight == -.01
++    assert cfg.rewards['joint_pose_deviation'].weight == -.02
+     assert 'joint_pose_deviation' not in cfg.terminations
+     assert cfg.metrics['joint_pose_rms_rad'].func is mdp.joint_pose_rms
+     env.scene['robot'].data.joint_pos[:] = .3
+diff --git a/tests/test_snake_translation_progress.py b/tests/test_snake_translation_progress.py
+index eb76e22..5767109 100644
+--- a/tests/test_snake_translation_progress.py
++++ b/tests/test_snake_translation_progress.py
+@@ -214,15 +214,15 @@ def test_direction_metrics_use_selected_group_and_signed_projection(monkeypatch,
+ def test_stall_is_diagnostic_only_and_preserves_observations_and_physical_safety():
+     env = state_env()
+     cfg = env.cfg
+-    assert set(cfg.terminations) == {'unsafe', 'head_tilt', 'self_collision', 'time_out'}
++    assert set(cfg.terminations) == {'unsafe', 'head_tilt', 'head_yaw', 'body_yaw', 'self_collision', 'time_out'}
+     assert set(cfg.events) == {'reset_scene', 'reset_snake'}
+-    assert mdp.actor_state(env).shape == (2, 40)
+-    assert mdp.critic_state(env).shape == (2, 55)
++    assert mdp.actor_state(env).shape == (2, 51)
++    assert mdp.critic_state(env).shape == (2, 66)
+     assert 'translation_stall' not in cfg.rewards
+     assert 'translation_stall_fraction' not in cfg.metrics
+-    assert set(cfg.rewards) == {'forward_speed', 'lateral_speed_cost', 'vertical_speed_cost', 'joint_pose_deviation', 'head_tilt_reset_cost', 'target_saturation_fraction'}
+-    assert cfg.rewards['forward_speed'].weight == 1.
+-    assert cfg.rewards['joint_pose_deviation'].weight == -.01
++    assert set(cfg.rewards) == {'head_forward_speed', 'head_lateral_speed_cost', 'head_vertical_speed_cost', 'joint_pose_deviation', 'head_tilt_reset_cost', 'target_saturation_fraction', 'head_angular_velocity_cost', 'self_collision_reset_cost', 'action_rate', 'head_yaw_cost', 'alive', 'head_yaw_reset_cost', 'body_yaw_cost', 'body_yaw_reset_cost', 'body_yaw_integral_cost', 'head_yaw_integral_cost'}
++    assert cfg.rewards['head_forward_speed'].weight == 15.
++    assert cfg.rewards['joint_pose_deviation'].weight == -.02
+     assert 'velocity_tracking' not in cfg.rewards
+ 
+ 
+diff --git a/tests/test_snake_world_speed.py b/tests/test_snake_world_speed.py
+index 5cccbf4..2c196f3 100644
+--- a/tests/test_snake_world_speed.py
++++ b/tests/test_snake_world_speed.py
+@@ -16,13 +16,27 @@ from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
+ def test_only_requested_rewards_are_active_and_resets_unchanged(play):
+     cfg = snake_env_cfg(play=play)
+     assert {name: term.weight for name, term in cfg.rewards.items()} == {
+-        'forward_speed': 1., 'lateral_speed_cost': -1., 'vertical_speed_cost': -1.,
+-        'joint_pose_deviation': -.01, 'head_tilt_reset_cost': -.5, 'target_saturation_fraction': -.1,
++        'head_forward_speed': 15., 'head_lateral_speed_cost': -5., 'head_vertical_speed_cost': -.2,
++        'joint_pose_deviation': -.02, 'head_tilt_reset_cost': -5., 'target_saturation_fraction': -.1,
++        'head_angular_velocity_cost': -.2,
++        'head_yaw_cost': -.5,
++        'head_yaw_integral_cost': -.5,
++        'body_yaw_cost': -.1,
++        'body_yaw_integral_cost': -.5,
++        'body_yaw_reset_cost': -5.,
++        'head_yaw_reset_cost': -5.,
++        'alive': .02,
++        'action_rate': -.01,
++        'self_collision_reset_cost': -5.,
+     }
++    assert 'head_lateral_speed_abs_m_s' not in cfg.metrics
++    assert 'head_angular_speed_rad_s' in cfg.metrics
+     for name, term in cfg.rewards.items():
+-        assert term.func is getattr(mdp, 'joint_pose_deviation_cost' if name == 'joint_pose_deviation' else name)
++        common_rewards = {'action_rate': common_mdp.action_rate_l2, 'alive': common_mdp.is_alive}
++        expected_func = common_rewards[name] if name in common_rewards else getattr(mdp, 'joint_pose_deviation_cost' if name == 'joint_pose_deviation' else name)
++        assert term.func is expected_func
+     assert {name: term.func for name, term in cfg.terminations.items()} == {
+-        'unsafe': mdp.unsafe, 'head_tilt': mdp.head_tilt_limit_reached,
++        'unsafe': mdp.unsafe, 'head_tilt': mdp.head_tilt_limit_reached, 'head_yaw': mdp.head_yaw_limit_reached, 'body_yaw': mdp.body_yaw_limit_reached,
+         'self_collision': mdp.self_collision,
+         'time_out': mdp.play_time_out if play else common_mdp.time_out,
+     }
+@@ -35,7 +49,7 @@ def test_only_requested_rewards_are_active_and_resets_unchanged(play):
+     assert not cfg.commands['motion'].sample_velocity_commands
+     assert cfg.commands['motion'].translation_curriculum == ()
+     assert not any(key.startswith(('group_', 'translation_', 'command_')) for key in cfg.metrics)
+-    assert len(cfg.metrics) <= 12
++    assert len(cfg.metrics) <= 19
+ 
+ 
+ @pytest.mark.parametrize('velocity', [(0., 0., 0.), (.06, -.02, .01), (-.06, .02, -.01)])
+@@ -45,11 +59,28 @@ def test_world_rewards_use_signed_x_absolute_yz_and_exact_total(velocity):
+     cfg = env.cfg
+     env.scene['robot'].data.joint_pos[:] = .2
+     rewards = {name: term.func(env) for name, term in cfg.rewards.items()}
+-    expected = dict(zip(cfg.rewards, (velocity[0], abs(velocity[1]), abs(velocity[2]), .04, 0., 0.), strict=True))
++    expected = {
++        'alive': 1.,
++        'head_forward_speed': min(velocity[0], .2),
++        'head_lateral_speed_cost': abs(velocity[1]) * min(1., 5. * max(velocity[0], 0)),
++        'head_vertical_speed_cost': abs(velocity[2]),
++        'joint_pose_deviation': .04,
++        'target_saturation_fraction': 0.,
++        'head_tilt_reset_cost': 0.,
++        'head_angular_velocity_cost': 0.,
++        'head_yaw_cost': 0.,
++        'head_yaw_integral_cost': 0.,
++        'body_yaw_cost': 0.,
++        'body_yaw_integral_cost': 0.,
++        'body_yaw_reset_cost': 0.,
++        'head_yaw_reset_cost': 0.,
++        'action_rate': 0.,
++        'self_collision_reset_cost': 0.,
++    }
+     for name, value in rewards.items():
+         torch.testing.assert_close(value, torch.full((2,), expected[name]))
+     total = sum(cfg.rewards[name].weight * value for name, value in rewards.items())
+-    torch.testing.assert_close(total, torch.full((2,), velocity[0] - abs(velocity[1]) - abs(velocity[2]) - .01 * .04))
++    torch.testing.assert_close(total, torch.full((2,), .02 + 15 * expected['head_forward_speed'] - 5 * abs(velocity[1]) * min(1., 5. * max(velocity[0], 0)) - .2 * abs(velocity[2]) - .02 * .04))
+     for axis in range(3):
+         torch.testing.assert_close(mdp.world_velocity_component(env, axis), torch.full((2,), velocity[axis]))
+ 
+@@ -58,9 +89,10 @@ def test_world_rewards_use_signed_x_absolute_yz_and_exact_total(velocity):
+ @pytest.mark.parametrize('velocity', [-.01, -.001, 0., .001, .01])
+ def test_small_lateral_and_vertical_speeds_have_linear_symmetric_penalty(axis, velocity):
+     env = state_env()
++    env.scene['robot'].data.body_com_lin_vel_w[..., 0] = .1
+     env.scene['robot'].data.body_com_lin_vel_w[..., axis] = velocity
+-    cost = mdp.lateral_speed_cost if axis == 1 else mdp.vertical_speed_cost
+-    torch.testing.assert_close(cost(env), torch.full((2,), abs(velocity)), atol=1e-8, rtol=1e-6)
++    cost = mdp.head_lateral_speed_cost if axis == 1 else mdp.head_vertical_speed_cost
++    torch.testing.assert_close(cost(env), torch.full((2,), abs(velocity) * (.5 if axis == 1 else 1.)), atol=1e-8, rtol=1e-6)
+ 
+ 
+ def test_mass_weighted_com_cancels_internal_motion_and_ignores_link_spike():
+@@ -84,6 +116,7 @@ def test_world_x_reference_is_observable_after_random_yaw_without_tilt_reset(yaw
+     data = env.scene['robot'].data
+     q_yaw = torch.tensor([math.cos(yaw / 2), 0., 0., math.sin(yaw / 2)]).expand(2, -1)
+     data.body_link_quat_w[:, 0] = quat_mul(q_yaw, data.body_link_quat_w[:, 0])
++    data.body_link_pos_w[:, -1, :2] = torch.tensor([-.6 * math.cos(yaw), -.6 * math.sin(yaw)])
+     reference = mdp.observation_reference(env)
+     torch.testing.assert_close(reference.norm(dim=-1), torch.ones(2))
+     torch.testing.assert_close(quat_apply(data.body_link_quat_w[:, 0], reference), torch.tensor([[1., 0., 0.]]).expand(2, -1), atol=1e-6, rtol=0)
+@@ -92,7 +125,7 @@ def test_world_x_reference_is_observable_after_random_yaw_without_tilt_reset(yaw
+     assert mdp.critic_state(env).shape == (2, mdp.CRITIC_DIM)
+     torch.testing.assert_close(mdp.actor_state(env)[:, 24:27], reference)
+     data.body_com_lin_vel_w[..., 0] = .05
+-    torch.testing.assert_close(mdp.forward_speed(env), torch.full((2,), .05 * math.cos(yaw)))
++    torch.testing.assert_close(mdp.head_forward_velocity(env), torch.full((2,), .05 * math.cos(yaw)))
+     torch.testing.assert_close(mdp.planar_velocity(env)[:, :2], torch.tensor([[.05 * math.cos(yaw), -.05 * math.sin(yaw)]]).expand(2, -1), atol=1e-6, rtol=0)
+ 
+ 
+@@ -116,25 +149,28 @@ def test_joint_pose_cost_is_relative_to_initial_configuration():
+     torch.testing.assert_close(term.func(env), torch.zeros(2))
+     deviation = torch.tensor([.2, -.2, .2, -.2, .2, -.2])
+     data.joint_pos += deviation
+-    torch.testing.assert_close(term.func(env) * term.weight, torch.full((2,), -.0004))
++    torch.testing.assert_close(term.func(env) * term.weight, torch.full((2,), -.0008))
+ 
+ 
+ @pytest.mark.parametrize('yaw', [0., .4, math.pi / 2, math.pi, -math.pi / 2])
+ @pytest.mark.parametrize('velocity', [(.06, -.02, .01), (-.06, .02, -.01), (0., 0., 0.)])
+-def test_snake_rewards_rotate_with_heading_and_use_whole_body_com(yaw, velocity):
++def test_rewards_use_world_xy_independently_of_head_yaw(yaw, velocity):
+     env = state_env()
+     data = env.scene['robot'].data
+     rotation = torch.tensor([math.cos(yaw / 2), 0., 0., math.sin(yaw / 2)]).expand(2, -1)
+     data.body_link_quat_w[:, 0] = quat_mul(rotation, data.body_link_quat_w[:, 0])
++    data.body_link_pos_w[:, -1, :2] = torch.tensor([-.6 * math.cos(yaw), -.6 * math.sin(yaw)])
+     forward, lateral, vertical = velocity
+     data.body_com_lin_vel_w[:] = torch.tensor([
+         forward * math.cos(yaw) - lateral * math.sin(yaw),
+         forward * math.sin(yaw) + lateral * math.cos(yaw), vertical,
+     ])
+     data.body_link_lin_vel_w[:, 0] = 999.
+-    torch.testing.assert_close(mdp.forward_speed(env), torch.full((2,), forward), atol=1e-7, rtol=1e-6)
+-    torch.testing.assert_close(mdp.lateral_speed_cost(env), torch.full((2,), abs(lateral)), atol=1e-7, rtol=1e-6)
+-    torch.testing.assert_close(mdp.vertical_speed_cost(env), torch.full((2,), abs(vertical)), atol=1e-7, rtol=1e-6)
++    torch.testing.assert_close(mdp.head_forward_velocity(env), torch.full((2,), forward), atol=1e-7, rtol=1e-6)
++    expected_x = forward * math.cos(yaw) - lateral * math.sin(yaw)
++    torch.testing.assert_close(mdp.head_forward_speed(env), torch.full((2,), min(expected_x, .2)), atol=1e-7, rtol=1e-6)
++    torch.testing.assert_close(mdp.head_lateral_speed_cost(env), torch.full((2,), abs(forward * math.sin(yaw) + lateral * math.cos(yaw)) * min(1., 5. * max(expected_x, 0))), atol=1e-7, rtol=1e-6)
++    torch.testing.assert_close(mdp.head_vertical_speed_cost(env), torch.full((2,), abs(vertical)), atol=1e-7, rtol=1e-6)
+ 
+ 
+ @pytest.mark.parametrize('sign', [-1., 1.])
+@@ -142,13 +178,13 @@ def test_target_limit_penalty_uses_commanded_target_and_stops_after_release(sign
+     env = state_env()
+     target = env.action_manager.get_term('joint_pos').commanded_target
+     term = env.cfg.rewards['target_saturation_fraction']
+-    target[0, :3] = sign * math.pi / 2
+-    target[1] = sign * (math.pi / 2 - .002)
++    target[0, :3] = sign * (math.pi / 3)
++    target[1] = sign * (math.pi / 3 - .002)
+     torch.testing.assert_close(term.func(env) * term.weight, torch.tensor([-.05, 0.]))
+     # The target can saturate before the physical joint reaches its limit.
+     assert not env.scene['robot'].data.joint_pos.any()
+     torch.testing.assert_close(term.func(env) * term.weight, torch.tensor([-.05, 0.]))
+     target[:] = 0.
+     torch.testing.assert_close(term.func(env), torch.zeros(2))
+-    target[:] = sign * math.pi / 2
++    target[:] = sign * (math.pi / 3)
+     torch.testing.assert_close(term.func(env) * term.weight, torch.full((2,), -.1))
+diff --git a/tests/test_snake_world_viewer.py b/tests/test_snake_world_viewer.py
+index bfb8c75..00b025b 100644
+--- a/tests/test_snake_world_viewer.py
++++ b/tests/test_snake_world_viewer.py
+@@ -1,4 +1,4 @@
+-"""世界X任务可视化不随蛇头旋转，旧指令控制仅供旧模型。"""
++"""蛇形奖励方向箭头随头部旋转，独立于头尾连线。"""
+ 
+ import math
+ from types import SimpleNamespace
+@@ -19,7 +19,8 @@ def test_snake_forward_and_actual_velocity_arrows_share_site_origin(yaw):
+     data = env.scene['robot'].data
+     rotation = torch.tensor([math.cos(yaw / 2), 0., 0., math.sin(yaw / 2)])
+     data.body_link_quat_w[:, 0] = quat_mul(rotation.expand(2, -1), data.body_link_quat_w[:, 0])
+-    data.site_pos_w = torch.tensor([[[1., 2., .3]], [[3., 4., .5]]])
++    data.site_pos_w = torch.tensor([[[1., 2., .3], [1., 2., .3]], [[3., 4., .5], [3., 4., .5]]])
++    data.site_pos_w[:, 1, :2] -= torch.tensor([.6, 0.])
+     velocity = torch.tensor([.2, -.1, .1])
+     data.body_com_lin_vel_w[:] = velocity
+     term = SnakeVelocityCommandCfg(resampling_time_range=(5., 9.), debug_vis=True).build(env)
+diff --git a/tests/test_task_contracts.py b/tests/test_task_contracts.py
+index fa7df53..46a03f3 100644
+--- a/tests/test_task_contracts.py
++++ b/tests/test_task_contracts.py
+@@ -92,7 +92,7 @@ def test_new_snake_teacher_has_an_independent_nonwalking_registration(play):
+     assert list(cfg.commands) == ["motion"]
+     assert cfg.observations["actor"].terms["snake"].func is snake_mdp.actor_state
+     assert cfg.observations["critic"].terms["snake"].func is snake_mdp.critic_state
+-    assert (snake_mdp.ACTOR_DIM, snake_mdp.CRITIC_DIM) == (40, 55)
++    assert (snake_mdp.ACTOR_DIM, snake_mdp.CRITIC_DIM) == (51, 66)
+     assert load_rl_cfg(task).experiment_name == "zbot_snake_omni_teacher"
+     from zbot_rl_mjlab.experiments.snake import SnakeTeacherRunner
+ 
+diff --git a/train.sh b/train.sh
+index cbb2115..afa5682 100755
+--- a/train.sh
++++ b/train.sh
+@@ -117,7 +117,14 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
+ #   --agent.max-iterations 500 \
+ #   --agent.run-name translation_stall_v2
+ 
++# python train.py Mjlab-Zbot-6dof-Snake-Omni-Teacher \
++#   --env.scene.num-envs 8192 \
++#   --agent.max-iterations 1500 \
++#   --agent.run-name beta_body_v3
++
+ python train.py Mjlab-Zbot-6dof-Snake-Omni-Teacher \
+-  --env.scene.num-envs 8192 \
+-  --agent.max-iterations 500 \
++  --agent.resume True \
++  --agent.load-run 2026-10-19_16-45-28_beta_body_v3 \
++  --agent.load-checkpoint model_1499.pt \
++  --agent.max-iterations 1500 \
+   --agent.run-name beta_body_v3
+\ No newline at end of file

@@ -75,7 +75,7 @@ def test_metrics_manager_keeps_matching_episode_exposure_denominators(monkeypatc
 def test_current_task_omits_group_metrics_but_keeps_legacy_helpers(monkeypatch):
     env, _, _ = group_env(monkeypatch)
     cfg = snake_env_cfg()
-    assert len(cfg.metrics) == 10
+    assert len(cfg.metrics) == 19
     assert not any(name.startswith(('group_', 'translation_curriculum_')) for name in cfg.metrics)
     for axis, name in enumerate(('x', 'y', 'z')):
         assert cfg.metrics[f'world_velocity_{name}'].func is mdp.world_velocity_component

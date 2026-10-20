@@ -42,14 +42,15 @@ def test_simulation_thread_changes_velocity_and_mode_without_touching_physics():
     instance = object.__new__(FollowCameraViewer)
     instance._universal_controls = True
     instance.env = cast(RslRlVecEnvWrapper, SimpleNamespace(unwrapped=env))
+    instance.env_idx = 0
     for payload in ("motion_forward", "motion_left", "motion_turn_left", "transform_snake"):
         assert instance._handle_custom_action(ViewerAction.CUSTOM, payload)
     assert term.requested_velocity[0].tolist() == pytest.approx([.05, .05, .1])
-    assert term.command[:, 0].eq(-1).all()
-    assert term.manual_control.all()
+    assert term.standing_mode.tolist() == [False, True]
+    assert term.manual_control.tolist() == [True, False]
     assert instance._handle_custom_action(ViewerAction.CUSTOM, "motion_stop")
     assert term.requested_velocity.eq(0).all()
-    assert term.command[:, 0].eq(-1).all()
+    assert term.standing_mode.tolist() == [False, True]
     torch.testing.assert_close(joints, initial_joints)
     torch.testing.assert_close(targets, initial_targets)
     assert len(observations) == 5

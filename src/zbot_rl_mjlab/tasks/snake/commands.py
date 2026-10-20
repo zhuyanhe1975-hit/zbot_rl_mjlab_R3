@@ -146,9 +146,15 @@ class SnakeVelocityCommand(CommandTerm):
 
     def _debug_vis_impl(self, visualizer):
         """运动site原点显示平滑后的指令：蓝色平移、橙色偏航（向上为正）。"""
-        from .mdp import motion_axes, motion_site_index, world_com_velocity
+        from .mdp import (
+            motion_axes,
+            motion_site_index,
+            world_com_velocity,
+        )
 
         indices = visualizer.get_env_indices(self.num_envs)
+        if getattr(self.cfg, 'debug_vis_selected_only', False) and hasattr(visualizer, 'env_idx'):
+            indices = [visualizer.env_idx] if visualizer.env_idx in indices else []
         if not indices:
             return
         origins = self._env.scene["robot"].data.site_pos_w[:, motion_site_index(self._env)]
@@ -160,8 +166,14 @@ class SnakeVelocityCommand(CommandTerm):
                 (world_com_velocity(self._env) / .25, (.1, 1., .2, .9)),
             )
         else:
-            forward, left = motion_axes(self._env)
-            normalized = self.command / self.command.new_tensor(self.cfg.velocity_limits)
+            if getattr(self._env.cfg, 'omni_site_frame', False):
+                from ..universal.mdp import heading
+
+                forward = heading(self._env)
+                left = torch.stack((-forward[:, 1], forward[:, 0]), -1)
+            else:
+                forward, left = motion_axes(self._env)
+            normalized = self.velocity_command / self.velocity_command.new_tensor(self.cfg.velocity_limits)
             linear = torch.zeros_like(origins)
             linear[:, :2] = forward * normalized[:, :1] + left * normalized[:, 1:2]
             yaw = torch.zeros_like(origins)

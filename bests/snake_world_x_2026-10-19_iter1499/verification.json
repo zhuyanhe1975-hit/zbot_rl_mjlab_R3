@@ -1,0 +1,64 @@
+{
+  "strict_actor_load": true,
+  "device": "cuda:0",
+  "num_envs": 8,
+  "seconds": 30.0,
+  "initial_heading": "play默认世界+X，初始关节全零",
+  "stochastic": false,
+  "auto_reset": false,
+  "failures": 0,
+  "first_failure_step": [
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1
+  ],
+  "mean_world_x_speed_m_s": 0.0828000158071518,
+  "mean_abs_world_y_speed_m_s": 0.050901077687740326,
+  "per_env_displacement_xy_m": [
+    [
+      2.485930919647217,
+      -1.089738368988037
+    ],
+    [
+      2.4803013801574707,
+      -1.1272201538085938
+    ],
+    [
+      2.4948229789733887,
+      -1.1275014877319336
+    ],
+    [
+      2.47438907623291,
+      -1.1389236450195312
+    ],
+    [
+      2.503812313079834,
+      -1.1453564167022705
+    ],
+    [
+      2.5202887058258057,
+      -1.1451029777526855
+    ],
+    [
+      2.4948432445526123,
+      -1.1032555103302002
+    ],
+    [
+      2.494880199432373,
+      -1.142695426940918
+    ]
+  ],
+  "actor_dim": 51,
+  "critic_dim": 66,
+  "limits": "固定默认初态仿真回放；未验证全随机朝向、扰动或实机。",
+  "checkpoint_sha256": "9001840bb1d9f11ad8f70d4a68417ae1b0baf129b3c14c6e85f34abdc3ce41ce",
+  "archive_contract_tests": {
+    "command": "./scripts/python.sh -m pytest -q tests/test_bests.py",
+    "passed": 24
+  }
+}
