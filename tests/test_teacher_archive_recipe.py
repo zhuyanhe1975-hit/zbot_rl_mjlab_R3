@@ -7,7 +7,8 @@ import pytest
 import yaml
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 
-from zbot_rl_mjlab.omni_teacher import OmniTeacherRunnerCfg, omni_teacher_ppo_cfg
+from zbot_rl_mjlab.experiments.omni_teacher import omni_teacher_ppo_cfg
+from zbot_rl_mjlab.omni_teacher import OmniTeacherRunnerCfg
 from zbot_rl_mjlab.tasks.universal.actions import SnakeCrawlJointTargetRateActionCfg
 from zbot_rl_mjlab.tasks.universal.privileged import PrivilegedOmniCommandCfg
 

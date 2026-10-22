@@ -1,5 +1,7 @@
 # 多教师蒸馏综合运动任务
 
+> 历史实验记录：当前默认是[实验20 base蛇形教师](experiment20-base-adaptive-snake.md)。本文中的旧默认入口和 `ZBOT_EXPERIMENT` / `ZBOT_SKILL` 属于当时用法；当前train/run保留原命令和注释选择方式，命令行自定义参数使用Python入口，见[项目入口](../README.md)。项目外完整快照已于2026-10-21按要求删除，文内旧备份路径仅为历史记录。
+
 任务 ID：`Mjlab-Zbot-6dof-Universal-Locomotion`。
 
 本任务将双足运动、蛇形运动与双向变形放入同一个环境，由一个学生策略处理目标构型与三维速度指令。已有行走和双向变形模型作为冻结教师参与训练，最终回放只加载学生检查点。

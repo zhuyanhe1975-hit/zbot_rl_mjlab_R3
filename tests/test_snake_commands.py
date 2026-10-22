@@ -8,9 +8,9 @@ import pytest
 import torch
 from mjlab.envs import ManagerBasedRlEnv
 
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 from zbot_rl_mjlab.tasks.snake import mdp
 from zbot_rl_mjlab.tasks.snake.commands import SnakeVelocityCommandCfg
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
 
 
 def command_env(num_envs=8, training=False):

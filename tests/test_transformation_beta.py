@@ -46,7 +46,7 @@ def make_actor(task_id):
 def test_beta_registry_is_explicit_and_original_gaussian_tasks_are_unchanged():
     beta = load_agent(reverse.BETA_TASK_ID)
     assert beta.experiment_name == "zbot_transform_snake_to_biped_beta"
-    assert beta.max_iterations == 4000
+    assert beta.max_iterations == 1000  # Archived launch plan; checkpoint2550 used later resume/hot updates.
     assert beta.actor.distribution_cfg == {
         "class_name": "BetaDistribution",
         "action_range": (-1.0, 1.0),

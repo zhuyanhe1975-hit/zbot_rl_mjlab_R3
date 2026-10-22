@@ -1,0 +1,20 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "纯双足对照教师",
+  "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Wide-Biped",
+  "inherits": "universal_snake_leg_omni_teacher.json",
+  "env": {
+    "actions": {
+      "joint_pos": {
+        "biped_residual_scale": 0.375
+      }
+    },
+    "commands": {
+      "transform": {
+        "mode": "stand",
+        "task_observation_encoding": "scalar"
+      }
+    }
+  }
+}

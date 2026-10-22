@@ -1,0 +1,56 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "受扰平足行走",
+  "task_id": "Mjlab-Zbot-6dof-Flat-Foot-Velocity-Energy-Disturbed-Walking",
+  "inherits": "flat_foot_velocity_energy.json",
+  "addons": {
+    "BaseDisturbance": {
+      "force_range": [
+        -5.0,
+        5.0
+      ],
+      "torque_range": [
+        -0.5,
+        0.5
+      ],
+      "duration_s": [
+        0.08,
+        0.2
+      ],
+      "cooldown_s": [
+        0.8,
+        2.0
+      ],
+      "disturbed_fraction": 0.25
+    },
+    "DomainRandomization": {
+      "friction_range": [
+        0.3,
+        1.2
+      ],
+      "geom_names": [
+        "a1_geom",
+        "b6_geom"
+      ],
+      "encoder_bias_range": [
+        -0.015,
+        0.015
+      ],
+      "base_com_ranges": {
+        "0": [
+          -0.025,
+          0.025
+        ],
+        "1": [
+          -0.025,
+          0.025
+        ],
+        "2": [
+          -0.03,
+          0.03
+        ]
+      }
+    }
+  }
+}

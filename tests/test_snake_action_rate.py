@@ -8,14 +8,16 @@ from mjlab.envs import mdp as common_mdp
 from mjlab.managers.reward_manager import RewardManager
 from test_snake_task import state_env
 
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
+from zbot_rl_mjlab.experiments.site_snake import site_snake_env_cfg
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 
 
 @pytest.mark.parametrize('play', [False, True])
-def test_train_and_play_use_g1_action_rate_cost(play):
-    term = snake_env_cfg(play=play).rewards['action_rate']
+@pytest.mark.parametrize('factory,weight', [(snake_env_cfg, -.0), (site_snake_env_cfg, -.002)])
+def test_train_and_play_use_g1_action_rate_cost(play, factory, weight):
+    term = factory(play=play).rewards['action_rate']
     assert term.func is common_mdp.action_rate_l2
-    assert term.weight == -.0
+    assert term.weight == weight
 
 
 def test_action_rate_uses_raw_action_difference_and_constant_actions_are_free():

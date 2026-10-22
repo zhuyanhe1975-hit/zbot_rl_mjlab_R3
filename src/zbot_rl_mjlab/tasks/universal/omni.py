@@ -40,7 +40,8 @@ class OmniCommand(DeploymentCommand):
 def motion_site_index(env):
     """Resolve the asset index once; all per-step frame math stays on the device."""
     if not hasattr(env, '_omni_motion_site_index'):
-        env._omni_motion_site_index = env.scene['robot'].find_sites('foot_0_sole')[0][0]
+        name = getattr(getattr(env, 'cfg', None), 'motion_site', 'foot_0_sole')
+        env._omni_motion_site_index = env.scene['robot'].find_sites(name)[0][0]
     return env._omni_motion_site_index
 
 

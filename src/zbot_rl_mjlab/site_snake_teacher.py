@@ -6,38 +6,30 @@ from pathlib import Path
 from typing import Any, cast
 
 import torch
-from rsl_rl.modules import BetaDistribution
+from rsl_rl.modules import BetaDistribution, GaussianDistribution
 
-from .omni_teacher import OmniTeacherRunner, OmniTeacherRunnerCfg, omni_teacher_ppo_cfg
+from zbot_rl_mjlab.omni_teacher import OmniTeacherRunner
+
 from .tasks.snake.site_omni import SiteSnakeCommandCfg, SiteSnakeEnvCfg
 from .tasks.universal.actions import SnakeCrawlJointTargetRateActionCfg
-
-
-def site_snake_ppo_cfg() -> OmniTeacherRunnerCfg:
-    cfg = omni_teacher_ppo_cfg()
-    cfg.class_name = 'zbot_rl_mjlab.site_snake_teacher:SiteSnakeTeacherRunner'
-    # Successful snake iter1499:256/128 ELU, normalized Beta,1e-3/.002.
-    cfg.algorithm.learning_rate = 1e-3
-    cfg.algorithm.entropy_coef = .002
-    cfg.console_mode = 'full'
-    cfg.validation_interval_iterations = 0
-    cfg.robust_validation_interval = 0
-    return cfg
+from .tasks.universal.observation_layout import SITE_SNAKE_OBS_DIM
 
 
 class SiteSnakeTeacherRunner(OmniTeacherRunner):
     @staticmethod
     def _metadata_schema() -> dict[str, Any]:
         return {
-            'role': 'privileged_site_snake_omni_teacher', 'schema_version': 3,
-            'actor_obs_dim': 56, 'critic_obs_dim': 56, 'action_dim': 6,
-            'snake_omni_version': 3, 'objective': 'site_velocity_tracking',
-            'tracking_point': 'foot_0_sole', 'reward_recipe': 'zbot_snake_velocity_limits_tilt_v5',
+            'role': 'privileged_site_snake_omni_teacher', 'schema_version': 6,
+            'actor_obs_dim': SITE_SNAKE_OBS_DIM, 'critic_obs_dim': SITE_SNAKE_OBS_DIM, 'action_dim': 6,
+            'snake_omni_version': 12, 'objective': 'site_velocity_tracking',
+            'observation_recipe': 'site_head_frame_error_gravity_v2',
+            'tracking_point': 'foot_0_sole', 'reward_recipe': 'zbot_snake_head_frame_relative_clipped_v16',
             'motion_site': 'foot_0_sole',
             'command_axes': ('site_minus_z_gravity_aligned', 'left', 'world_plus_z'),
-            'distribution': 'BetaDistribution', 'action_range': (-1., 1.),
+            'distribution': 'GaussianDistribution', 'action_range': (-1., 1.),
+            'action_clipping': 'hard_clip_before_target_integration',
             'action_control': 'integrated_joint_target_velocity',
-            'qualification_protocol': 'site_snake_omni_v3',
+            'qualification_protocol': 'site_snake_omni_v4',
         }
 
     @classmethod
@@ -51,10 +43,23 @@ class SiteSnakeTeacherRunner(OmniTeacherRunner):
         limits = metadata.get('velocity_limits')
         if (not isinstance(limits, tuple) or len(limits) != 3
                 or any(type(value) not in (int, float) or not math.isfinite(value) or value <= 0 for value in limits)
-                or metadata.get('joint_target_limit') != math.pi / 3
-                or metadata.get('max_target_speed') != 2 * math.pi):
+                or any(not isinstance(value, (int, float)) or isinstance(value, bool)
+                       or not math.isfinite(value) or value <= 0
+                       for value in (metadata.get('joint_target_limit'), metadata.get('max_target_speed'),
+                                     metadata.get('snake_target_limit', metadata.get('joint_target_limit'))))):
             raise ValueError('site snake checkpoint control limits are invalid')
         return metadata
+
+    @classmethod
+    def _validate_playback_checkpoint(cls, saved: dict) -> dict:
+        return cls._validate_checkpoint(saved)
+
+    @staticmethod
+    def _restore_action_cfg(env_cfg, metadata):
+        action = env_cfg.actions['joint_pos']
+        action.target_limit = metadata['joint_target_limit']
+        action.snake_target_limit = metadata.get('snake_target_limit', metadata['joint_target_limit'])
+        action.max_target_speed = metadata['max_target_speed']
 
     @staticmethod
     def prepare_playback_env_cfg(env_cfg, checkpoint: str | Path) -> None:
@@ -65,31 +70,36 @@ class SiteSnakeTeacherRunner(OmniTeacherRunner):
         command.mode = 'snake'
         command.task_observation_encoding = 'scalar'
         command.velocity_limits = metadata['velocity_limits']
+        SiteSnakeTeacherRunner._restore_action_cfg(env_cfg, metadata)
 
     def _schema(self) -> dict[str, Any]:
         schema = super()._schema()
         env_cfg = cast(SiteSnakeEnvCfg, self.env.unwrapped.cfg)
         if not getattr(env_cfg, 'site_snake_omni', False):
             raise ValueError('site snake runner requires its independent environment')
-        if not env_cfg.omni_site_frame or env_cfg.motion_site != 'foot_0_sole':
-            raise ValueError('site snake teacher requires the foot_0_sole coordinate frame')
+        expected_site = self._metadata_schema()['motion_site']
+        if not env_cfg.omni_site_frame or env_cfg.motion_site != expected_site:
+            raise ValueError(f'site snake teacher requires the {expected_site} coordinate frame')
         command = cast(SiteSnakeCommandCfg, env_cfg.commands['transform'])
         action = cast(SnakeCrawlJointTargetRateActionCfg, env_cfg.actions['joint_pos'])
-        if (schema['actor_obs_dim'], schema['critic_obs_dim'], schema['action_dim']) != (56, 56, 6) or command.mode != 'snake':
-            raise ValueError('site snake teacher requires 56-dimensional observations,6 actions,and fixed snake mode')
-        if action.target_limit != math.pi / 3 or action.max_target_speed != 2 * math.pi:
-            raise ValueError('site snake control contract requires pi/3 target limits and 2*pi target speed')
+        expected_dim = self._metadata_schema()['actor_obs_dim']
+        if ((schema['actor_obs_dim'], schema['critic_obs_dim'], schema['action_dim'])
+                != (expected_dim, expected_dim, 6) or command.mode != 'snake'):
+            raise ValueError(f'site snake teacher requires {expected_dim}-dimensional observations,6 actions,and fixed snake mode')
         return schema | self._metadata_schema() | {
             'velocity_limits': command.velocity_limits,
             'joint_target_limit': action.target_limit,
+            'snake_target_limit': action.snake_target_limit,
             'max_target_speed': action.max_target_speed,
         }
 
     def __init__(self, env, train_cfg, log_dir=None, device='cpu'):
         super().__init__(env, train_cfg, log_dir, device)
         distribution = self.alg.actor.distribution
-        if not isinstance(distribution, BetaDistribution) or tuple(distribution.action_range) != (-1., 1.):
-            raise ValueError('site snake teacher requires the archived bounded Beta policy')
+        expected_distribution = (BetaDistribution if self._metadata_schema()['distribution'] == 'BetaDistribution'
+                                 else GaussianDistribution)
+        if not isinstance(distribution, expected_distribution):
+            raise TypeError(f'site snake teacher requires a {expected_distribution.__name__} policy')
         self._schema()
         from .site_snake_evaluation import SiteSnakeEvaluator
 
@@ -138,7 +148,8 @@ class SiteSnakeTeacherRunner(OmniTeacherRunner):
 
     def load(self, path, load_cfg=None, strict=True, map_location=None):
         saved = torch.load(path, map_location='cpu', weights_only=False)
-        self._validate_checkpoint(saved)
+        validator = self._validate_checkpoint if self._training else self._validate_playback_checkpoint
+        validator(saved)
         for name, model in (('actor', self.alg.actor), ('critic', self.alg.critic)):
             if load_cfg is not None and not load_cfg.get(name, False):
                 continue

@@ -13,6 +13,7 @@ from zbot_rl_mjlab.rl import RobustSnakeToBipedRunner
 from zbot_rl_mjlab.tasks.transformation import commanded, mdp, robust
 from zbot_rl_mjlab.tasks.transformation import snake_to_biped as standing
 from zbot_rl_mjlab.tasks.transformation.commanded import BidirectionalEnvCfg
+from zbot_rl_mjlab.tasks.transformation.poses import SNAKE_ROOT_QUAT
 
 
 def environment():
@@ -427,7 +428,7 @@ def test_standing_pose_requires_world_gravity_alignment_not_just_joint_angles():
     from test_transformation_gravity_alignment import fk_environment
 
     values = []
-    for root in ((1., 0., 0., 0.), standing.SNAKE_ROOT_QUAT):
+    for root in ((1., 0., 0., 0.), SNAKE_ROOT_QUAT):
         env = fk_environment(root=root)
         env.cfg = SnakeBipedBidirectional().build_env()
         assert isinstance(env.cfg, BidirectionalEnvCfg)
@@ -460,7 +461,7 @@ def test_lying_target_joints_keep_ascent_drive_and_height_latch_still_stops_it()
     term._command.fill_(1)
     data = env.scene["robot"].data
     data.body_link_pos_w[:, 6, 2] = torch.tensor([0.136, 0.0526])
-    lying = fk_environment(root=standing.SNAKE_ROOT_QUAT)
+    lying = fk_environment(root=SNAKE_ROOT_QUAT)
     data.body_link_quat_w[:, 6] = lying.scene["robot"].data.body_link_quat_w[0, 0].float()
     data.body_link_lin_vel_w[:, 6, 2] = 0.02
     full = standing.base_ascent_velocity_reward(env, target_speed=0.15)
@@ -481,7 +482,7 @@ def test_spatial_velocity_fade_is_smooth_and_stronger_for_upright_body():
     data = env.scene["robot"].data
     data.body_link_pos_w[:, 6, 2] = 0.20
     data.body_link_lin_vel_w[:, 6, 2] = 0.02
-    lying = fk_environment(root=standing.SNAKE_ROOT_QUAT)
+    lying = fk_environment(root=SNAKE_ROOT_QUAT)
     data.body_link_quat_w[1, 6] = lying.scene["robot"].data.body_link_quat_w[0, 0].float()
     value = commanded.velocity_reward(env)
     assert 0 < value[0] < value[1]

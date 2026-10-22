@@ -1,13 +1,11 @@
-"""变形任务共用场景，以及双足转蛇形的行为装配。"""
+"""变形任务共用的配置类型、机器人与物理场景。"""
 
 from dataclasses import dataclass
 
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as common_mdp
 from mjlab.managers.event_manager import EventTermCfg
-from mjlab.managers.metrics_manager import MetricsTermCfg
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
-from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.scene import SceneCfg
 from mjlab.sim import MujocoCfg, SimulationCfg
@@ -125,23 +123,3 @@ def transformation_scene_cfg(play=False, cfg_cls=TransformationEnvCfg, action_cf
             origin_type=ViewerConfig.OriginType.WORLD,
         ),
     )
-
-
-def transformation_env_cfg(play=False, cfg_cls=BipedToSnakeEnvCfg):
-    """装配下降方向，默认创建下降专用配置。"""
-    cfg = transformation_scene_cfg(play=play, cfg_cls=cfg_cls)
-    cfg.rewards = {
-        "joint_zero": RewardTermCfg(func=mdp.joint_zero_reward, weight=3.0),
-        "com_descent_velocity": RewardTermCfg(
-            func=mdp.com_descent_velocity_reward,
-            weight=1.0,
-            params={"target_speed": 0.03},
-        ),
-        "joint_symmetry": RewardTermCfg(func=mdp.joint_symmetry_cost, weight=-0.5),
-    }
-    cfg.metrics = {
-        "joint_error": MetricsTermCfg(func=mdp.joint_error_metric),
-        "com_height": MetricsTermCfg(func=mdp.com_height),
-        "success": MetricsTermCfg(func=mdp.success, reduce="last"),
-    }
-    return cfg

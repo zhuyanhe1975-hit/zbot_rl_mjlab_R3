@@ -67,7 +67,7 @@ def velocity(env):
 
 
 def tracking_velocity(env):
-    """独立 site 蛇任务跟踪 foot_0_sole；其余任务保留原来的质心参考。"""
+    """独立蛇任务跟踪配置的运动site；其余任务保留质心参考。"""
     if getattr(env.cfg, 'site_snake_omni', False):
         from .omni import site_velocity
 
@@ -135,9 +135,12 @@ def gait_observation(env):
 
 
 def heading_error(env):
-    """以初始有效前向为零点，符号沿用既有行走教师。"""
+    """旧任务保留初始 heading 误差；site 蛇任务无朝向目标，专用观测删除此槽。"""
+    term = command_term(env)
+    if getattr(env.cfg, 'site_snake_omni', False) and not getattr(env.cfg, 'archive_site_checkpoint', False):
+        return torch.zeros_like(term.velocity_command[:, 2])
     forward = heading(env)
-    initial = command_term(env).initial_heading
+    initial = term.initial_heading
     cross = forward[:, 0] * initial[:, 1] - forward[:, 1] * initial[:, 0]
     return torch.atan2(cross, (forward * initial).sum(-1))
 

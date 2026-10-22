@@ -1,0 +1,15 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "固定前进放松对照B",
+  "task_id": "Mjlab-Zbot-6dof-Snake-Site-Forward-Relaxed-Teacher",
+  "inherits": "snake_site_forward_teacher.json",
+  "rewards": {
+    "track_lateral_velocity": {
+      "weight": 0.0
+    },
+    "track_angular_velocity": {
+      "weight": 0.0
+    }
+  }
+}

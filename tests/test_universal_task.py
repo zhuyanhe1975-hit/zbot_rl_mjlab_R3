@@ -6,10 +6,10 @@ import pytest
 import torch
 from mjlab.envs import ManagerBasedRlEnv
 
+from zbot_rl_mjlab.experiments.universal import universal_env_cfg
 from zbot_rl_mjlab.tasks.transformation.actions import JointTargetRateActionCfg
 from zbot_rl_mjlab.tasks.universal import mdp
 from zbot_rl_mjlab.tasks.universal.commands import UniversalCommandCfg
-from zbot_rl_mjlab.tasks.universal.env_cfg import universal_env_cfg
 
 
 def command_env():

@@ -1,5 +1,7 @@
 # 蛇足全向：site坐标、键盘与计算效率
 
+> 历史实验记录：当前默认是[实验20 base蛇形教师](experiment20-base-adaptive-snake.md)。本文中的旧默认入口和 `ZBOT_EXPERIMENT` / `ZBOT_SKILL` 属于当时用法；当前train/run保留原命令和注释选择方式，命令行自定义参数使用Python入口，见[项目入口](../README.md)。项目外完整快照已于2026-10-21按要求删除，文内旧备份路径仅为历史记录。
+
 > 学生训练当前暂缓，先进行[全能特权教师训练](privileged-omni-teacher.md)。`train.sh` 已切到教师任务；本文保留学生实验与前期研究记录。
 
 当前实验：`Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Deploy`，日志目录 `logs/rsl_rl/zbot_universal_snake_leg_omni_deploy/`。这是独立新任务；旧四教师/世界X实验、walking实验及归档文件保留原语义。

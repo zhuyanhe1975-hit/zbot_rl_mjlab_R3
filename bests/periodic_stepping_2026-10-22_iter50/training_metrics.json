@@ -1,0 +1,142 @@
+{
+  "Metrics/landing_force_peak": {
+    "step": 50,
+    "value": 5.172776699066162,
+    "wall_time": 1792627117.9811633
+  },
+  "Metrics/landing_impulse": {
+    "step": 50,
+    "value": 0.06476983428001404,
+    "wall_time": 1792627117.9815083
+  },
+  "Episode_Reward/frequency_tracking": {
+    "step": 50,
+    "value": 2.230372428894043,
+    "wall_time": 1792627117.9817357
+  },
+  "Episode_Reward/swing_clearance": {
+    "step": 50,
+    "value": 0.33928388357162476,
+    "wall_time": 1792627117.9820766
+  },
+  "Episode_Reward/lateral_velocity": {
+    "step": 50,
+    "value": -0.002113576978445053,
+    "wall_time": 1792627117.9823117
+  },
+  "Episode_Reward/upright": {
+    "step": 50,
+    "value": 0.19575127959251404,
+    "wall_time": 1792627117.9825172
+  },
+  "Episode_Reward/yaw_drift": {
+    "step": 50,
+    "value": -0.018333224579691887,
+    "wall_time": 1792627117.98267
+  },
+  "Episode_Reward/support_foot_slip": {
+    "step": 50,
+    "value": -0.09237518161535263,
+    "wall_time": 1792627117.982823
+  },
+  "Episode_Reward/soft_landing": {
+    "step": 50,
+    "value": -0.013995036482810974,
+    "wall_time": 1792627117.982975
+  },
+  "Episode_Reward/foot_nonparallel_ground": {
+    "step": 50,
+    "value": -0.005689089652150869,
+    "wall_time": 1792627117.9831276
+  },
+  "Episode_Reward/action_rate": {
+    "step": 50,
+    "value": -0.11340659856796265,
+    "wall_time": 1792627117.9833674
+  },
+  "Episode_Reward/joint_limits": {
+    "step": 50,
+    "value": 0.0,
+    "wall_time": 1792627117.9836044
+  },
+  "Episode_Reward/joint_acceleration": {
+    "step": 50,
+    "value": -0.23375260829925537,
+    "wall_time": 1792627117.9839087
+  },
+  "Episode_Reward/planar_velocity": {
+    "step": 50,
+    "value": -0.082450270652771,
+    "wall_time": 1792627117.9840806
+  },
+  "Episode_Termination/time_out": {
+    "step": 50,
+    "value": 13.291666984558105,
+    "wall_time": 1792627117.9847982
+  },
+  "Episode_Termination/fallen": {
+    "step": 50,
+    "value": 0.0,
+    "wall_time": 1792627117.985189
+  },
+  "Loss/value": {
+    "step": 50,
+    "value": 0.0034479156602174044,
+    "wall_time": 1792627117.9852154
+  },
+  "Loss/surrogate": {
+    "step": 50,
+    "value": 0.0003834536764770746,
+    "wall_time": 1792627117.9852202
+  },
+  "Loss/entropy": {
+    "step": 50,
+    "value": -0.07116340100765228,
+    "wall_time": 1792627117.985223
+  },
+  "Loss/learning_rate": {
+    "step": 50,
+    "value": 0.0010000000474974513,
+    "wall_time": 1792627117.9852264
+  },
+  "Policy/mean_std": {
+    "step": 50,
+    "value": 0.23935185372829437,
+    "wall_time": 1792627117.9852583
+  },
+  "Perf/total_fps": {
+    "step": 50,
+    "value": 405624.0,
+    "wall_time": 1792627117.9852638
+  },
+  "Perf/collection_time": {
+    "step": 50,
+    "value": 0.4297964572906494,
+    "wall_time": 1792627117.9852667
+  },
+  "Perf/learning_time": {
+    "step": 50,
+    "value": 0.054907798767089844,
+    "wall_time": 1792627117.9852695
+  },
+  "Train/mean_reward": {
+    "step": 50,
+    "value": 44.44741439819336,
+    "wall_time": 1792627117.9853249
+  },
+  "Train/mean_episode_length": {
+    "step": 50,
+    "value": 1000.0,
+    "wall_time": 1792627117.985346
+  },
+  "Train/mean_reward/time": {
+    "step": 24,
+    "value": 44.44741439819336,
+    "wall_time": 1792627117.9855042
+  },
+  "Train/mean_episode_length/time": {
+    "step": 24,
+    "value": 1000.0,
+    "wall_time": 1792627117.9855616
+  }
+}

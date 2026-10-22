@@ -9,8 +9,8 @@ from test_snake_body_yaw import set_body_heading
 from test_snake_task import state_env
 from test_snake_yaw import set_heading
 
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 from zbot_rl_mjlab.tasks.snake import mdp
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
 
 
 def integral_env(dt=.1):

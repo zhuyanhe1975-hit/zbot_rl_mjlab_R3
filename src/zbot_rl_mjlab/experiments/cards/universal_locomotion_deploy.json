@@ -1,0 +1,110 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "综合运动部署学生",
+  "task_id": "Mjlab-Zbot-6dof-Universal-Locomotion-Deploy",
+  "inherits": "universal_locomotion.json",
+  "env": {
+    "straighten_before_stand": true,
+    "commands": {
+      "transform": {
+        "forward_speed_levels": [
+          0.08,
+          0.1,
+          0.12,
+          0.15,
+          0.2
+        ],
+        "translation_training_fraction": 0.8,
+        "backward_training_speed": 0.05,
+        "lateral_training_speed": 0.05,
+        "direction_speed_multipliers": [
+          1.0,
+          1.5,
+          2.0
+        ]
+      }
+    },
+    "events": {
+      "reset_transition": {
+        "params": {
+          "bend_fraction": 0.5,
+          "bend_limit": 0.2,
+          "roll_limit_deg": 40.0
+        }
+      }
+    }
+  },
+  "rewards": {
+    "straightening": {
+      "weight": -2.0,
+      "params": {}
+    }
+  },
+  "agent": {
+    "algorithm": {
+      "validation_use_mse": false
+    },
+    "validation_randomized": false,
+    "robust_validation_interval": 100
+  },
+  "addons": {
+    "MassRandomization": {
+      "alpha_range": [
+        -0.07,
+        0.07
+      ]
+    },
+    "GainRandomization": {
+      "scale": [
+        0.7,
+        1.3
+      ]
+    },
+    "StudentDisturbance": {
+      "force_range": [
+        -5.0,
+        5.0
+      ],
+      "torque_range": [
+        -0.5,
+        0.5
+      ],
+      "duration_s": [
+        0.08,
+        0.2
+      ],
+      "cooldown_s": [
+        0.8,
+        2.0
+      ],
+      "disturbed_fraction": 0.25,
+      "pretraining_scale": 0.2,
+      "ramp_iterations": 500
+    },
+    "DomainRandomization": {
+      "friction_range": [
+        0.3,
+        1.2
+      ],
+      "geom_names": [
+        ".*"
+      ],
+      "encoder_bias_range": null,
+      "base_com_ranges": {
+        "0": [
+          -0.025,
+          0.025
+        ],
+        "1": [
+          -0.025,
+          0.025
+        ],
+        "2": [
+          -0.03,
+          0.03
+        ]
+      }
+    }
+  }
+}

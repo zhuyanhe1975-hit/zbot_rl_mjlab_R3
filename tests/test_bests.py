@@ -8,11 +8,15 @@
 
 import fnmatch
 import hashlib
+import json
 import re
+from dataclasses import make_dataclass
 from pathlib import Path
 
+import mjlab
 import pytest
 import torch
+import tyro
 import yaml
 from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.rl import RslRlOnPolicyRunnerCfg
@@ -21,8 +25,8 @@ from rsl_rl.models import MLPModel
 from tensordict import TensorDict
 
 import zbot_rl_mjlab  # noqa: F401  （注册任务）
+from zbot_rl_mjlab.archived_site_snake import ArchivedSiteSnakeTeacherRunner
 from zbot_rl_mjlab.robot import ARMATURE, DAMPING, SIM_EFFORT_LIMIT, STIFFNESS
-from zbot_rl_mjlab.site_snake_teacher import SiteSnakeTeacherRunner
 from zbot_rl_mjlab.tasks.snake.mdp import ACTOR_DIM
 from zbot_rl_mjlab.tasks.transformation.actions import MirroredJointTargetRateActionCfg
 from zbot_rl_mjlab.tasks.walking.env_cfg import ZbotEnvCfg
@@ -163,6 +167,16 @@ def test_archived_files_match_sha256_manifest(entry):
 def test_archived_model_matches_the_current_task(entry):
     task = task_of(entry)
     live = load_env_cfg(task, play=True)
+    playback_args = entry / "playback_args.json"
+    if playback_args.exists():
+        # Match bests/test.sh: archived CLI overrides are part of playback.
+        playback_config = make_dataclass('ArchivePlayback', [('env', type(live))])
+        live = tyro.cli(
+            playback_config,
+            default=playback_config(env=live),
+            args=json.loads(playback_args.read_text()),
+            config=mjlab.TYRO_FLAGS,
+        ).env
     saved = archived_env(entry)
 
     saved_terms = list(saved["observations"]["actor"]["terms"])
@@ -172,7 +186,7 @@ def test_archived_model_matches_the_current_task(entry):
 
     saved_checkpoint = checkpoint(entry)
     if task == "Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher":
-        SiteSnakeTeacherRunner._validate_checkpoint(saved_checkpoint)
+        ArchivedSiteSnakeTeacherRunner._validate_checkpoint(saved_checkpoint)
     state = saved_checkpoint["actor_state_dict"]
     obs_dim = sum(actor_term_dim(name, saved) for name in saved_terms)
     if "obs_normalizer._mean" in state:

@@ -1,0 +1,201 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "双向变形教师",
+  "task_id": "Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional",
+  "inherits": "transform_snake_to_biped_beta.json",
+  "env": {
+    "$remove": [
+      "metrics"
+    ],
+    "require_sole_support_for_positive_rewards": false,
+    "sole_alignment_angle_std_deg": 10.0,
+    "curriculum_start_stage": 2,
+    "curriculum_prepare_pose": false,
+    "first_stage_joint_weight": 3.0,
+    "standing_stage_joint_weight": 12.0,
+    "standing_stage_height_weight": 1.0,
+    "standing_stage_velocity_weight": 8.0,
+    "standing_stage_ramp_steps": 0,
+    "base_support_distance_weight": 0.0,
+    "feet_contact_weight": 0.0,
+    "pretrained_checkpoint": null,
+    "disturbance_initial_scale": 1.0,
+    "disturbance_warmup_steps": 0,
+    "disturbance_ramp_steps": 0,
+    "ascent_reward_stop_height": 0.23,
+    "fall_retry_arm_height": 0.05,
+    "fall_retry_height": 0.1,
+    "fall_retry_hold_s": 0.1,
+    "recovery_target_speed": 0.5,
+    "recovery_snake_hold_s": 0.5,
+    "recovery_target_tolerance": 0.02,
+    "initial_roll_range_deg": [
+      -180.0,
+      180.0
+    ],
+    "initial_roll_clearance": 0.0001,
+    "early_contact_motion_threshold": 0.01,
+    "early_contact_drop_threshold": 0.01,
+    "early_contact_min_down_speed": 0.03,
+    "stagnation_height_tolerance": 0.03,
+    "stagnation_joint_tolerance": 0.25,
+    "stagnation_joint_speed": 0.03,
+    "stagnation_base_speed": 0.01,
+    "stagnation_angular_speed": 0.05,
+    "stagnation_hold_s": 1.0,
+    "stagnation_grace_s": 0.3,
+    "initial_standing_fraction": 0.5,
+    "standing_pose_gravity_scale": 1.0,
+    "fall_retry_drop_threshold": 0.01,
+    "early_contact_arm_height": 0.05,
+    "actions": {
+      "joint_pos": {
+        "max_target_speed": 6.283185307179586
+      }
+    },
+    "commands": {
+      "transform": {
+        "resampling_time_range": [
+          1000000000.0,
+          1000000000.0
+        ],
+        "debug_vis": false,
+        "mode": "source",
+        "auto_switch_on_success": true,
+        "auto_switch_joint_tolerance": 0.15
+      }
+    },
+    "events": {
+      "base_disturbance": {
+        "params": {
+          "force_range": [
+            0.0,
+            0.0
+          ],
+          "torque_range": [
+            0.0,
+            0.0
+          ],
+          "duration_s": [
+            0.08,
+            0.2
+          ],
+          "cooldown_s": [
+            0.8,
+            2.0
+          ],
+          "asset_cfg": {
+            "name": "robot",
+            "joint_names": null,
+            "body_names": [
+              "base"
+            ],
+            "geom_names": null,
+            "site_names": null,
+            "actuator_names": null,
+            "tendon_names": null,
+            "camera_names": null,
+            "light_names": null,
+            "material_names": null,
+            "texture_names": null,
+            "pair_names": null,
+            "preserve_order": false
+          },
+          "body_point_offset": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "disturbed_fraction": 0.0
+        }
+      }
+    },
+    "metrics": {
+      "success": {
+        "reduce": "max"
+      }
+    }
+  },
+  "rewards": {
+    "$remove": [
+      "end_joint_flip",
+      "axial_roll_rate",
+      "initial_joint_pose",
+      "base_support_distance",
+      "joint_symmetry",
+      "both_feet_contact",
+      "sole_height",
+      "base_z_roll",
+      "base_gravity_alignment",
+      "survival"
+    ],
+    "joint_standing": {
+      "weight": 12.0
+    },
+    "base_height_progress": {
+      "weight": 1.0
+    },
+    "base_ascent_velocity": {
+      "weight": 8.0,
+      "params": {
+        "target_speed": 0.15,
+        "pose_error_range": [
+          0.2,
+          0.8
+        ]
+      }
+    },
+    "sole_ground_alignment": {
+      "weight": 1.0,
+      "params": {
+        "angle_power": 1.0
+      }
+    },
+    "stand_finish_joint_speed": {
+      "weight": -0.02,
+      "params": {}
+    },
+    "descent_ground_impact": {
+      "weight": -2.0,
+      "params": {
+        "max_body_weights": 2.0
+      }
+    }
+  },
+  "agent": {
+    "max_iterations": 600,
+    "actor": {
+      "obs_normalization": false
+    },
+    "critic": {
+      "obs_normalization": false
+    },
+    "algorithm": {
+      "learning_rate": 0.0003
+    }
+  },
+  "play": {
+    "$remove": [
+      "rewards"
+    ],
+    "env": {
+      "$remove": [
+        "curriculum_start_stage"
+      ],
+      "seed": -1,
+      "terminations": {
+        "fallen_after_standing": {
+          "params": {}
+        },
+        "early_base_ground_contact": {
+          "params": {}
+        },
+        "abandoned_exploration": {
+          "params": {}
+        }
+      }
+    }
+  },
+  "description": "依据 bests/transform_snake_biped_bidirectional_2026-10-17_iter599/model_599.pt 及同目录 env.yaml、agent.yaml、final_effective_weights.json 固定与Beta父卡片不同的双向教师配方：600训练轮数、站立关节/高度/速度权重12/1/8、随机滚转±180度、初始站立比例0.5、成功自动切换指令，以及下列恢复、冲击和关节速度约束。play保留随机seed、终止参数和第2阶段语义。不复制观测、动作类型、回调函数或运行时Scene派生字段。"
+}

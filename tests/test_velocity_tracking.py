@@ -1,24 +1,38 @@
 from types import SimpleNamespace
 
 import torch
+from mjlab.tasks.velocity.mdp import UniformVelocityCommandCfg
 
 from zbot_rl_mjlab.experiments.walking import FlatWalking, VelocityTracking
 from zbot_rl_mjlab.tasks.walking import mdp as tracking
+from zbot_rl_mjlab.tasks.walking.env_cfg import ZbotEnvCfg
 
 
 def test_tracking_inherits_flat_without_disturbances():
     for play in (False, True):
         flat = FlatWalking().build_env(play=play)
         cfg = VelocityTracking().build_env(play=play)
+        assert isinstance(cfg, ZbotEnvCfg)
         assert cfg.events == flat.events
         assert cfg.scene.sensors == flat.scene.sensors
         assert (cfg.step_frequency_min, cfg.step_frequency_max) == (0.25, 1.0)
         assert cfg.test_frequency is None
         assert cfg.frequency_sampling == "random"
-        assert cfg.commands["target_speed"].ranges.lin_vel_x == (0.0, 0.5)
+        command = cfg.commands["target_speed"]
+        assert isinstance(command, UniformVelocityCommandCfg)
+        assert command.ranges.lin_vel_x == (0.0, 0.5)
         assert "forward_velocity" not in cfg.rewards
+        # The joint-tracking archive keeps its own tuned rewards while the
+        # Walking parent uses its older best recipe.
+        archive_weights = {
+            "swing_clearance": 2.0,
+            "soft_landing": -0.001,
+            "joint_acceleration": -0.001,
+        }
+        for name, weight in archive_weights.items():
+            assert cfg.rewards[name].weight == weight
         for name, term in flat.rewards.items():
-            if name not in ("forward_velocity", "lateral_velocity"):
+            if name not in {"forward_velocity", "lateral_velocity", *archive_weights}:
                 assert cfg.rewards[name] == term
         assert (
             cfg.rewards["lateral_velocity"].weight

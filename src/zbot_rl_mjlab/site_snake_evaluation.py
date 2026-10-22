@@ -109,7 +109,7 @@ def reset_site_snake_evaluation(env, env_ids):
 
 
 class SiteSnakeEvaluator:
-    """No automatic resets, task switches, heading locks, or cross-case averaging."""
+    """No automatic resets, task switches, or cross-case averaging."""
 
     def __init__(self, device='cpu', num_envs=72, seconds=10., env_cfg=None, randomized=False):
         if isinstance(num_envs, bool) or not isinstance(num_envs, int) or num_envs <= 0:
@@ -213,10 +213,13 @@ class SiteSnakeEvaluator:
                     if step >= measurement:
                         velocities.append(velocity.clone())
                 metrics, self.last_report = score_site_snake(torch.stack(velocities), failed)
-                self.last_report.update(protocol='site_snake_omni_v3', seconds=self.seconds, duration_eligible=self.seconds >= 10.,
+                base_reference = getattr(self.env_cfg, 'motion_site', 'foot_0_sole') == 'base_motion'
+                protocol = ('site_snake_omni_v3' if getattr(self.env_cfg, 'archive_site_checkpoint', False)
+                            else 'site_snake_base_omni_v5' if base_reference else 'site_snake_omni_v4')
+                self.last_report.update(protocol=protocol, seconds=self.seconds, duration_eligible=self.seconds >= 10.,
                                         initial_yaws_deg=[0, 90, 180, 270], speeds=list(SPEEDS),
-                                        randomized=self.randomized, frame='gravity_aligned_foot_0_sole_minus_z',
-                                        tracking_point='foot_0_sole')
+                                        randomized=self.randomized, frame='gravity_aligned_base_minus_z' if base_reference else 'gravity_aligned_foot_0_sole_minus_z',
+                                        tracking_point='base' if base_reference else 'foot_0_sole')
                 if self.seconds < 10.:
                     self.last_report['passed'] = False
                     metrics['snake_omni_passed'] = 0.

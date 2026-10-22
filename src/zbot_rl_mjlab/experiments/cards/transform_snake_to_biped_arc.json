@@ -1,0 +1,76 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "浅弧姿态站起",
+  "task_id": "Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Arc",
+  "inherits": "transform_snake_to_biped_beta.json",
+  "env": {
+    "initial_joint_pos": [
+      0.0,
+      0.04,
+      -0.04,
+      0.04,
+      -0.04,
+      0.0
+    ],
+    "scene": {
+      "entities": {
+        "robot": {
+          "init_state": {
+            "pos": [
+              0.0,
+              -0.33,
+              0.052594859168749175
+            ],
+            "rot": [
+              0.5718926808530292,
+              -0.42390736758012,
+              0.5659527229498161,
+              0.415859135626136
+            ],
+            "joint_pos": {
+              "joint2": 0.04,
+              "joint3": -0.04,
+              "joint4": 0.04,
+              "joint5": -0.04
+            }
+          }
+        }
+      }
+    },
+    "actions": {
+      "joint_pos": {
+        "joint_target_bounds": {
+          "joint1": [
+            0.0,
+            1.312
+          ],
+          "joint6": [
+            -1.312,
+            0.0
+          ],
+          "joint2": [
+            0.0,
+            3.141592653589793
+          ],
+          "joint3": [
+            -3.141592653589793,
+            0.0
+          ],
+          "joint4": [
+            0.0,
+            3.141592653589793
+          ],
+          "joint5": [
+            -3.141592653589793,
+            0.0
+          ]
+        }
+      }
+    }
+  },
+  "agent": {
+    "max_iterations": 4000
+  },
+  "description": "Beta父卡片按归档启动计划固定训练轮数后，本浅弧实验显式保留原有4000轮训练计划，其他参数继续按本卡覆盖及父卡片继承。"
+}

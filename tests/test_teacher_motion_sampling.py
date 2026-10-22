@@ -1,6 +1,7 @@
 """Motion demand must stay broad even before the teacher learns to track."""
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 import torch
@@ -126,3 +127,129 @@ def test_low_speed_axis_commands_cover_the_default_play_request():
     assert initial[:, 0].min() < -.1
     assert initial[:, 1].min() < -.05
     assert initial[:, 2].min() < -.3
+
+
+def test_explicit_legacy_stop_probability_preserves_samples_and_rng_state_exactly():
+    standing = torch.arange(32000) % 2 == 0
+    torch.manual_seed(718)
+    default = sample_motion_commands(standing)
+    default_state = torch.random.get_rng_state()
+    torch.manual_seed(718)
+    explicit = sample_motion_commands(standing, stop_probability=1 / 8)
+    assert torch.equal(default, explicit)
+    assert torch.equal(default_state, torch.random.get_rng_state())
+
+
+def test_legacy_default_sampling_preserves_known_samples_and_following_random_draw():
+    torch.manual_seed(718)
+    command = sample_motion_commands(torch.arange(12) % 2 == 0)
+    expected = torch.tensor([
+        [0., .1920870840549469, 0.],
+        [-.0910290777683258, -.011061400175094604, -.515796959400177],
+        [-.0022537708282470703, -.007434636354446411, -.1759060025215149],
+        [.11841685324907303, 0., 0.],
+        [0., 0., 0.],
+    ])
+    assert torch.equal(command[:5], expected)
+    assert torch.equal(torch.rand(3), torch.tensor([.9669855833053589, .6680901646614075, .009715437889099121]))
+
+
+@pytest.mark.parametrize('standing', [False, True])
+@pytest.mark.parametrize('probability', [0., 1.])
+def test_stop_probability_endpoints_disable_or_require_stop(standing, probability):
+    torch.manual_seed(507)
+    command = sample_motion_commands(torch.full((8192,), standing), stop_probability=probability)
+    stopped = command.eq(0).all(-1)
+    if probability == 1.:
+        assert stopped.all()
+    else:
+        assert not stopped.any()
+
+
+@pytest.mark.parametrize('standing', [False, True])
+def test_one_percent_stops_preserve_relative_axis_and_mixed_coverage(standing):
+    torch.manual_seed(137)
+    command = sample_motion_commands(torch.full((32000,), standing), stop_probability=.01)
+    nonzero = command.ne(0).sum(-1)
+    assert nonzero.eq(0).float().mean().item() == pytest.approx(.01, abs=.002)
+    moving = nonzero > 0
+    assert nonzero[moving].eq(1).float().mean().item() == pytest.approx(3/7, abs=.015)
+    assert nonzero[moving].eq(3).float().mean().item() == pytest.approx(4/7, abs=.015)
+    for axis in range(3):
+        for sign in (-1, 1):
+            count = ((nonzero == 1) & (command[:, axis] * sign > 0)).sum().item()
+            assert count / moving.sum().item() == pytest.approx(1/14, abs=.008)
+
+
+@pytest.mark.parametrize('probability', [-.01, 1.01, float('nan'), float('inf'), -float('inf')])
+def test_invalid_stop_probability_rejected(probability):
+    with pytest.raises(ValueError, match='stop_probability'):
+        sample_motion_commands(torch.ones(8, dtype=torch.bool), stop_probability=probability)
+
+
+def test_legacy_privileged_config_retains_one_eighth_stop_default():
+    from zbot_rl_mjlab.tasks.universal.privileged import PrivilegedOmniCommandCfg
+
+    assert PrivilegedOmniCommandCfg(resampling_time_range=(5., 9.)).motion_stop_probability == 1/8
+
+
+@pytest.mark.parametrize('probability', [-.01, 1.01, float('nan'), float('inf'), -float('inf')])
+def test_privileged_config_rejects_invalid_stop_probability(probability):
+    from types import SimpleNamespace
+
+    from zbot_rl_mjlab.tasks.universal.privileged import PrivilegedOmniCommandCfg
+
+    with pytest.raises(ValueError, match='motion_stop_probability'):
+        PrivilegedOmniCommandCfg(
+            resampling_time_range=(5., 9.), motion_stop_probability=probability,
+        ).build(SimpleNamespace())
+
+
+@pytest.mark.parametrize('standing', [False, True])
+def test_x_only_bias_preserves_stops_and_other_motion_coverage(standing):
+    torch.manual_seed(509)
+    command = sample_motion_commands(torch.full((64000,), standing), stop_probability=.01, x_only_probability=.5)
+    active = command.ne(0)
+    count = active.sum(-1)
+    pure_x = active[:, 0] & (count == 1)
+    assert pure_x.float().mean().item() == pytest.approx(.5, abs=.012)
+    assert count.eq(0).float().mean().item() == pytest.approx(.01, abs=.002)
+    for sign in (-1, 1):
+        assert (pure_x & (command[:, 0]*sign > 0)).float().mean().item() == pytest.approx(.25, abs=.01)
+    for axis in (1, 2):
+        assert (active[:, axis] & (count == 1)).float().mean().item() == pytest.approx(.49/6, abs=.008)
+    assert count.eq(3).float().mean().item() == pytest.approx(.49*2/3, abs=.012)
+
+
+@pytest.mark.parametrize('probability', [0., 1.])
+def test_x_only_probability_endpoints(probability):
+    command = sample_motion_commands(torch.zeros(8192, dtype=torch.bool), stop_probability=0., x_only_probability=probability)
+    pure_x = command[:, 0].ne(0) & command[:, 1:].eq(0).all(-1)
+    assert pure_x.all() if probability == 1. else not pure_x.any()
+
+
+@pytest.mark.parametrize('probability', [-.01, 1., float('nan'), float('inf')])
+def test_invalid_x_only_probability_or_joint_budget_rejected(probability):
+    with pytest.raises(ValueError, match='x_only_probability'):
+        sample_motion_commands(torch.zeros(8, dtype=torch.bool), stop_probability=.01, x_only_probability=probability)
+
+
+def test_archived_site_card_biases_training_without_changing_play_sampling():
+    from mjlab.tasks.registry import load_env_cfg
+
+    from zbot_rl_mjlab.archived_site_snake import ArchivedSiteSnakeCommandCfg
+
+    task = 'Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher'
+    train = cast(ArchivedSiteSnakeCommandCfg, load_env_cfg(task).commands['transform'])
+    play = cast(ArchivedSiteSnakeCommandCfg, load_env_cfg(task, play=True).commands['transform'])
+    assert train.motion_x_only_probability == .5
+    assert play.motion_x_only_probability is None
+
+
+def test_command_builder_rejects_invalid_x_only_probability():
+    from types import SimpleNamespace
+
+    from zbot_rl_mjlab.archived_site_snake import ArchivedSiteSnakeCommandCfg
+
+    with pytest.raises(ValueError, match='motion_x_only_probability'):
+        ArchivedSiteSnakeCommandCfg(motion_stop_probability=.01, motion_x_only_probability=1.).build(SimpleNamespace())

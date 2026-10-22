@@ -113,7 +113,7 @@ def test_real_call_protocol_preserves_rng_and_latches_early_failure(monkeypatch)
         events.append((ticks[0], ids[0].item(), x, y, z))
 
     command = SimpleNamespace(set_target=lambda *args: None, set_velocity=set_velocity)
-    obs = TensorDict({'actor': torch.zeros(72, 56)}, batch_size=[72])
+    obs = TensorDict({'actor': torch.zeros(72, 61)}, batch_size=[72])
     data = SimpleNamespace(root_link_pos_w=torch.zeros(72, 3), joint_pos=torch.zeros(72, 6))
 
     class Scene(dict):

@@ -8,6 +8,8 @@ import torch
 
 from zbot_rl_mjlab.tasks.universal import mdp
 from zbot_rl_mjlab.tasks.universal.observation_layout import (
+    LEGACY_SITE_SNAKE_OBS_DIM,
+    SITE_SNAKE_OBS_DIM,
     teacher_motion_fields,
     teacher_task_ids,
 )
@@ -64,23 +66,31 @@ def test_scalar_state_encodes_selected_transition_and_completion():
     assert teacher_task_ids(observed).tolist() == [2, 0]
 
 
-@pytest.mark.parametrize('dimension', [56, 59])
-def test_motion_layout_supports_arbitrary_leading_dimensions(dimension):
-    observed = torch.arange(2 * 3 * dimension).reshape(2, 3, dimension).float()
+@pytest.mark.parametrize('dimension, offsets', [
+    (56, (40, 50, 53)), (59, (43, 53, 56)), (61, (40, 49, 52)), (63, (40, 51, 54)),
+])
+@pytest.mark.parametrize('leading_shape', [(), (2,), (2, 3), (2, 3, 4)])
+def test_motion_layout_supports_arbitrary_leading_dimensions(dimension, offsets, leading_shape):
+    observed = torch.arange(dimension).float().expand(*leading_shape, dimension)
     command, actual, pending = teacher_motion_fields(observed)
-    start = 40 if dimension == 56 else 43
-    torch.testing.assert_close(command, observed[..., start:start + 3])
-    torch.testing.assert_close(actual, observed[..., -6:-3])
-    torch.testing.assert_close(pending, observed[..., -3:])
-    assert teacher_task_ids(observed).shape == (2, 3)
+    for field, start in zip((command, actual, pending), offsets, strict=True):
+        torch.testing.assert_close(field, observed[..., start:start + 3])
+    expected_task = 3 if dimension == 59 else 39
+    assert teacher_task_ids(observed).shape == leading_shape
+    assert (teacher_task_ids(observed) == expected_task).all()
     assert teacher_task_ids(observed).dtype == torch.long
 
 
 @pytest.mark.parametrize('shape', [(), (2, 55), (2, 3, 58)])
 @pytest.mark.parametrize('decode', [teacher_task_ids, teacher_motion_fields])
 def test_bad_layout_fails_clearly(shape, decode):
-    with pytest.raises(ValueError, match='56 or 59'):
+    with pytest.raises(ValueError, match='56, 59, 61 or 63'):
         decode(torch.zeros(shape))
+
+
+def test_site_snake_dimension_is_shared():
+    assert SITE_SNAKE_OBS_DIM == 61
+    assert LEGACY_SITE_SNAKE_OBS_DIM == 63
 
 
 def test_scalar_state_sanitizes_nonfinite_values(monkeypatch):

@@ -14,7 +14,8 @@ from rsl_rl.algorithms import PPO
 from rsl_rl.env import VecEnv
 from tensordict import TensorDict
 
-from zbot_rl_mjlab.distillation import MultiTeacherPPO, universal_ppo_cfg
+from zbot_rl_mjlab.distillation import MultiTeacherPPO
+from zbot_rl_mjlab.experiments.universal import universal_ppo_cfg
 from zbot_rl_mjlab.teachers import TeacherEnsemble
 
 

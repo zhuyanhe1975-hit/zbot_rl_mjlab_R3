@@ -7,10 +7,6 @@ from typing import Any
 import torch
 from mjlab.envs import mdp as common_mdp
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
-from mjlab.managers.metrics_manager import MetricsTermCfg
-from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
-from mjlab.managers.reward_manager import RewardTermCfg
-from mjlab.sensor import ContactMatch, ContactSensorCfg
 
 from ..common import constant
 from . import mdp, robust
@@ -411,49 +407,3 @@ def stand_env_fraction(env):
     # 将全局占比复制到各环境，避免按回合记录日志时
     # 因回合长度悬殊而产生偏差。
     return wants_stand(env).float().mean().expand(env.num_envs)
-
-
-def configure_bidirectional(cfg, play=False):
-    """在共享镜像任务上安装双向指令、奖励、终止和指标。"""
-    cfg.pretrained_checkpoint = None
-    cfg.initial_roll_range_deg = (-180.0, 180.0)
-    cfg.early_contact_drop_threshold = 0.01
-    cfg.fall_retry_arm_height = 0.05
-    cfg.episode_length_s = 16.0
-    cfg.commands = {"transform": TransformCommandCfg(resampling_time_range=(1e9, 1e9))}
-    cfg.observations = {
-        "actor": ObservationGroupCfg(terms={"command_teacher_state": ObservationTermCfg(func=actor_state)}, enable_corruption=False),
-        "critic": ObservationGroupCfg(terms={"command_teacher_critic_state": ObservationTermCfg(func=critic_state)}, enable_corruption=False),
-    }
-    cfg.events["reset_transition"].func = reset_command_transition
-    for name, func in (("joint_standing", pose_reward), ("base_height_progress", height_reward), ("base_ascent_velocity", velocity_reward), ("sole_ground_alignment", sole_reward)):
-        cfg.rewards[name].func = func
-    cfg.rewards["stand_finish_joint_speed"] = RewardTermCfg(
-        func=stand_finish_joint_speed_cost, weight=-0.02,
-    )
-    cfg.rewards["descent_ground_impact"] = RewardTermCfg(
-        func=descent_ground_impact_cost, weight=-2.0,
-        params={"max_body_weights": 2.0},
-    )
-    cfg.scene.sensors = (*cfg.scene.sensors, ContactSensorCfg(
-        name="transform_ground_contact",
-        primary=ContactMatch(mode="body", pattern=".*", entity="robot"),
-        secondary=ContactMatch(mode="body", pattern="terrain"),
-        fields=("force",), reduce="netforce", history_length=cfg.decimation,
-    ))
-    for name, func in (("update_state", update_state), ("fallen_after_standing", fallen), ("early_base_ground_contact", early_contact), ("abandoned_exploration", abandoned_exploration)):
-        cfg.terminations[name].func = func
-    if play:
-        cfg.terminations["time_out"].func = play_time_out
-        for name in ("fallen_after_standing", "early_base_ground_contact", "abandoned_exploration"):
-            term = cfg.terminations[name]
-            term.params = {"condition": term.func}
-            term.func = play_failure
-    cfg.metrics["joint_error"].func = joint_error
-    cfg.metrics["success"].func = success
-    cfg.metrics["success"].reduce = "max"
-    cfg.metrics["transform_command"] = MetricsTermCfg(func=command_metric, reduce="last")
-    cfg.metrics["stand_env_fraction"] = MetricsTermCfg(func=stand_env_fraction)
-    cfg.metrics["stand_finish_joint_speed"] = MetricsTermCfg(func=stand_finish_joint_speed_cost)
-    cfg.metrics["ground_force_peak_n"] = MetricsTermCfg(func=ground_force_peak, reduce="max")
-    return cfg

@@ -7,11 +7,11 @@ import pytest
 import torch
 from mjlab.envs.mdp.actions import JointPositionAction
 
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 from zbot_rl_mjlab.tasks.snake.actions import (
     DirectJointPositionAction,
     DirectJointPositionActionCfg,
 )
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
 from zbot_rl_mjlab.tasks.transformation.actions import JointTargetRateActionCfg
 from zbot_rl_mjlab.tasks.transformation.env_cfg import transformation_scene_cfg
 
@@ -48,7 +48,7 @@ def make_action(monkeypatch):
 def test_snake_and_transformation_use_rate_control(play):
     cfg = snake_env_cfg(play=play).actions['joint_pos']
     assert isinstance(cfg, JointTargetRateActionCfg)
-    assert cfg.target_limit == math.pi / 3
+    assert cfg.target_limit == math.pi / 2
     assert cfg.max_target_speed == 2 * math.pi
     assert not cfg.use_default_offset
     assert isinstance(transformation_scene_cfg(play=play).actions['joint_pos'], JointTargetRateActionCfg)

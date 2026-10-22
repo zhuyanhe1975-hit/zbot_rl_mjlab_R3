@@ -1,0 +1,16 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "base全向两阶段自适应教师",
+  "task_id": "Mjlab-Zbot-6dof-Snake-Base-Adaptive-Teacher",
+  "inherits": "snake_site_adaptive_teacher.json",
+  "env": {
+    "motion_site": "base_motion"
+  },
+  "play": {
+    "env": {
+      "command_visual_height": 0.1,
+      "command_visual_actual_velocity": true
+    }
+  }
+}

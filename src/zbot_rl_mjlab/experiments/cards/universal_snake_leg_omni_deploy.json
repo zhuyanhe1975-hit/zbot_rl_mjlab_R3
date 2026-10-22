@@ -1,0 +1,23 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "蛇足全向部署学生",
+  "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Deploy",
+  "inherits": "universal_locomotion_deploy.json",
+  "env": {
+    "$remove": [
+      "events"
+    ],
+    "omni_site_frame": true
+  },
+  "agent": {
+    "algorithm": {
+      "enabled_teachers": [
+        "transform"
+      ],
+      "teacher_warmup_enabled": false,
+      "validation_interval_iterations": 100
+    },
+    "robust_validation_interval": 500
+  }
+}

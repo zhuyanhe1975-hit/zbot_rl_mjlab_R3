@@ -20,10 +20,10 @@ def test_play_dispatches_saved_layout_to_registered_runner_before_env_creation(m
     }
     task = base + '-Wide-Biped'
     if kind == 'site_snake':
-        from zbot_rl_mjlab.site_snake_teacher import SiteSnakeTeacherRunner
+        from zbot_rl_mjlab.archived_site_snake import ArchivedSiteSnakeTeacherRunner
 
         task = 'Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher'
-        metadata = SiteSnakeTeacherRunner._metadata_schema() | {
+        metadata = ArchivedSiteSnakeTeacherRunner._metadata_schema() | {
             'velocity_limits': (.15, .15, .6), 'joint_target_limit': math.pi / 3,
             'max_target_speed': 2 * math.pi,
         }

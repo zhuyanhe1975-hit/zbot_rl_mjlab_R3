@@ -12,6 +12,8 @@ from mjlab.managers.event_manager import EventTermCfg
 from mjlab.rl import RslRlVecEnvWrapper
 from tensordict import TensorDict
 
+from zbot_rl_mjlab.experiments.universal import universal_env_cfg
+
 from .robot import DEFAULT_JOINT_POS
 from .tasks.transformation.poses import SNAKE_ROOT_POS, SNAKE_ROOT_QUAT
 from .tasks.transformation.roll_reset import (
@@ -20,7 +22,6 @@ from .tasks.transformation.roll_reset import (
 )
 from .tasks.universal import mdp
 from .tasks.universal.commands import UniversalCommandCfg
-from .tasks.universal.env_cfg import universal_env_cfg
 
 CAPABILITIES = ('forward', 'lateral', 'descent', 'ascent')
 MOTION_DIRECTIONS = {'forward': (1., 0.), 'backward': (-1., 0.), 'left': (0., 1.), 'right': (0., -1.)}

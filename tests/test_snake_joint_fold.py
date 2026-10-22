@@ -7,8 +7,8 @@ import torch
 from mjlab.managers.reward_manager import RewardManager
 from test_snake_task import state_env
 
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 from zbot_rl_mjlab.tasks.snake import mdp
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
 
 
 @pytest.mark.parametrize('degrees,expected', [(0., 0.), (90., 0.), (120., 0.),
@@ -78,7 +78,7 @@ def test_invalid_fold_thresholds_rejected(soft, full):
 @pytest.mark.parametrize('play', [False, True])
 def test_train_and_play_keep_range_observations_and_terminations(play):
     cfg = snake_env_cfg(play=play)
-    assert cfg.actions['joint_pos'].target_limit == math.pi / 3
+    assert cfg.actions['joint_pos'].target_limit == math.pi / 2
     term = cfg.rewards['joint_fold_cost']
     assert term.func is mdp.joint_fold_cost
     assert term.weight == -1.

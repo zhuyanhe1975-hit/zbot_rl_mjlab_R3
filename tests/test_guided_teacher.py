@@ -10,11 +10,12 @@ import pytest
 import torch
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 
-from zbot_rl_mjlab.guided_teacher import (
-    GuidedTeacherRunner,
+from zbot_rl_mjlab.experiments.omni_teacher import (
     guided_teacher_ppo_cfg,
+    omni_teacher_ppo_cfg,
 )
-from zbot_rl_mjlab.omni_teacher import OmniTeacherRunner, omni_teacher_ppo_cfg
+from zbot_rl_mjlab.guided_teacher import GuidedTeacherRunner
+from zbot_rl_mjlab.omni_teacher import OmniTeacherRunner
 from zbot_rl_mjlab.task_ppo import TASK_NAMES
 
 

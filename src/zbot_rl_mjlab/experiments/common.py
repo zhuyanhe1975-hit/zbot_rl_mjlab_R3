@@ -1,13 +1,54 @@
 """行走实验共用的配置。"""
 
+
 from mjlab.envs.mdp import dr
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
+from mjlab.rl import RslRlModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 from mjlab.sensor import BuiltinSensorCfg, ObjRef
 
 from ..tasks.common import add_base_disturbance  # noqa: F401  # 共用扰动配置入口
 from ..tasks.walking import mdp
+
+
+def ppo_cfg():
+    actor = RslRlModelCfg(
+        hidden_dims=(256, 128),
+        activation="elu",
+        obs_normalization=True,
+        distribution_cfg={
+            "class_name": "GaussianDistribution",
+            "init_std": 1.0,
+            "std_type": "scalar",
+        },
+    )
+    critic = RslRlModelCfg(
+        hidden_dims=(256, 128), activation="elu", obs_normalization=True
+    )
+    return RslRlOnPolicyRunnerCfg(
+        actor=actor,
+        critic=critic,
+        algorithm=RslRlPpoAlgorithmCfg(
+            value_loss_coef=1.0,
+            use_clipped_value_loss=True,
+            clip_param=0.2,
+            entropy_coef=0.01,
+            num_learning_epochs=5,
+            num_mini_batches=4,
+            learning_rate=1e-3,
+            schedule="adaptive",
+            gamma=0.99,
+            lam=0.95,
+            desired_kl=0.01,
+            max_grad_norm=1.0,
+        ),
+        experiment_name="zbot_periodic_stepping",
+        num_steps_per_env=24,
+        max_iterations=1000,
+        save_interval=50,
+        logger="tensorboard",
+    )
 
 
 def add_walking_regularizers(cfg):

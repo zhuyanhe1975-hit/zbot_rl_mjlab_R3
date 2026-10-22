@@ -1,27 +1,18 @@
 """反向任务：从贴地直蛇形升起到站立关节姿态。"""
 
 import math
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from functools import lru_cache
-from typing import cast
 
 import mujoco
 import torch
-from mjlab.managers.curriculum_manager import CurriculumTermCfg
-from mjlab.managers.metrics_manager import MetricsTermCfg
-from mjlab.managers.observation_manager import ObservationTermCfg
-from mjlab.managers.reward_manager import RewardTermCfg
-from mjlab.managers.termination_manager import TerminationTermCfg
-from mjlab.sensor import ContactMatch, ContactSensorCfg
 from mjlab.utils.lab_api.math import quat_apply, quat_apply_inverse
 
 from ...robot import DEFAULT_JOINT_POS, JOINT_NAMES, get_spec
 from ..common import constant
 from . import mdp
-from .actions import JointTargetRateActionCfg
-from .env_cfg import TransformationEnvCfg, transformation_scene_cfg
-from .poses import SNAKE_JOINT_POS, SNAKE_ROOT_POS, SNAKE_ROOT_QUAT
-from .reverse_observations import reserved_hold_observation, support_observation
+from .env_cfg import TransformationEnvCfg
+from .poses import SNAKE_JOINT_POS, SNAKE_ROOT_POS
 
 TASK_ID = "Mjlab-Zbot-6dof-Transform-Snake-To-Biped"
 BETA_TASK_ID = TASK_ID + "-Beta"
@@ -594,118 +585,3 @@ def alignment_to_standing_curriculum(env, env_ids):
             "joint_error_threshold": -1.0 if pose_threshold is None else float(pose_threshold),
             "pose_prepared": float(getattr(env, "_standing_pose_prepared", False)),
             "alignment_hot_wait_steps": float(alignment_wait_steps)}
-
-
-def snake_to_biped_env_cfg(play=False, cfg_cls=SnakeToBipedEnvCfg, action_cfg_cls=JointTargetRateActionCfg, compact=False):
-    """直接创建最终起立配置类型，再装配方向相关的行为。"""
-    cfg = cast(SnakeToBipedEnvCfg, transformation_scene_cfg(
-        play=play, cfg_cls=cfg_cls, action_cfg_cls=action_cfg_cls,
-    ))
-    cfg.metrics = {
-        "joint_error": MetricsTermCfg(func=joint_standing_error_metric),
-        "com_height": MetricsTermCfg(func=mdp.com_height),
-        "success": MetricsTermCfg(func=success, reduce="last"),
-    }
-    # 回放评估完整站立目标；训练从第一阶段开始。
-    cfg.curriculum_start_stage = 2 if play else 1
-    for group in cfg.observations.values():
-        group.terms["hold_time"] = ObservationTermCfg(func=reserved_hold_observation)
-        group.terms["support_state"] = ObservationTermCfg(func=support_observation)
-    standing = cfg.curriculum_start_stage == 2
-    cfg.scene.sensors = (
-        ContactSensorCfg(
-            name="feet_ground_contact",
-            primary=ContactMatch(mode="body", pattern=("foot_0", "foot_1"), entity="robot"),
-            secondary=ContactMatch(mode="body", pattern="terrain"),
-            fields=("found", "force"),
-            reduce="netforce",
-        ),
-    )
-    robot = cfg.scene.entities["robot"]
-    robot.init_state = replace(
-        robot.init_state,
-        pos=SNAKE_ROOT_POS,
-        rot=SNAKE_ROOT_QUAT,
-        joint_pos=dict(zip(JOINT_NAMES, cfg.initial_joint_pos, strict=True)),
-        joint_vel={".*": 0.0},
-    )
-    action = cfg.actions["joint_pos"]
-    if not isinstance(action, JointTargetRateActionCfg):
-        raise TypeError("reverse transformation requires rate-controlled joint targets")
-    action.joint_target_bounds = {
-        JOINT_NAMES[i]: (cfg.standing_joint_pos[i] - cfg.end_joint_allowed_error,
-                         cfg.standing_joint_pos[i] + cfg.end_joint_allowed_error)
-        for i in (0, 5)
-    }
-    if compact:
-        return cfg
-    cfg.rewards = {
-        "end_joint_flip": RewardTermCfg(
-            func=end_joint_flip_cost,
-            weight=cfg.end_joint_flip_weight,
-        ),
-        "axial_roll_rate": RewardTermCfg(
-            func=axial_roll_rate_cost,
-            weight=0.0 if standing else cfg.first_stage_roll_rate_weight,
-        ),
-        "initial_joint_pose": RewardTermCfg(
-            func=initial_joint_pose_cost,
-            weight=0.0 if standing else cfg.first_stage_initial_pose_weight,
-        ),
-        "joint_standing": RewardTermCfg(
-            func=joint_standing_reward,
-            weight=cfg.standing_stage_joint_weight if standing else cfg.first_stage_joint_weight,
-        ),
-        "base_height_progress": RewardTermCfg(
-            func=base_height_progress_reward,
-            weight=cfg.standing_stage_height_weight if standing else 0.0,
-        ),
-        "base_ascent_velocity": RewardTermCfg(
-            func=base_ascent_velocity_reward,
-            weight=cfg.standing_stage_velocity_weight if standing else 0.0,
-            params={"target_speed": 0.1},
-        ),
-        "base_support_distance": RewardTermCfg(
-            func=base_support_distance_cost,
-            weight=cfg.base_support_distance_weight,
-        ),
-        "joint_symmetry": RewardTermCfg(
-            func=mdp.joint_symmetry_cost,
-            weight=-1.0
-        ),
-        "sole_ground_alignment": RewardTermCfg(
-            func=sole_ground_alignment_reward,
-            weight=2.0,
-        ),
-        "both_feet_contact": RewardTermCfg(func=both_feet_contact_metric, weight=cfg.feet_contact_weight),
-        "sole_height": RewardTermCfg(func=sole_height_cost, weight=-1.0),
-        "base_z_roll": RewardTermCfg(func=base_z_roll_cost, weight=-1.0),
-        "base_gravity_alignment": RewardTermCfg(func=base_gravity_alignment_cost, weight=cfg.base_gravity_alignment_weight),
-        "reset_failure": RewardTermCfg(func=reset_failure_cost, weight=-10.0),
-        "survival": RewardTermCfg(func=survival_reward, weight=cfg.survival_weight),
-    }
-    cfg.terminations["update_state"] = TerminationTermCfg(func=update_state)
-    cfg.terminations["base_z_roll"] = TerminationTermCfg(func=base_z_roll_exceeded)
-    cfg.terminations["foot_support_lost"] = TerminationTermCfg(func=foot_support_lost)
-    cfg.events["reset_transition"].func = reset_reverse_transition
-    cfg.curriculum = {
-        "alignment_to_standing": CurriculumTermCfg(func=alignment_to_standing_curriculum)
-    }
-    cfg.metrics["joint_error"] = MetricsTermCfg(func=joint_standing_error_metric)
-    cfg.metrics["base_height"] = MetricsTermCfg(func=base_height)
-    cfg.metrics["base_vertical_velocity"] = MetricsTermCfg(func=base_vertical_velocity)
-    cfg.metrics["base_support_distance"] = MetricsTermCfg(func=base_support_distance)
-    cfg.metrics["sole_support_valid"] = MetricsTermCfg(func=sole_support_valid_metric)
-    cfg.metrics["both_feet_contact"] = MetricsTermCfg(func=both_feet_contact_metric)
-    cfg.metrics["success"] = MetricsTermCfg(func=success, reduce="last")
-    cfg.metrics["base_z_roll_deg"] = MetricsTermCfg(
-        func=base_z_roll_degrees, reduce="max"
-    )
-    for foot in (0, 1):
-        cfg.metrics[f"sole_{foot}_angle_deg"] = MetricsTermCfg(
-            func=sole_angle_degrees, params={"foot_index": foot}, reduce="mean"
-        )
-    cfg.metrics["both_soles_within_10deg"] = MetricsTermCfg(
-        func=both_soles_within_10deg, reduce="mean"
-    )
-    return cfg

@@ -108,7 +108,7 @@ def test_keyboard_changes_preserve_physics_and_observation_history(monkeypatch):
 
 
 def test_config_retains_site_semantics_and_independent_reset():
-    from zbot_rl_mjlab.tasks.universal.env_cfg import universal_env_cfg
+    from zbot_rl_mjlab.experiments.universal import universal_env_cfg
 
     source = universal_env_cfg()
     evaluator = evaluation.UniversalOmniEvaluator(env_cfg=source, num_envs=16)

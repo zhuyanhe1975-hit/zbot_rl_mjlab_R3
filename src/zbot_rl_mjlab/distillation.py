@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any, cast
 import torch
 from mjlab.rl import (
     MjlabOnPolicyRunner,
-    RslRlModelCfg,
     RslRlOnPolicyRunnerCfg,
     RslRlPpoAlgorithmCfg,
     RslRlVecEnvWrapper,
@@ -67,20 +66,6 @@ class MultiTeacherRunnerCfg(RslRlOnPolicyRunnerCfg):
     validation_randomized: bool = True
     robust_validation_interval: int = 0
     console_mode: str = "compact"
-
-
-def universal_ppo_cfg() -> MultiTeacherRunnerCfg:
-    """六独立速度动作的综合策略，价值网络从头学习。"""
-    return MultiTeacherRunnerCfg(
-        actor=RslRlModelCfg(
-            hidden_dims=(256, 128), activation="elu", obs_normalization=False,
-            distribution_cfg={"class_name": "BetaDistribution", "action_range": (-1.0, 1.0)},
-        ),
-        critic=RslRlModelCfg(hidden_dims=(256, 128), activation="elu", obs_normalization=False),
-        experiment_name="zbot_universal_locomotion",
-        max_iterations=3000, num_steps_per_env=24, save_interval=50,
-        logger="tensorboard",
-    )
 
 
 def _full_resume(load_cfg: dict | None) -> bool:

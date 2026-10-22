@@ -1,0 +1,13 @@
+{
+  "checkpoint_sha256_matches_source": true,
+  "task_compatibility_and_strict_actor_load": "passed",
+  "archive_tests": {
+    "command": "./scripts/python.sh -m pytest tests/test_bests.py -q",
+    "passed": 44
+  },
+  "playback_frequency_range_hz": [
+    0.25,
+    1.0
+  ],
+  "independent_simulation_evaluation": "not performed"
+}

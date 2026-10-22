@@ -186,7 +186,7 @@ def test_site_snake_shows_live_rewards_without_completed_episodes(capsys):
     original_losses = {'rollout_snake_vx_rmse': .01, 'rollout_snake_vy_rmse': .02, 'rollout_snake_wz_rmse': .3}
     log(logger, original_losses)
     output = capsys.readouterr().out
-    assert 'reward_rate 1.800/s | episode_age 0.04s | resets 0 | policy_std 0.200' in output
+    assert 'reward_rate 1.800/s | episode_age 0.04s | resets 0 | timeouts 0 | policy_std 0.200' in output
     assert 'track_linear_velocity 1.500/s | track_angular_velocity 0.300/s' in output
     assert 'velocity_rmse vx 0.010 m/s | vy 0.020 m/s | wz 0.300 rad/s' in output
     assert '--' not in output
@@ -217,7 +217,7 @@ def test_site_snake_rollout_stats_clear_after_each_log_and_count_collisions(caps
     assert 'track_linear_velocity 0.250/s | track_angular_velocity 0.250/s' in output
 
 
-def test_reward_only_console_uses_g1_style_rows_and_preserves_all_writer_metrics(capsys):
+def test_reward_console_restores_training_and_episode_rows_without_changing_writer_metrics(capsys):
     from zbot_rl_mjlab.training_console import install_site_snake_rollout_logging
 
     logger = make_logger()
@@ -237,8 +237,19 @@ def test_reward_only_console_uses_g1_style_rows_and_preserves_all_writer_metrics
     assert 'Mean reward rate (/s): 1.8000' in output
     assert 'Reward/track_linear_velocity (/s): 1.5000' in output
     assert 'Reward/track_angular_velocity (/s): 0.3000' in output
-    assert len(output.splitlines()) == 6
-    assert not any(label in output for label in ('steps/s', 'loss', 'std', 'rmse', 'episode_age', '--'))
+    assert 'Total steps: 48' in output
+    assert 'Steps per second: 240' in output
+    assert 'Mean action std: 0.200' in output
+    assert 'Mean reward: --' in output
+    assert 'Mean episode length: --' in output
+    assert 'Current episode length (steps): 1.00' in output
+    assert 'Current episode age (s): 0.02' in output
+    assert 'Resets (rollout): 0' in output
+    assert 'Terminations (no timeout): 0' in output
+    assert 'Timeouts (rollout): 0' in output
+    assert 'Iteration time: 0.20s' in output
+    assert 'Time elapsed:' in output and 'ETA:' in output
+    assert 'Mean value loss' not in output and 'rmse' not in output
     assert logger.writer.scalars['Loss/value'] == pytest.approx((.7, 3))
     assert logger.writer.scalars['Loss/rollout_snake_vx_rmse'] == pytest.approx((.01, 3))
     assert logger.writer.scalars['Loss/rollout_reward_rate'] == pytest.approx((1.8, 3))
@@ -246,29 +257,87 @@ def test_reward_only_console_uses_g1_style_rows_and_preserves_all_writer_metrics
     assert logger.ep_extras == []
 
 
-def test_reward_only_console_shows_negative_actual_and_target_limit_contributions(capsys):
+def test_reward_console_uses_native_completed_episode_average(capsys):
     logger = make_logger()
+    baseline = make_logger()
+    log(baseline)
+    capsys.readouterr()
     install_compact_logging(logger, rewards_only=True)
-    log(logger, {'rollout_reward_rate': -.3, 'rollout_reward_track_linear_velocity': .4,
-                 'rollout_reward_track_angular_velocity': .2, 'rollout_reward_joint_pos_limits': -.4,
-                 'rollout_reward_joint_target_limits': -.5})
+    log(logger)
     output = capsys.readouterr().out
-    assert 'Mean reward rate (/s): -0.3000' in output
-    assert 'Reward/joint_pos_limits (/s): -0.4000' in output
-    assert 'Reward/joint_target_limits (/s): -0.5000' in output
+    assert 'Mean reward: 2.00' in output
+    assert 'Mean episode length: 150.00' in output
+    assert logger.writer.scalars == baseline.writer.scalars
+    assert logger.tot_timesteps == baseline.tot_timesteps
+    assert logger.lenbuffer == baseline.lenbuffer
 
 
-def test_live_reward_summary_includes_all_three_penalties_even_without_resets(capsys):
-    from zbot_rl_mjlab.tasks.snake.site_omni import site_snake_env_cfg
+@pytest.mark.parametrize('fallback_to_manager', [False, True])
+def test_rollout_reset_and_timeout_counts_are_separate_and_clear_each_iteration(capsys, fallback_to_manager):
     from zbot_rl_mjlab.training_console import install_site_snake_rollout_logging
 
     logger = make_logger()
     logger.rewbuffer.clear()
     logger.lenbuffer.clear()
     logger.ep_extras.clear()
-    manager = SimpleNamespace(active_terms=list(site_snake_env_cfg().rewards),
-                              _step_reward=torch.tensor([[.4, .2, -.03, -.04, -.05],
-                                                         [1.4, .6, -.07, -.08, 0.]]))
+    manager = SimpleNamespace(active_terms=['tracking'], _step_reward=torch.ones(2, 1))
+    termination = SimpleNamespace(time_outs=torch.tensor([False, True]))
+    env = SimpleNamespace(reward_manager=manager, step_dt=.02, termination_manager=termination)
+    install_compact_logging(logger, rewards_only=True)
+    install_site_snake_rollout_logging(logger, env)
+    # Ended robot 0 is a failure; a timeout flag on non-ended robot 1 must not count.
+    extras = {} if fallback_to_manager else {'time_outs': termination.time_outs[:, None]}
+    logger.process_env_step(torch.ones(2), torch.tensor([1, 0]), extras)
+    termination.time_outs = torch.tensor([False, True])
+    extras = {} if fallback_to_manager else {'time_outs': termination.time_outs}
+    # Then both end: one failure, one timeout.
+    logger.process_env_step(rewards=torch.ones(2), dones=torch.ones(2), extras=extras)
+    log(logger)
+    output = capsys.readouterr().out
+    assert 'Resets (rollout): 3' in output
+    assert 'Terminations (no timeout): 2' in output
+    assert 'Timeouts (rollout): 1' in output
+    assert 'Mean episode length: 1.33' in output
+    for key, expected in (('reset', 3), ('termination', 2), ('timeout', 1)):
+        assert logger.writer.scalars[f'Loss/rollout_{key}_count'] == pytest.approx((expected, 3))
+    logger.process_env_step(torch.zeros(2), torch.zeros(2), {})
+    log(logger)
+    output = capsys.readouterr().out
+    assert 'Resets (rollout): 0' in output
+    assert 'Terminations (no timeout): 0' in output
+    assert 'Timeouts (rollout): 0' in output
+
+
+def test_reward_only_console_shows_negative_actual_and_target_limit_contributions(capsys):
+    logger = make_logger()
+    install_compact_logging(logger, rewards_only=True)
+    log(logger, {'rollout_reward_rate': -.8, 'rollout_reward_track_linear_velocity': .4,
+                 'rollout_reward_track_angular_velocity': .2, 'rollout_reward_joint_pos_limits': -.4,
+                 'rollout_reward_joint_target_limits': -.5, 'rollout_reward_failure_reset': -.5})
+    output = capsys.readouterr().out
+    assert 'Mean reward rate (/s): -0.8000' in output
+    assert 'Reward/joint_pos_limits (/s): -0.4000' in output
+    assert 'Reward/joint_target_limits (/s): -0.5000' in output
+    assert 'Reward/failure_reset (/s): -0.5000' in output
+
+
+def test_live_reward_summary_includes_reset_penalty_even_without_resets(capsys):
+    from zbot_rl_mjlab.experiments.site_snake import site_snake_env_cfg
+    from zbot_rl_mjlab.training_console import install_site_snake_rollout_logging
+
+    logger = make_logger()
+    logger.rewbuffer.clear()
+    logger.lenbuffer.clear()
+    logger.ep_extras.clear()
+    samples = {'alive': [1., 1.], 'track_forward_velocity': [-.1, -.5],
+               'track_lateral_velocity': [-.3, -.9],
+               'track_angular_velocity': [-.2, -.6], 'site_tilt': [-.03, -.07],
+               'joint_pos_limits': [-.04, -.08], 'joint_target_limits': [-.05, 0.],
+               'failure_reset': [0., 0.], 'action_rate': [-.1, -.2],
+               'joint_pose_deviation': [-.02, -.06]}
+    names = list(site_snake_env_cfg().rewards)
+    manager = SimpleNamespace(active_terms=names,
+                              _step_reward=torch.tensor([samples[name] for name in names]).T)
     env = SimpleNamespace(reward_manager=manager, step_dt=.02)
     install_compact_logging(logger, rewards_only=True)
     install_site_snake_rollout_logging(logger, env)
@@ -276,9 +345,10 @@ def test_live_reward_summary_includes_all_three_penalties_even_without_resets(ca
         logger.process_env_step(manager._step_reward.sum(-1)*env.step_dt, torch.zeros(2), {})
     log(logger)
     output = capsys.readouterr().out
-    assert 'Mean reward rate (/s): 1.1650' in output
-    for name, value in (('track_linear_velocity', .9), ('track_angular_velocity', .4),
-                        ('site_tilt', -.05), ('joint_pos_limits', -.06), ('joint_target_limits', -.025)):
+    assert 'Mean reward rate (/s): -0.6250' in output
+    for name, value in (('alive', 1.), ('track_forward_velocity', -.3), ('track_lateral_velocity', -.6), ('track_angular_velocity', -.4),
+                        ('site_tilt', -.05), ('joint_pos_limits', -.06), ('joint_target_limits', -.025),
+                        ('failure_reset', 0.), ('action_rate', -.15), ('joint_pose_deviation', -.04)):
         assert f'Reward/{name} (/s): {value:.4f}' in output
         assert logger.writer.scalars[f'Loss/rollout_reward_{name}'] == pytest.approx((value, 3))
     assert not logger.rewbuffer
@@ -289,3 +359,42 @@ def test_live_reward_summary_includes_all_three_penalties_even_without_resets(ca
     output = capsys.readouterr().out
     for name in manager.active_terms:
         assert f'Reward/{name} (/s): 0.0000' in output
+
+
+def test_full_console_exposes_adaptive_weights_and_unweighted_score(capsys):
+    logger = make_logger()
+    install_compact_logging(logger, rewards_only=True)
+    log(logger, {'velocity_weight_used_vy': 1., 'velocity_weight_next_vy': 1.05,
+                 'velocity_score_ema_vy': -.4,
+                 'velocity_reward_forward_mean': .4, 'velocity_reward_lateral_mean': .4,
+                 'velocity_planar_reward_ratio_valid': 1., 'velocity_forward_to_lateral_reward_ratio': 1.,
+                 'velocity_planar_target_limited': 0.,
+                 'velocity_reward_planar_mean': .8, 'velocity_reward_yaw_mean': .2,
+                 'velocity_reward_ratio_target': .25, 'velocity_reward_ratio_valid': 1.,
+                 'velocity_yaw_to_planar_reward_ratio': .25, 'velocity_yaw_target_limited': 0.})
+    output = capsys.readouterr().out
+    assert 'Adaptive vy weight (used -> next):' in output
+    assert '1.000 -> 1.050 | score EMA -0.400' in output
+    assert 'Yaw/planar reward (actual / target):' in output and '0.250 / 0.250' in output
+    assert 'Vx/vy reward (actual / target):' in output and '1.000 / 1.000' in output
+    assert logger.writer.scalars['Loss/velocity_weight_next_vy'] == pytest.approx((1.05, 3))
+
+
+def test_reward_ratio_console_handles_zero_planar_reward_without_inf(capsys):
+    logger = make_logger()
+    install_compact_logging(logger, rewards_only=True)
+    log(logger, {'velocity_reward_planar_mean': 0., 'velocity_reward_yaw_mean': .2,
+                 'velocity_reward_ratio_target': .25, 'velocity_reward_ratio_valid': 0.,
+                 'velocity_yaw_to_planar_reward_ratio': 0., 'velocity_yaw_target_limited': 1.})
+    output = capsys.readouterr().out
+    assert '-- / 0.250 | weight bound active' in output
+
+
+@pytest.mark.parametrize('stage,description', [(1, 'planar first'), (2, 'yaw learning')])
+def test_console_reports_velocity_curriculum_progress(capsys, stage, description):
+    logger = make_logger()
+    install_compact_logging(logger, rewards_only=True)
+    log(logger, {'velocity_learning_stage': float(stage),
+                 'velocity_planar_positive_updates': 7., 'velocity_planar_regression_updates': 2.})
+    output = capsys.readouterr().out
+    assert f'{stage} ({description}) | positive 7/20 | regression 2/10' in output

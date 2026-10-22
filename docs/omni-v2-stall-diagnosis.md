@@ -1,5 +1,7 @@
 # 第300轮不动：指令与训练覆盖诊断
 
+> 历史实验记录：当前默认是[实验20 base蛇形教师](experiment20-base-adaptive-snake.md)。本文中的旧默认入口和 `ZBOT_EXPERIMENT` / `ZBOT_SKILL` 属于当时用法；当前train/run保留原命令和注释选择方式，命令行自定义参数使用Python入口，见[项目入口](../README.md)。项目外完整快照已于2026-10-21按要求删除，文内旧备份路径仅为历史记录。
+
 诊断对象：`2026-10-20_09-29-53_privileged_omni_v2_biped_recipe/model_300.pt`。本次读取TensorBoard/检查点并运行短程确定性回放，没有进行策略更新或完整训练。
 
 ## 已测到的行为

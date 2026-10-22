@@ -10,8 +10,12 @@ import torch
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 
 from zbot_rl_mjlab import grouped_teacher
-from zbot_rl_mjlab.grouped_teacher import GroupedTeacherRunner, grouped_teacher_ppo_cfg
-from zbot_rl_mjlab.omni_teacher import OmniTeacherRunner, omni_teacher_ppo_cfg
+from zbot_rl_mjlab.experiments.omni_teacher import (
+    grouped_teacher_ppo_cfg,
+    omni_teacher_ppo_cfg,
+)
+from zbot_rl_mjlab.grouped_teacher import GroupedTeacherRunner
+from zbot_rl_mjlab.omni_teacher import OmniTeacherRunner
 from zbot_rl_mjlab.tasks.universal.reward_groups import GROUP_NAMES
 
 

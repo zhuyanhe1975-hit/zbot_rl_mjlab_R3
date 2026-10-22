@@ -1,21 +1,26 @@
 """单个特权教师从头联合学习两种全向运动及双向变形。"""
 
-from dataclasses import asdict
 
+from dataclasses import asdict, fields
+from typing import cast
+
+from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
+from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
+from mjlab.rl import RslRlModelCfg, RslRlPpoAlgorithmCfg
+from mjlab.sensor import TerrainHeightSensorCfg
 
-from ..grouped_teacher import GroupedTeacherRunner, grouped_teacher_ppo_cfg
-from ..guided_teacher import GuidedTeacherRunner, guided_teacher_ppo_cfg
-from ..omni_teacher import OmniTeacherRunner, omni_teacher_ppo_cfg
+from ..grouped_teacher import GroupedTeacherRunner
+from ..guided_ppo import GuidedTaskPpoCfg
+from ..guided_teacher import GuidedTeacherRunner, GuidedTeacherRunnerCfg
+from ..omni_teacher import OmniTeacherRunner, OmniTeacherRunnerCfg
 from ..task_teacher import (
     RoutedTaskTeacherRunner,
     TaskTeacherRunner,
-    routed_task_teacher_ppo_cfg,
-    task_teacher_ppo_cfg,
 )
+from ..tasks.universal import teacher_rewards, teacher_snake_rewards, teacher_transition
 from ..tasks.universal.actions import SnakeCrawlJointTargetRateActionCfg
-from ..tasks.universal.env_cfg import universal_env_cfg
 from ..tasks.universal.guided_rewards import (
     guided_action_rate,
     guided_joint_energy,
@@ -35,11 +40,114 @@ from ..tasks.universal.privileged import (
 )
 from ..tasks.universal.teacher_rewards import (
     ArchiveOmniTeacherEnvCfg,
-    configure_teacher_rewards,
 )
 from .addons import DomainRandomization
 from .base import Experiment
-from .universal import StudentDisturbance
+from .universal import StudentDisturbance, universal_env_cfg
+from .walking import env_cfg as walking_env_cfg
+
+
+def omni_teacher_ppo_cfg() -> OmniTeacherRunnerCfg:
+    """PPO及网络容量取成功归档；v2动作与网络须使用新run。"""
+    return OmniTeacherRunnerCfg(
+        class_name="zbot_rl_mjlab.omni_teacher:OmniTeacherRunner",
+        actor=RslRlModelCfg(
+            hidden_dims=(256, 128), activation="elu", obs_normalization=True,
+            distribution_cfg={"class_name": "BetaDistribution", "action_range": (-1.0, 1.0)},
+        ),
+        critic=RslRlModelCfg(hidden_dims=(256, 128), activation="elu", obs_normalization=True),
+        # bests/transform_snake_biped_bidirectional_2026-10-17_iter599/agent.yaml
+        # 与snake_to_biped_teacher_iter200相同；固定字段避免上游默认值漂移。
+        algorithm=RslRlPpoAlgorithmCfg(
+            class_name='PPO', num_learning_epochs=5, num_mini_batches=4,
+            learning_rate=3e-4, schedule='adaptive', gamma=.99, lam=.95,
+            entropy_coef=.005, desired_kl=.01, max_grad_norm=1.,
+            value_loss_coef=1., use_clipped_value_loss=True, clip_param=.2,
+            normalize_advantage_per_mini_batch=False, optimizer='adam', share_cnn_encoders=False,
+        ),
+        obs_groups={"actor": ("actor",), "critic": ("actor",)},
+        experiment_name="zbot_universal_snake_leg_omni_teacher",
+        max_iterations=6000, num_steps_per_env=24, save_interval=50, logger="tensorboard",
+    )
+
+
+def grouped_teacher_ppo_cfg() -> OmniTeacherRunnerCfg:
+    """Keep the successful PPO recipe while replacing its value estimator."""
+    cfg = omni_teacher_ppo_cfg()
+    cfg.class_name = "zbot_rl_mjlab.grouped_teacher:GroupedTeacherRunner"
+    cfg.algorithm.class_name = "zbot_rl_mjlab.grouped_ppo:GroupedPPO"
+    cfg.critic.class_name = "zbot_rl_mjlab.grouped_ppo:IndependentRewardCritics"
+    return cfg
+
+
+def task_teacher_ppo_cfg() -> OmniTeacherRunnerCfg:
+    cfg = omni_teacher_ppo_cfg()
+    cfg.class_name = 'zbot_rl_mjlab.task_teacher:TaskTeacherRunner'
+    cfg.algorithm.class_name = 'zbot_rl_mjlab.task_ppo:TaskPPO'
+    cfg.critic.class_name = 'zbot_rl_mjlab.task_ppo:IndependentTaskCritics'
+    return cfg
+
+
+def routed_task_teacher_ppo_cfg() -> OmniTeacherRunnerCfg:
+    cfg = task_teacher_ppo_cfg()
+    cfg.class_name = 'zbot_rl_mjlab.task_teacher:RoutedTaskTeacherRunner'
+    cfg.actor.class_name = 'zbot_rl_mjlab.task_models:RoutedTaskNormalizedMLP'
+    cfg.critic.class_name = 'zbot_rl_mjlab.task_models:TaskNormalizedCritics'
+    return cfg
+
+
+def guided_teacher_ppo_cfg() -> GuidedTeacherRunnerCfg:
+    baseline = routed_task_teacher_ppo_cfg()
+    algorithm = GuidedTaskPpoCfg(**(asdict(baseline.algorithm) | {
+        'class_name': 'zbot_rl_mjlab.guided_ppo:GuidedTaskPPO',
+    }))
+    values = {item.name: getattr(baseline, item.name) for item in fields(baseline) if item.name != 'algorithm'}
+    return GuidedTeacherRunnerCfg(**(values | {
+        'class_name': 'zbot_rl_mjlab.guided_teacher:GuidedTeacherRunner', 'algorithm': algorithm,
+    }))
+
+
+def configure_teacher_rewards(cfg):
+    """Install archival units once, retaining the current joint-task objectives."""
+    for name in ('energy', 'contact_impact', 'failure'):
+        cfg.rewards.pop(name, None)
+    cfg.rewards.update({
+        'mode_posture': RewardTermCfg(func=teacher_rewards.transition_posture, weight=2.),
+        'transition_progress': RewardTermCfg(func=teacher_rewards.transition_progress, weight=2.),
+        'velocity_tracking': RewardTermCfg(func=teacher_rewards.teacher_velocity_tracking, weight=1., params={'std': (.1, .1, .25), 'axis_weights': (2., 1., 1.)}),
+        'biped_upright': RewardTermCfg(func=teacher_rewards.biped_upright, weight=.2),
+        'joint_limits': RewardTermCfg(func=teacher_rewards.biped_joint_limits, weight=-.1),
+        'joint_acceleration': RewardTermCfg(func=teacher_rewards.biped_joint_acceleration, weight=-.0001),
+        'soft_landing': RewardTermCfg(func=teacher_rewards.biped_soft_landing, weight=-.02, params={'sensor_name': 'feet_ground_contact'}),
+        'swing_clearance': RewardTermCfg(func=teacher_rewards.biped_swing_clearance, weight=.5, params={'height_sensor_name': 'foot_height_scan', 'target': .05, 'std': .04}),
+        'action_rate': RewardTermCfg(func=teacher_rewards.teacher_action_rate, weight=-.01),
+        'joint_standing': RewardTermCfg(func=teacher_rewards.transition_pose, weight=12.),
+        'base_height_progress': RewardTermCfg(func=teacher_rewards.transition_height, weight=1.),
+        'base_ascent_velocity': RewardTermCfg(func=teacher_rewards.transition_ascent, weight=8., params={'target_speed': .15, 'pose_error_range': (.2, .8)}),
+        'sole_ground_alignment': RewardTermCfg(func=teacher_rewards.transition_sole, weight=1., params={'angle_power': 1.}),
+        'reset_failure': RewardTermCfg(func=teacher_rewards.transition_failure_cost, weight=-10.),
+        'stand_finish_joint_speed': RewardTermCfg(func=teacher_rewards.transition_finish_speed, weight=-.02),
+        'descent_ground_impact': RewardTermCfg(func=teacher_rewards.transition_descent_impact, weight=-2., params={'max_body_weights': 2.}),
+        'joint_energy': RewardTermCfg(func=teacher_rewards.teacher_joint_energy, weight=-.5, params={'energy_scale': 10.}),
+        'snake_vertical_speed': RewardTermCfg(func=teacher_snake_rewards.snake_vertical_speed, weight=-.2),
+        'snake_joint_deviation': RewardTermCfg(func=teacher_snake_rewards.snake_joint_deviation, weight=-.02),
+        'snake_target_saturation': RewardTermCfg(func=teacher_snake_rewards.snake_target_saturation, weight=-.1),
+        'support_foot_slip': RewardTermCfg(func=teacher_rewards.biped_support_foot_slip, weight=-5., params={'sensor_name': 'feet_ground_contact', 'site_names': ('foot_0_sole', 'foot_1_sole')}),
+        'foot_nonparallel_ground': RewardTermCfg(func=teacher_rewards.biped_foot_nonparallel, weight=-5., params={'sensor_name': 'feet_ground_contact', 'std': .1}),
+    })
+    cfg.events['reset_archive_ascent_memory'] = EventTermCfg(func=teacher_rewards.reset_ascent_memory, mode='reset')
+    cfg.terminations['biped_fallen'] = TerminationTermCfg(func=teacher_rewards.biped_fallen, params={'height': .22, 'tilt': .75})
+    cfg.terminations['transition_failure'] = TerminationTermCfg(func=teacher_transition.transition_failure)
+    cfg.events['reset_transition_failure_memory'] = EventTermCfg(func=teacher_transition.reset_transition_failure_memory, mode='reset')
+    for sensor in cfg.scene.sensors:
+        if sensor.name == 'feet_ground_contact':
+            sensor.track_air_time = True
+            sensor.history_length = cfg.decimation
+    if not any(sensor.name == 'foot_height_scan' for sensor in cfg.scene.sensors):
+        height = cast(TerrainHeightSensorCfg, next(sensor for sensor in walking_env_cfg().scene.sensors if sensor.name == 'foot_height_scan'))
+        height.debug_vis = False
+        cfg.scene.sensors = (*cfg.scene.sensors, height)
+    return cfg
 
 
 class SnakeLegOmniTeacher(Experiment):
@@ -59,7 +167,7 @@ class SnakeLegOmniTeacher(Experiment):
         DomainRandomization(encoder_bias_range=None),
     )
 
-    def build_ppo(self):
+    def _build_ppo(self):
         cfg = omni_teacher_ppo_cfg()
         cfg.experiment_name = self.experiment_name
         if self.max_iterations is not None:
@@ -131,7 +239,7 @@ class SnakeLegOmniGroupedTeacher(SnakeLegOmniWideBipedTeacher):
     experiment_name = 'zbot_universal_snake_leg_omni_teacher_multi_critic'
     runner_cls = GroupedTeacherRunner
 
-    def build_ppo(self):
+    def _build_ppo(self):
         cfg = grouped_teacher_ppo_cfg()
         cfg.experiment_name = self.experiment_name
         if self.max_iterations is not None:
@@ -151,7 +259,7 @@ class SnakeLegOmniTaskTeacher(SnakeLegOmniGroupedTeacher):
     experiment_name = 'zbot_universal_snake_leg_omni_teacher_task_critic'
     runner_cls = TaskTeacherRunner
 
-    def build_ppo(self):
+    def _build_ppo(self):
         cfg = task_teacher_ppo_cfg()
         cfg.experiment_name = self.experiment_name
         if self.max_iterations is not None:
@@ -164,7 +272,7 @@ class SnakeLegOmniTaskRoutedTeacher(SnakeLegOmniTaskTeacher):
     experiment_name = 'zbot_universal_snake_leg_omni_teacher_task_routed'
     runner_cls = RoutedTaskTeacherRunner
 
-    def build_ppo(self):
+    def _build_ppo(self):
         cfg = routed_task_teacher_ppo_cfg()
         cfg.experiment_name = self.experiment_name
         if self.max_iterations is not None:
@@ -191,7 +299,7 @@ class SnakeLegOmniGuidedTeacher(SnakeLegOmniTaskRoutedTeacher):
     experiment_name = 'zbot_universal_snake_leg_omni_teacher_guided'
     runner_cls = GuidedTeacherRunner
 
-    def build_ppo(self):
+    def _build_ppo(self):
         cfg = guided_teacher_ppo_cfg()
         cfg.experiment_name = self.experiment_name
         if self.max_iterations is not None:

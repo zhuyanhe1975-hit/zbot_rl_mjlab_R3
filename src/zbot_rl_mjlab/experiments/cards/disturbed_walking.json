@@ -1,0 +1,68 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "受扰双足行走",
+  "description": "依据 bests/zbot_disturbed_walking/model_599.pt 及同目录 env.yaml、agent.yaml 固定与当前 walking 父卡片不同的配方：抬脚高度奖励0.5、柔和落地惩罚-0.02、600轮训练，以及下列基座扰动和域随机化参数。其余参数继续继承父卡片；不重复归档中由Scene初始化生成的terrain.num_envs/env_spacing运行时字段。",
+  "task_id": "Mjlab-Zbot-6dof-Disturbed-Walking",
+  "inherits": "walking.json",
+  "rewards": {
+    "swing_clearance": {
+      "weight": 0.5
+    },
+    "soft_landing": {
+      "weight": -0.02
+    }
+  },
+  "agent": {
+    "max_iterations": 600
+  },
+  "addons": {
+    "BaseDisturbance": {
+      "force_range": [
+        -5.0,
+        5.0
+      ],
+      "torque_range": [
+        -0.5,
+        0.5
+      ],
+      "duration_s": [
+        0.08,
+        0.2
+      ],
+      "cooldown_s": [
+        0.8,
+        2.0
+      ],
+      "disturbed_fraction": 0.25
+    },
+    "DomainRandomization": {
+      "friction_range": [
+        0.3,
+        1.2
+      ],
+      "geom_names": [
+        "a1_geom",
+        "b6_geom"
+      ],
+      "encoder_bias_range": [
+        -0.015,
+        0.015
+      ],
+      "base_com_ranges": {
+        "0": [
+          -0.025,
+          0.025
+        ],
+        "1": [
+          -0.025,
+          0.025
+        ],
+        "2": [
+          -0.03,
+          0.03
+        ]
+      }
+    }
+  }
+}

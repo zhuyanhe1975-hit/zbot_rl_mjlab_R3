@@ -1,98 +1,81 @@
 # Zbot 强化学习实验
 
-基于 MJLab 的六关节 Zbot 仿真训练项目，包含行走、蛇足变形和综合运动任务，共注册 30 个实验。
-行走类覆盖周期踏步、速度跟踪、能耗、扰动和部署配置；变形类覆盖双足变蛇形、蛇形站起和指令控制的双向切换。
-新增综合任务通过多教师蒸馏预训练一个统一策略，联合学习双足运动、蛇形运动和变形；尚需完整训练验收。
+**[打开实验导览与参数卡片](experiments.md)**：35个实验的网络、PPO、环境与奖励参数统一从卡片修改。
 
-当前先做[全能特权教师的纯双足对照](docs/privileged-omni-teacher.md)：`Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Wide-Biped` 全部环境固定双足，只采样全向 `vx/vy/wz`、混合指令和停车；蛇形及变形暂不采样。仍用56维真值输入（构型1维、任务1维），网络与PPO参数保持不变。通过 `ZBOT_EXPERIMENT=biped bash train.sh` 训练、`ZBOT_EXPERIMENT=biped bash run.sh` 回放；日志独立保存在 `logs/ablations/biped_scalar_only/`，完整训练由用户启动。
-当前默认入口为[分任务教师指导＋PPO的全能特权教师](docs/guided-privileged-teacher.md)：`bash train.sh` 从头训练新实验，产生检查点后用 `bash run.sh` 回放。每轮同时执行PPO和按任务监督；双足全向归档指导行走，双向变形归档指导站起／爬下；默认不加载世界X蛇形教师，蛇形全向由PPO学习。变形执行镜像目标与归直后重试规则。保持56维特权观测和分任务网络，学生训练继续暂缓。没有100代统一切换。旧纯PPO实验使用 `ZBOT_EXPERIMENT=taskrouted`，其他既有选项和检查点保留。
-部署学生训练暂缓；原[全向学生及CUDA Graph分析](docs/snake-leg-omni.md)保留供后续使用。
-原[四教师世界X实验](docs/snake-leg-universal.md)和[独立蛇形任务](docs/snake-omni-teacher.md)保留用于历史复现。
-综合部署实验从第一轮起使用受限观测学生，在同一受扰环境中接受教师指导，再继续节能与抗扰强化学习，见[最终学生培养](docs/universal-locomotion.md#最终部署学生)。
+基于外部 MJLab 的六关节 Zbot 仿真训练项目，当前注册 **35 个实验**：双足行走、蛇形运动、双向变形，以及多教师指导的综合运动。训练使用 MuJoCo、PyTorch 和 RSL-RL；本仓库不复制 MJLab 或安装新的运行依赖。
 
-## 环境与运行
+## 当前实验与入口
 
-需要外部 MJLab 环境及其 PyTorch、MuJoCo 等依赖，本仓库不复制 MJLab。`scripts/python.sh` 优先使用
-`MJLAB_ROOT/.venv/bin/python`，默认 `MJLAB_ROOT=/home/yhzhu/AI/mjlab`；可用 `ZBOT_PYTHON` 直接指定已安装依赖的解释器。
-若指定解释器不可执行，包装脚本回退到系统 `python3`。脚本自动加入本项目源码路径。
+`train.sh`、`run.sh` 保留本地逐项命令和注释选择方式，实际启用项以脚本内容为准。跨机器使用时，推荐下面的 `scripts/python.sh` 入口，通过 `MJLAB_ROOT` 或 `ZBOT_PYTHON` 选择已经安装 MJLab 的环境。
+
+本地 `train.sh`、`run.sh` 的环境激活路径属于原作者机器配置；分享前未改动其选中实验或参数。回放已归档模型可直接使用 `bests/test.sh`，避免依赖已清理的训练日志。
+
+独立模型索引仍可通过原有 `bests/test.sh` 使用：
+
+```bash
+./bests/test.sh                         # 列出归档
+./bests/test.sh snake_site_omni_2026-10-20_iter599 --env.scene.num-envs 1
+# 自定义参数使用Python入口，不改用户启动脚本：
+./scripts/python.sh train.py Mjlab-Zbot-6dof-Walking --agent.max-iterations 600
+./scripts/python.sh play.py Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional \
+  --checkpoint-file bests/transform_snake_biped_bidirectional_2026-10-17_iter599/model_599.pt
+```
+
+历史文档中的 `ZBOT_EXPERIMENT`、`ZBOT_SKILL` 和“默认实验”记载属于旧入口，不适用于当前脚本。
+
+`scripts/python.sh` 优先使用 `$MJLAB_ROOT/.venv/bin/python`，默认 `MJLAB_ROOT=/home/yhzhu/AI/mjlab`；可通过 `ZBOT_PYTHON` 指定解释器，不可执行时回退到系统 `python3`。包装器自动设置源码路径和工作目录，入口可从其他目录调用。
 
 ```bash
 export MJLAB_ROOT=/实际路径/mjlab
-# 如需独立解释器：export ZBOT_PYTHON=/实际路径/venv/bin/python
-
-./scripts/python.sh train.py Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional \
-  --env.scene.num-envs 8192 --agent.max-iterations 2000
-
-./scripts/python.sh play.py Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional \
-  --checkpoint-file /实际路径/model.pt --env.scene.num-envs 1
+# 或 export ZBOT_PYTHON=/实际路径/venv/bin/python
+./scripts/python.sh train.py Mjlab-Zbot-6dof-Snake-Base-Adaptive-Teacher --help
+./scripts/python.sh scripts/evaluate_site_snake.py --help
 ```
 
-行走训练可将任务 ID 改为 `Mjlab-Zbot-6dof-Walking`。各任务参数可在任务 ID 后加 `--help` 查看。
-`train.sh`、`run.sh` 使用 `ZBOT_EXPERIMENT` 选择实验；默认 `guided`，无需另建启动脚本。需要命令行指定任务和参数时，使用 `scripts/python.sh train.py/play.py`。
-评估和诊断工具统一放在 `scripts/`，例如 `./scripts/python.sh scripts/transformation_eval.py --help`。
+## 代码导航
 
-## 目录
-
-| 路径 | 用途 |
+| 路径 | 职责 |
 |---|---|
-| `train.py`、`play.py` | 训练与回放入口 |
-| `src/zbot_rl_mjlab/experiments/` | 实验注册与训练配方 |
-| `src/zbot_rl_mjlab/tasks/walking/` | 行走环境、指令、奖励与动作 |
-| `src/zbot_rl_mjlab/tasks/snake/` | 蛇形全向运动指令、头部稳定与接触约束 |
-| `src/zbot_rl_mjlab/tasks/transformation/` | 变形环境、动作、状态、奖励与课程 |
-| `src/zbot_rl_mjlab/tasks/universal/` | 综合运动指令、模式奖励及统一全身接触环境 |
-| `src/zbot_rl_mjlab/teachers.py`、`distillation.py` | 冻结教师适配、监督预热与联合 PPO |
-| `src/zbot_rl_mjlab/tasks/common.py` | 跨任务共享的物理扰动行为 |
-| `src/zbot_rl_mjlab/rl.py` | 公共 PPO 默认值、热奖励控制与训练运行器 |
-| `src/zbot_rl_mjlab/` | 机器人定义、命令行与可视化 |
-| `assets/` | 唯一运行模型 `zbot_6/ZBOT6.xml` 及其网格 |
-| `scripts/` | Python 环境包装、评估、诊断与训练预览工具 |
-| `tests/` | 回归测试 |
-| `bests/` | 10 个归档模型、配置与精简复现资料 |
-| `docs/` | 任务、指标、执行器、坐标约定及历史记录 |
+| `train.py`、`play.py`、`cli.py` | MJLab训练入口、模型回放和项目参数适配 |
+| `src/zbot_rl_mjlab/experiments/` | 任务注册、训练配方、PPO配置和Runner选择 |
+| `src/zbot_rl_mjlab/tasks/walking/` | 双足行走、速度指令、奖励和动作 |
+| `src/zbot_rl_mjlab/tasks/snake/` | 独立蛇形运动、site/base参考与前进对照 |
+| `src/zbot_rl_mjlab/tasks/transformation/` | 变形、镜像动作、课程和恢复 |
+| `src/zbot_rl_mjlab/tasks/universal/` | 综合运动、任务状态机、特权观测和共享动作 |
+| `src/zbot_rl_mjlab/*teacher*.py`、`*ppo.py`、`distillation.py` | 教师适配、PPO、蒸馏和检查点契约 |
+| `src/zbot_rl_mjlab/base_snake_teacher.py` | 当前实验的两阶段自适应调权 |
+| `src/zbot_rl_mjlab/robot.py`、`assets/zbot_6/ZBOT6.xml` | 六关节模型、执行器与物理参数 |
+| `scripts/`、`tests/` | 评估诊断工具和回归测试 |
+| `bests/` | 14个正式归档模型、配置、校验和与复现资料 |
+| `docs/` | 任务说明、坐标约定和历史实验记录 |
 
-训练日志与评估输出是可再生产物，按需保存在 `logs/`、`outputs/`，不纳入版本管理。
-完整历史快照及大型评估明细已备份到项目外，位置见 [归档索引](bests/归档位置.json)。
-变形评估默认只保存摘要，需要逐步轨迹时加 `--save-trace`。
+任务层定义环境行为，实验层组合配方，Runner负责训练和模型兼容；实验构建钩子按MRO由基类到子类执行一次，细节见[架构说明](docs/task-experiment-architecture.md)。
 
-## 检查与说明
-
-在已安装开发工具和仿真依赖的环境中执行：
+## 验证与资料
 
 ```bash
-./scripts/python.sh -m pytest tests
+./scripts/python.sh -m pytest tests -q
 ./scripts/python.sh -m ruff check src scripts tests train.py play.py
-./scripts/python.sh -m pyright --pythonpath /实际路径/venv/bin/python
+./scripts/python.sh -m pyright src scripts tests train.py play.py \
+  --pythonpath /实际路径/venv/bin/python
 ```
 
-当前 Pyright 检查仍有既有类型诊断，清理不会视为类型检查通过；细节见 [清理记录](docs/cleanup-report.md)。
+类型检查有既有诊断，结果见[源码分级与卡片验证记录](docs/source-structure-report.md)。测试不代表策略收敛或实机可用。检查点必须匹配任务、观测顺序、动作映射、分布、坐标系和执行器定义。原site全向任务已按归档恢复为56维Beta配方，可通过 `./bests/test.sh snake_site_omni_2026-10-20_iter599` 回放；自适应/base/forward任务仍使用各自61维Gaussian配方。
 
-测试通过只说明其覆盖的接口和行为符合预期，不代表策略收敛或实机可用。已有模型对任务 ID、观测维数、动作映射和执行器定义有兼容性要求。
+## 分享与复现
 
-- [蛇形全向教师](docs/snake-omni-teacher.md)：训练、键盘控制与无窗口验收
-- [综合运动与多教师蒸馏](docs/universal-locomotion.md)：训练、键盘控制及续训说明
-- [任务与实验结构](docs/task-experiment-architecture.md)
-- [变形实验](docs/transformation.md)与[双向变形](docs/bidirectional-transformation.md)
-- [坐标系约定](docs/zbot-coordinate-system.md)
-- [步态指标](docs/gait-metrics.md)与[RS00 执行器](docs/rs00-actuator.md)
-- [历史项目记录](docs/project-memory.md)与[历史重置计划](docs/reset-plan.md)
-
-双足动作范围的独立对照任务与100轮不动诊断见[动作范围检查](docs/omni-v3-100-action-range.md)；完整训练仍由用户启动。
-
-当前统一入口为 `bash train.sh` / `bash run.sh`，采用[显式任务状态机](docs/omni-task-fsm.md)，默认关闭100/500轮周期验收输出。
-
-当前500轮停滞的诊断与单技能对照用法见[受控对照说明](docs/fsm-training-stall-control.md)，仍使用`train.sh`和`run.sh`。
-
-[标量观测更新](docs/scalar-observation-update.md)仅用于当前Wide全能任务；旧bests文件及play兼容验证通过。
-
-### 最新蛇形 site 全向实验归档
-
-`bests/snake_site_omni_2026-10-20_iter599` 保存 600 次 PPO 更新后的最终检查点、
-实际训练配置、源码快照、训练标量与独立评测。严格全向评测目前仅停止场景通过，
-其余方向尚未达标；本归档用于保留实验进度，不代表合格的全向控制器。
+分享完整源码目录，保留根目录 `assets/` 和 `bests/`；当前不提供脱离源码树的独立 wheel。运行依赖外部 MJLab 环境，`uv.lock` 不锁定这套外部运行环境。
 
 ```bash
-./bests/test.sh snake_site_omni_2026-10-20_iter599 --env.scene.num-envs 16
+python3 scripts/package_release.py
 ```
 
-详情见 [归档说明](bests/snake_site_omni_2026-10-20_iter599/README.md)。
+生成的源码包位于 `dist/`，包含文件清单和SHA256，排除本机环境、Git历史、训练日志、临时结果和缓存。环境准备、解压验证、许可证状态及检查边界见[发布与复现说明](docs/release.md)。
+
+- [模型归档及验证边界](bests/README.md)
+- [坐标系约定](docs/zbot-coordinate-system.md)、[执行器](docs/rs00-actuator.md)
+- [蛇形site奖励](docs/site-snake-g1-rewards.md)、[自适应权重](docs/site-snake-adaptive-weights.md)、[前进对照](docs/site-snake-forward-ablation.md)
+- [双向变形](docs/bidirectional-transformation.md)、[综合运动](docs/universal-locomotion.md)
+- [特权教师](docs/privileged-omni-teacher.md)、[指导教师](docs/guided-privileged-teacher.md)
+
+`logs/`、`outputs/`、`work/`及缓存为本地训练/诊断产物，不纳入版本管理。2026-10-21已按要求删除项目外旧完整快照，未再创建完整备份；保留的本地模型资料见[bests索引](bests/归档位置.json)。

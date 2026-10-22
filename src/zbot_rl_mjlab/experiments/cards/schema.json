@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Zbot实验卡片",
+  "description": "实验参数的统一编辑入口。公共设置由inherits继承，子卡片只覆盖差异。",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "title"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "title": {
+      "type": "string",
+      "description": "导览中的实验名称"
+    },
+    "description": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string",
+      "description": "固定实验ID，应与注册代码一致"
+    },
+    "inherits": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+(?:\\.json)?$",
+      "description": "同目录父卡片；没有覆盖的参数随父卡片同步"
+    },
+    "env": {
+      "type": "object",
+      "description": "训练和回放共用的环境参数，如episode_length_s、actions、commands和sim"
+    },
+    "rewards": {
+      "$ref": "#/$defs/rewards"
+    },
+    "agent": {
+      "type": "object",
+      "description": "网络、PPO、蒸馏、验证频率及训练计划",
+      "properties": {
+        "actor": {
+          "$ref": "#/$defs/model"
+        },
+        "critic": {
+          "$ref": "#/$defs/model"
+        },
+        "algorithm": {
+          "type": "object",
+          "properties": {
+            "learning_rate": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "entropy_coef": {
+              "type": "number",
+              "minimum": 0
+            },
+            "gamma": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "lam": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "num_learning_epochs": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "num_mini_batches": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "max_iterations": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "num_steps_per_env": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "save_interval": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "train": {
+      "$ref": "#/$defs/mode"
+    },
+    "play": {
+      "$ref": "#/$defs/mode"
+    },
+    "addons": {
+      "type": "object",
+      "description": "扩展参数，按BaseDisturbance、ObservationNoise、ActionDelay等类型分组。任务组装后统一应用，命令行指定的扩展优先。",
+      "additionalProperties": {
+        "type": "object"
+      }
+    }
+  },
+  "$defs": {
+    "model": {
+      "type": "object",
+      "properties": {
+        "hidden_dims": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "activation": {
+          "type": "string"
+        },
+        "obs_normalization": {
+          "type": "boolean"
+        },
+        "distribution_cfg": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "既有策略分布的超参数，例如init_std、std_type、action_range"
+        }
+      }
+    },
+    "rewards": {
+      "type": "object",
+      "properties": {
+        "$remove": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "weight": {
+            "type": "number"
+          },
+          "params": {
+            "type": "object",
+            "description": "奖励函数的参数；函数绑定仍由任务实现决定"
+          }
+        }
+      }
+    },
+    "mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "env": {
+          "type": "object"
+        },
+        "rewards": {
+          "$ref": "#/$defs/rewards"
+        },
+        "$remove": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

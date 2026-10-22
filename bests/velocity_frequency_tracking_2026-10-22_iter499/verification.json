@@ -1,0 +1,15 @@
+{
+  "checkpoint_sha256_matches_source": true,
+  "task_compatibility_and_strict_actor_load": "passed",
+  "actuator_compatibility": "passed",
+  "staged_checks_before_replacement": true,
+  "playback_frequency_range_hz": [
+    0.25,
+    1.0
+  ],
+  "playback_forward_speed_range_m_s": [
+    0.0,
+    0.5
+  ],
+  "independent_simulation_evaluation": "not performed"
+}

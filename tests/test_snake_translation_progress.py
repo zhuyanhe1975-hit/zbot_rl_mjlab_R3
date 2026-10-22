@@ -6,8 +6,8 @@ import pytest
 import torch
 from test_snake_task import state_env
 
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 from zbot_rl_mjlab.tasks.snake import mdp
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
 
 
 def old_score(actual, requested):

@@ -29,6 +29,7 @@ class PrivilegedOmniCommandCfg(OmniCommandCfg):
     task_observation_encoding: Literal['scalar', 'one_hot'] = 'one_hot'
     velocity_limits: tuple[float, float, float] = (.5, .2, .8)
     motion_axis_min_fraction: float = .4
+    motion_stop_probability: float = 1 / 8
     training_task_fractions: tuple[float, float, float, float] = (.4, .4, .1, .1)
     randomize_play_modes: bool = True
     play_random_velocity: bool = False
@@ -60,6 +61,13 @@ class PrivilegedOmniCommand(OmniCommand):
             raise ValueError('task_observation_encoding must be scalar or one_hot')
         if not math.isfinite(cfg.motion_axis_min_fraction) or not 0 < cfg.motion_axis_min_fraction <= 1:
             raise ValueError('motion_axis_min_fraction must be in (0, 1]')
+        if not math.isfinite(cfg.motion_stop_probability) or not 0 <= cfg.motion_stop_probability <= 1:
+            raise ValueError('motion_stop_probability must be finite and in [0, 1]')
+        x_only_probability = getattr(cfg, 'motion_x_only_probability', None)
+        if x_only_probability is not None and (
+            not math.isfinite(x_only_probability) or not 0 <= x_only_probability <= 1 - cfg.motion_stop_probability
+        ):
+            raise ValueError('motion_x_only_probability must be finite and in [0, 1-motion_stop_probability]')
         low, high = cfg.biped_gait_frequency_range
         if not (math.isfinite(low) and math.isfinite(high) and 0 < low <= high):
             raise ValueError('biped_gait_frequency_range must be finite and positive')
@@ -160,6 +168,8 @@ class PrivilegedOmniCommand(OmniCommand):
         self.requested_velocity[ids] = sample_motion_commands(
             self.standing_mode[ids], self.cfg.velocity_limits,
             axis_min_fraction=self.teacher_cfg.motion_axis_min_fraction,
+            stop_probability=self.teacher_cfg.motion_stop_probability,
+            x_only_probability=getattr(self.teacher_cfg, 'motion_x_only_probability', None),
         )
 
     def _resample_command(self, env_ids):

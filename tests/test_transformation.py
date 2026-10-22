@@ -34,7 +34,7 @@ def _goal_env(num_envs=2):
     action = SimpleNamespace(
         commanded_target=torch.zeros(num_envs, 6), raw_action=torch.zeros(num_envs, 6)
     )
-    from zbot_rl_mjlab.tasks.transformation.env_cfg import transformation_env_cfg
+    from zbot_rl_mjlab.experiments.transformation import transformation_env_cfg
 
     return SimpleNamespace(
         num_envs=num_envs,
@@ -438,7 +438,7 @@ def test_registered_action_uses_model_limits_by_default_and_asset_allows_past_pi
 def test_transform_exploration_settings_do_not_change_walking_defaults():
     from mjlab.tasks.registry import load_rl_cfg
 
-    from zbot_rl_mjlab.rl import ppo_cfg
+    from zbot_rl_mjlab.experiments.common import ppo_cfg
 
     before = ppo_cfg()
     transformed = load_rl_cfg(TASK)

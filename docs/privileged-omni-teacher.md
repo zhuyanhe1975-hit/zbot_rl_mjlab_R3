@@ -1,5 +1,7 @@
 # 全能特权教师：一次联合PPO训练
 
+> 历史实验记录：当前默认是[实验20 base蛇形教师](experiment20-base-adaptive-snake.md)。本文中的旧默认入口和 `ZBOT_EXPERIMENT` / `ZBOT_SKILL` 属于当时用法；当前train/run保留原命令和注释选择方式，命令行自定义参数使用Python入口，见[项目入口](../README.md)。项目外完整快照已于2026-10-21按要求删除，文内旧备份路径仅为历史记录。
+
 最新默认入口为[分任务指导＋PPO的特权教师](guided-privileged-teacher.md)；本文中的旧纯双足对照通过 `ZBOT_EXPERIMENT=biped bash train.sh`／`run.sh` 选择，配置与检查点保留。
 
 当前统一入口任务：`Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Wide-Biped`；原Teacher任务保留作对照。

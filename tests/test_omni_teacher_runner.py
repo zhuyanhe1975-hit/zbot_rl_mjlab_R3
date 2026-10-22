@@ -9,7 +9,8 @@ import pytest
 import torch
 from mjlab.rl import MjlabOnPolicyRunner, RslRlPpoAlgorithmCfg
 
-from zbot_rl_mjlab.omni_teacher import OmniTeacherRunner, omni_teacher_ppo_cfg
+from zbot_rl_mjlab.experiments.omni_teacher import omni_teacher_ppo_cfg
+from zbot_rl_mjlab.omni_teacher import OmniTeacherRunner
 
 
 @pytest.fixture

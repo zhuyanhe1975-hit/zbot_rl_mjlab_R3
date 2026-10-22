@@ -1,0 +1,14 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "奖励分组Critic教师",
+  "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Multi-Critic",
+  "inherits": "universal_snake_leg_omni_teacher_wide_biped.json",
+  "env": {
+    "commands": {
+      "transform": {
+        "mode": "source"
+      }
+    }
+  }
+}

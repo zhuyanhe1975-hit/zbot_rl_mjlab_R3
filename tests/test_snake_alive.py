@@ -7,7 +7,7 @@ from mjlab.managers.reward_manager import RewardManager
 from mjlab.managers.termination_manager import TerminationManager, TerminationTermCfg
 from test_snake_task import state_env
 
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 
 
 @pytest.mark.parametrize('play', [False, True])

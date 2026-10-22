@@ -7,7 +7,7 @@ from test_transformation_action_bounds import (
     make_action as make_action,  # noqa: PLC0414
 )
 
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 
 
 def test_snake_rate_mapping_integrates_holds_and_reverses_without_windup(make_action):

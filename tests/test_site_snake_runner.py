@@ -8,27 +8,26 @@ from unittest.mock import Mock
 import pytest
 import torch
 from mjlab.rl import MjlabOnPolicyRunner
-from mjlab.tasks.registry import load_env_cfg
 from rsl_rl.models import MLPModel
+from rsl_rl.modules import BetaDistribution
 from tensordict import TensorDict
 
 from zbot_rl_mjlab import site_snake_evaluation
-from zbot_rl_mjlab.site_snake_teacher import SiteSnakeTeacherRunner, site_snake_ppo_cfg
+from zbot_rl_mjlab.experiments.site_snake import site_snake_env_cfg, site_snake_ppo_cfg
+from zbot_rl_mjlab.site_snake_teacher import SiteSnakeTeacherRunner
 from zbot_rl_mjlab.tasks.snake.site_omni import SiteSnakeCommandCfg
-
-TASK = 'Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher'
 
 
 @pytest.fixture
 def setup(monkeypatch):
-    obs = TensorDict({'actor': torch.zeros(2, 56)}, batch_size=[2])
+    obs = TensorDict({'actor': torch.zeros(2, 61)}, batch_size=[2])
     groups = {'actor': ['actor'], 'critic': ['actor']}
     actor = MLPModel(obs, groups, 'actor', 6, hidden_dims=(8,), obs_normalization=True,
-                     distribution_cfg={'class_name': 'BetaDistribution', 'action_range': (-1., 1.)})
+                     distribution_cfg=site_snake_ppo_cfg().actor.distribution_cfg)
     critic = MLPModel(obs, groups, 'critic', 1, hidden_dims=(8,), obs_normalization=True)
     alg = SimpleNamespace(actor=actor, critic=critic, update=Mock(return_value={'value': 1.}))
     term = SimpleNamespace(tracking_ema=torch.zeros(2))
-    physical = SimpleNamespace(cfg=load_env_cfg(TASK), common_step_counter=0,
+    physical = SimpleNamespace(cfg=site_snake_env_cfg(), common_step_counter=0,
                                command_manager=SimpleNamespace(get_term=lambda _: term))
     env = SimpleNamespace(unwrapped=physical, num_actions=6, get_observations=lambda: obs)
     logger = SimpleNamespace(writer=None, process_env_step=Mock(), log=Mock())
@@ -38,7 +37,7 @@ def setup(monkeypatch):
         self.current_learning_iteration = 0
 
     evaluator = Mock(return_value={'snake_omni_passed': 0., 'snake_omni_scenarios_passed': 0.})
-    evaluator.last_report = {'passed': False, 'duration_eligible': True, 'protocol': 'site_snake_omni_v3'}
+    evaluator.last_report = {'passed': False, 'duration_eligible': True, 'protocol': 'site_snake_omni_v4'}
     factory = Mock(return_value=evaluator)
     monkeypatch.setattr(MjlabOnPolicyRunner, '__init__', base_init)
     monkeypatch.setattr(site_snake_evaluation, 'SiteSnakeEvaluator', factory)
@@ -56,9 +55,11 @@ def checkpoint(path, runner):
     return saved
 
 
-def test_recipe_uses_successful_archived_snake_ppo_parameters():
+def test_recipe_uses_g1_velocity_gaussian_exploration():
     cfg = site_snake_ppo_cfg()
-    assert cfg.algorithm.learning_rate == .001 and cfg.algorithm.entropy_coef == .002
+    assert cfg.algorithm.learning_rate == .001 and cfg.algorithm.entropy_coef == .01
+    assert cfg.actor.distribution_cfg == {'class_name': 'GaussianDistribution', 'init_std': 1., 'std_type': 'scalar'}
+    assert cfg.clip_actions == 1.
     assert cfg.actor.hidden_dims == cfg.critic.hidden_dims == (256, 128)
     assert cfg.actor.obs_normalization and cfg.critic.obs_normalization
     assert cfg.algorithm.class_name == 'PPO'
@@ -68,12 +69,29 @@ def test_recipe_uses_successful_archived_snake_ppo_parameters():
 
 
 @pytest.mark.parametrize('change', [
+    {'reward_recipe': 'zbot_snake_head_frame_signed_alive_v13'},
+    {'reward_recipe': 'zbot_snake_head_frame_absolute_error_v14'},
+    {'distribution': 'BetaDistribution'}, {'schema_version': 5}, {'snake_omni_version': 11},
+    {'action_clipping': 'none'},
     {'role': 'privileged_omni_guided_teacher'}, {'actor_obs_dim': 51},
+    {'schema_version': 3}, {'actor_obs_dim': 56}, {'critic_obs_dim': 56},
+    {'schema_version': 4}, {'actor_obs_dim': 63}, {'critic_obs_dim': 63},
+    {'snake_omni_version': 9}, {'reward_recipe': 'zbot_snake_site_amplitude_weighted_twist_v11'},
+    {'snake_omni_version': 10}, {'reward_recipe': 'zbot_snake_head_frame_error_alive_v12'},
+    {'snake_omni_version': 7}, {'observation_recipe': 'legacy_scalar'},
+    {'snake_omni_version': 8}, {'reward_recipe': 'zbot_snake_site_signed_twist_reset_v10'},
     {'snake_omni_version': 1}, {'snake_omni_version': 2}, {'tracking_point': 'whole_robot_com'},
     {'reward_recipe': 'archived_progress_v1'}, {'reward_recipe': 'zbot_snake_velocity_v3'},
     {'reward_recipe': 'zbot_snake_velocity_limits_v4'},
+    {'snake_omni_version': 3}, {'reward_recipe': 'zbot_snake_velocity_limits_tilt_v5'},
+    {'snake_omni_version': 4}, {'reward_recipe': 'zbot_snake_commanded_heading_v6'},
+    {'reward_recipe': 'zbot_snake_site_net_progress_v7'},
+    {'snake_omni_version': 5}, {'reward_recipe': 'zbot_snake_site_net_heading_v8'},
+    {'snake_omni_version': 6}, {'reward_recipe': 'zbot_snake_site_signed_twist_v9'},
+    {'velocity_limits': (0., .2, .2)}, {'velocity_limits': (.2, float('nan'), .2)},
     {'objective': 'snake_world_x_capped_speed'}, {'command_axes': ('world_x', 'world_y', 'world_z')},
-    {'joint_target_limit': 3.14}, {'max_target_speed': 1.},
+    {'joint_target_limit': 0.}, {'joint_target_limit': float('nan')}, {'max_target_speed': -1.},
+    {'snake_target_limit': 0.}, {'max_target_speed': float('inf')},
 ])
 def test_wrong_checkpoint_rejected_before_mutation(setup, monkeypatch, tmp_path, change):
     env, cfg, _, _, _ = setup
@@ -91,13 +109,18 @@ def test_wrong_checkpoint_rejected_before_mutation(setup, monkeypatch, tmp_path,
 
 def test_playback_prepares_only_matching_site_snake_env(setup, tmp_path):
     env, cfg, *_ = setup
+    env.unwrapped.cfg.commands['transform'].velocity_limits = (.12, .15, .25)
     runner = SiteSnakeTeacherRunner(env, cfg)
     path = tmp_path / 'model.pt'
     checkpoint(path, runner)
-    play_cfg = load_env_cfg(TASK, play=True)
+    play_cfg = site_snake_env_cfg(play=True)
     SiteSnakeTeacherRunner.prepare_playback_env_cfg(play_cfg, path)
     command = play_cfg.commands['transform']
     assert isinstance(command, SiteSnakeCommandCfg) and command.mode == 'snake'
+    assert command.velocity_limits == (.12, .15, .25)
+    assert play_cfg.rewards['track_forward_velocity'].params == {}
+    assert play_cfg.rewards['track_lateral_velocity'].params == {}
+    assert play_cfg.rewards['track_angular_velocity'].params == {}
     with pytest.raises(ValueError):
         SiteSnakeTeacherRunner.prepare_playback_env_cfg(SimpleNamespace(), path)
 
@@ -171,3 +194,44 @@ def test_default_console_installs_reward_summary_and_live_sampling(setup, tmp_pa
     runner = SiteSnakeTeacherRunner(env, cfg, str(tmp_path))
     assert hasattr(runner.logger.log, '__wrapped__')
     assert hasattr(runner.logger.process_env_step, '__wrapped__')
+
+
+def test_gaussian_head_has_six_means_unit_std_and_finite_unclipped_log_probs(setup):
+    _, _, alg, *_ = setup
+    actor = alg.actor
+    obs = TensorDict({'actor': torch.zeros(4096, 61)}, batch_size=[4096])
+    torch.manual_seed(7)
+    samples = actor(obs, stochastic_output=True)
+    assert samples.shape == (4096, 6)
+    assert (samples.abs() > 1.).any()
+    torch.testing.assert_close(actor.distribution.std, torch.ones_like(samples))
+    assert actor.mlp(torch.zeros(2, 61)).shape == (2, 6)
+    log_prob = actor.distribution.log_prob(samples)
+    assert torch.isfinite(log_prob).all()
+    (-log_prob.mean()).backward()
+    assert all(parameter.grad is None or torch.isfinite(parameter.grad).all() for parameter in actor.parameters())
+
+
+def test_runner_rejects_beta_actor(setup):
+    env, cfg, alg, *_ = setup
+    alg.actor.distribution = BetaDistribution(6)
+    with pytest.raises(TypeError, match='Gaussian'):
+        SiteSnakeTeacherRunner(env, cfg)
+
+
+def test_custom_control_limits_save_and_restore_without_fixed_contract(setup, tmp_path):
+    env, cfg, *_ = setup
+    action = env.unwrapped.cfg.actions['joint_pos']
+    action.target_limit = 2*torch.pi/3
+    action.snake_target_limit = torch.pi/2
+    action.max_target_speed = 3.
+    runner = SiteSnakeTeacherRunner(env, cfg)
+    path = tmp_path/'custom.pt'
+    saved = checkpoint(path, runner)
+    SiteSnakeTeacherRunner._validate_checkpoint(saved)
+    play_cfg = site_snake_env_cfg(play=True)
+    SiteSnakeTeacherRunner.prepare_playback_env_cfg(play_cfg, path)
+    restored = play_cfg.actions['joint_pos']
+    assert restored.target_limit == action.target_limit
+    assert restored.snake_target_limit == action.snake_target_limit
+    assert restored.max_target_speed == action.max_target_speed

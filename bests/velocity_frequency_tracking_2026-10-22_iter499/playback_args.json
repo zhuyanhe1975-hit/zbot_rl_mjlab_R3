@@ -1,0 +1,8 @@
+[
+  "--env.step-frequency-min",
+  "0.25",
+  "--env.step-frequency-max",
+  "1.0",
+  "--env.commands.target-speed.ranges.lin-vel-x",
+  "(0.0,0.5)"
+]

@@ -1,4 +1,5 @@
 """Archived reward units and teacher-only phase adaptations, without simulation."""
+
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,9 +10,12 @@ import torch
 import yaml
 from test_universal_task import state_env
 
+from zbot_rl_mjlab.experiments.omni_teacher import (
+    configure_teacher_rewards as _recipe_configure_teacher_rewards,
+)
+from zbot_rl_mjlab.experiments.universal import universal_env_cfg
 from zbot_rl_mjlab.tasks.transformation import commanded, robust
 from zbot_rl_mjlab.tasks.universal import teacher_rewards as rewards
-from zbot_rl_mjlab.tasks.universal.env_cfg import universal_env_cfg
 from zbot_rl_mjlab.tasks.walking import mdp as walking
 
 BESTS = Path(__file__).resolve().parents[1] / 'bests'
@@ -25,7 +29,7 @@ def archive(path):
 
 
 def test_recipe_matches_effective_archive_weights_and_parameters():
-    cfg = rewards.configure_teacher_rewards(universal_env_cfg())
+    cfg = _recipe_configure_teacher_rewards(universal_env_cfg())
     effective = json.loads((TRANSFORM / 'final_effective_weights.json').read_text())
     transform = archive(TRANSFORM / 'env.yaml')
     walking = archive(WALKING / 'env.yaml')
@@ -173,7 +177,7 @@ def test_descending_impact_units_and_failure_charged_once():
     torch.testing.assert_close(rewards.transition_descent_impact(env), torch.tensor([0., 4.]))
     term.transition_mask[:] = False
     assert rewards.transition_descent_impact(env).eq(0).all()
-    cfg = rewards.configure_teacher_rewards(universal_env_cfg())
+    cfg = _recipe_configure_teacher_rewards(universal_env_cfg())
     env.termination_manager = SimpleNamespace(terminated=torch.tensor([True, False]))
     penalty = cfg.rewards['reset_failure']
     assert penalty.func(env).eq(0).all()  # Walking falls retain termination, without the transform-only fee.

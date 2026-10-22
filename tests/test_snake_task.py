@@ -7,10 +7,9 @@ import pytest
 import torch
 from mjlab.utils.lab_api.math import quat_mul
 
-from zbot_rl_mjlab.experiments.snake import SnakeOmniTeacher
+from zbot_rl_mjlab.experiments.snake import SnakeOmniTeacher, snake_env_cfg
 from zbot_rl_mjlab.robot import get_spec
 from zbot_rl_mjlab.tasks.snake import mdp
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
 from zbot_rl_mjlab.tasks.transformation.env_cfg import full_body_spec
 
 
@@ -82,7 +81,7 @@ def test_snake_only_limits_action_targets_and_preserves_model_ranges():
     for play in (False, True):
         cfg = snake_env_cfg(play=play)
         model = cfg.scene.entities['robot'].spec_fn().compile()
-        assert cfg.actions['joint_pos'].target_limit == pytest.approx(math.pi / 3)
+        assert cfg.actions['joint_pos'].target_limit == pytest.approx(math.pi / 2)
         for name in JOINT_NAMES:
             joint = model.joint(name)
             assert model.jnt_limited[joint.id]

@@ -1,0 +1,155 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "双足变蛇形",
+  "task_id": "Mjlab-Zbot-6dof-Transform-Biped-To-Snake",
+  "inherits": "_defaults.json",
+  "env": {
+    "decimation": 4,
+    "seed": 42,
+    "episode_length_s": 16.0,
+    "recorders": {},
+    "is_finite_horizon": false,
+    "auto_reset": true,
+    "scale_rewards_by_dt": true,
+    "success_hold_s": 2.0,
+    "joint_tolerance": 0.1,
+    "final_max_body_height": 0.1,
+    "joint_speed_tolerance": 0.1,
+    "base_speed_tolerance": 0.02,
+    "max_downward_com_speed": 0.3,
+    "workspace_radius": 1.5,
+    "scene": {
+      "num_envs": 8192,
+      "env_spacing": 4.0,
+      "entities": {
+        "robot": {
+          "init_state": {
+            "pos": [
+              0.0,
+              -0.06,
+              0.0
+            ],
+            "rot": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "lin_vel": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ang_vel": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_pos": {
+              "joint1": 0.312,
+              "joint2": 0.837,
+              "joint3": -2.02,
+              "joint4": 2.02,
+              "joint5": -0.837,
+              "joint6": -0.312
+            },
+            "joint_vel": {
+              ".*": 0.0
+            }
+          }
+        }
+      }
+    },
+    "sim": {
+      "nconmax": null,
+      "njmax": 500,
+      "contact_sensor_maxmatch": 64,
+      "broadphase": null,
+      "broadphase_filter": null,
+      "ls_parallel": null,
+      "mujoco": {
+        "timestep": 0.005,
+        "integrator": "implicitfast",
+        "impratio": 1.0,
+        "cone": "pyramidal",
+        "jacobian": "auto",
+        "solver": "newton",
+        "iterations": 10,
+        "tolerance": 1e-08,
+        "ls_iterations": 20,
+        "ls_tolerance": 0.01,
+        "ccd_iterations": 50,
+        "gravity": [
+          0.0,
+          0.0,
+          -9.81
+        ],
+        "disableflags": [],
+        "enableflags": []
+      },
+      "nan_guard": {
+        "enabled": false,
+        "buffer_size": 100,
+        "output_dir": "/tmp/mjlab/nan_dumps",
+        "max_envs_to_dump": 5
+      }
+    },
+    "actions": {
+      "joint_pos": {
+        "entity_name": "robot",
+        "clip": null,
+        "actuator_names": [
+          ".*"
+        ],
+        "scale": 1.0,
+        "offset": 0.0,
+        "preserve_order": false,
+        "use_default_offset": false,
+        "max_target_speed": 1.0,
+        "target_limit": null,
+        "joint_target_bounds": {}
+      }
+    },
+    "commands": {}
+  },
+  "rewards": {
+    "joint_zero": {
+      "weight": 3.0,
+      "params": {}
+    },
+    "com_descent_velocity": {
+      "weight": 1.0,
+      "params": {
+        "target_speed": 0.03
+      }
+    },
+    "joint_symmetry": {
+      "weight": -0.5,
+      "params": {}
+    }
+  },
+  "agent": {
+    "actor": {
+      "distribution_cfg": {
+        "init_std": 0.5,
+        "std_range": [
+          0.1,
+          1.0
+        ]
+      }
+    },
+    "algorithm": {
+      "entropy_coef": 0.005
+    },
+    "max_iterations": 200
+  },
+  "play": {
+    "env": {
+      "scene": {
+        "num_envs": 1
+      }
+    }
+  },
+  "description": "依据 bests/transform_biped_to_snake_2026-10-16_iter199/model_199.pt 及同目录 env.yaml、agent.yaml 固定本卡片配方，包括8192训练环境、200轮和下列变形奖励、动作及物理参数。共享PPO参数继续继承 _defaults；play保留单环境设置。不重复Scene运行时生成的terrain.num_envs/env_spacing，也不复制函数、枚举或解析后的索引。"
+}

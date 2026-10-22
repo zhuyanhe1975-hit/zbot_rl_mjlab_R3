@@ -1,0 +1,66 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "共享PPO默认参数",
+  "description": "未在子卡片覆盖的网络、PPO及日志参数从此继承。",
+  "env": {},
+  "rewards": {},
+  "agent": {
+    "seed": 42,
+    "num_steps_per_env": 24,
+    "max_iterations": 1000,
+    "save_interval": 50,
+    "logger": "tensorboard",
+    "wandb_project": "mjlab",
+    "wandb_tags": [],
+    "clip_actions": null,
+    "upload_model": true,
+    "actor": {
+      "hidden_dims": [
+        256,
+        128
+      ],
+      "activation": "elu",
+      "obs_normalization": true,
+      "cnn_cfg": null,
+      "distribution_cfg": {
+        "init_std": 1.0,
+        "std_type": "scalar"
+      },
+      "rnn_type": null,
+      "rnn_hidden_dim": 256,
+      "rnn_num_layers": 1
+    },
+    "critic": {
+      "hidden_dims": [
+        256,
+        128
+      ],
+      "activation": "elu",
+      "obs_normalization": true,
+      "cnn_cfg": null,
+      "distribution_cfg": null,
+      "rnn_type": null,
+      "rnn_hidden_dim": 256,
+      "rnn_num_layers": 1
+    },
+    "algorithm": {
+      "num_learning_epochs": 5,
+      "num_mini_batches": 4,
+      "learning_rate": 0.001,
+      "schedule": "adaptive",
+      "gamma": 0.99,
+      "lam": 0.95,
+      "entropy_coef": 0.01,
+      "desired_kl": 0.01,
+      "max_grad_norm": 1.0,
+      "value_loss_coef": 1.0,
+      "use_clipped_value_loss": true,
+      "clip_param": 0.2,
+      "normalize_advantage_per_mini_batch": false,
+      "optimizer": "adam",
+      "share_cnn_encoders": false
+    }
+  },
+  "addons": {}
+}

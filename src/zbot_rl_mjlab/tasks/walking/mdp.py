@@ -104,6 +104,11 @@ def forward_velocity_reward(env, scale=0.2):
     return 1.0 - torch.exp(-speed / scale)
 
 
+def planar_velocity_penalty(env):
+    """原地踏步抑制前后及侧向移动，保留抬脚所需的竖直运动。"""
+    return base_lin_vel(env)[:, :2].square().sum(dim=-1)
+
+
 def lateral_velocity_penalty(env):
     """惩罚速度在水平运动左轴上的投影。"""
     robot, i = _base(env)

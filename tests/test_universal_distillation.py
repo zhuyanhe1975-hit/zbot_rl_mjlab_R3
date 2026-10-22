@@ -11,7 +11,8 @@ from mjlab.rl import RslRlVecEnvWrapper
 from rsl_rl.env import VecEnv
 from tensordict import TensorDict
 
-from zbot_rl_mjlab.distillation import MultiTeacherPPO, universal_ppo_cfg
+from zbot_rl_mjlab.distillation import MultiTeacherPPO
+from zbot_rl_mjlab.experiments.universal import universal_ppo_cfg
 from zbot_rl_mjlab.teachers import TeacherEnsemble
 
 
@@ -893,7 +894,7 @@ def test_runner_publishes_progress_and_wires_primary_and_robust_schema(algorithm
 
     from zbot_rl_mjlab import universal_evaluation
     from zbot_rl_mjlab.distillation import MultiTeacherRunner
-    from zbot_rl_mjlab.tasks.universal.env_cfg import universal_env_cfg
+    from zbot_rl_mjlab.experiments.universal import universal_env_cfg
 
     alg, obs, _ = algorithm
     term = SimpleNamespace(tracking_ema=torch.zeros(2), set_pretraining=lambda enabled: None)

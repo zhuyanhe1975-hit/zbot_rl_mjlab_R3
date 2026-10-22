@@ -1,0 +1,224 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "周期踏步",
+  "task_id": "Mjlab-Zbot-6dof-Periodic-Stepping",
+  "inherits": "_defaults.json",
+  "env": {
+    "decimation": 4,
+    "seed": 42,
+    "episode_length_s": 20.0,
+    "recorders": {},
+    "is_finite_horizon": false,
+    "auto_reset": true,
+    "scale_rewards_by_dt": true,
+    "step_frequency_min": 0.25,
+    "step_frequency_max": 1.0,
+    "test_frequency": null,
+    "frequency_sampling": "random",
+    "scene": {
+      "num_envs": 8192,
+      "env_spacing": 4.0,
+      "entities": {
+        "robot": {
+          "init_state": {
+            "pos": [
+              0.0,
+              -0.06,
+              0.0
+            ],
+            "rot": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "lin_vel": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ang_vel": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_pos": {
+              "joint1": 0.312,
+              "joint2": 0.837,
+              "joint3": -2.02,
+              "joint4": 2.02,
+              "joint5": -0.837,
+              "joint6": -0.312
+            },
+            "joint_vel": {
+              ".*": 0.0
+            }
+          }
+        }
+      }
+    },
+    "sim": {
+      "nconmax": null,
+      "njmax": 300,
+      "contact_sensor_maxmatch": 64,
+      "broadphase": null,
+      "broadphase_filter": null,
+      "ls_parallel": null,
+      "mujoco": {
+        "timestep": 0.005,
+        "integrator": "implicitfast",
+        "impratio": 1.0,
+        "cone": "pyramidal",
+        "jacobian": "auto",
+        "solver": "newton",
+        "iterations": 10,
+        "tolerance": 1e-08,
+        "ls_iterations": 20,
+        "ls_tolerance": 0.01,
+        "ccd_iterations": 50,
+        "gravity": [
+          0,
+          0,
+          -9.81
+        ],
+        "disableflags": [],
+        "enableflags": []
+      },
+      "nan_guard": {
+        "enabled": false,
+        "buffer_size": 100,
+        "output_dir": "/tmp/mjlab/nan_dumps",
+        "max_envs_to_dump": 5
+      }
+    },
+    "actions": {
+      "joint_pos": {
+        "entity_name": "robot",
+        "clip": null,
+        "actuator_names": [
+          ".*"
+        ],
+        "scale": 0.25,
+        "offset": 0.0,
+        "preserve_order": false,
+        "use_default_offset": true
+      }
+    },
+    "commands": {}
+  },
+  "rewards": {
+    "frequency_tracking": {
+      "weight": 3.0,
+      "params": {
+        "sensor_name": "feet_ground_contact"
+      }
+    },
+    "swing_clearance": {
+      "weight": 2.0,
+      "params": {
+        "sensor_name": "feet_ground_contact",
+        "height_sensor_name": "foot_height_scan"
+      }
+    },
+    "planar_velocity": {
+      "weight": -5.0,
+      "params": {}
+    },
+    "lateral_velocity": {
+      "weight": -0.2,
+      "params": {}
+    },
+    "upright": {
+      "weight": 0.2,
+      "params": {}
+    },
+    "yaw_drift": {
+      "weight": -0.2,
+      "params": {}
+    },
+    "support_foot_slip": {
+      "weight": -5.0,
+      "params": {
+        "sensor_name": "feet_ground_contact",
+        "site_names": [
+          "foot_0_sole",
+          "foot_1_sole"
+        ]
+      }
+    },
+    "soft_landing": {
+      "weight": -0.001,
+      "params": {
+        "sensor_name": "feet_ground_contact"
+      }
+    },
+    "foot_nonparallel_ground": {
+      "weight": -5.0,
+      "params": {
+        "sensor_name": "feet_ground_contact",
+        "std": 0.1
+      }
+    },
+    "action_rate": {
+      "weight": -0.05,
+      "params": {}
+    },
+    "joint_limits": {
+      "weight": -0.1,
+      "params": {}
+    },
+    "joint_acceleration": {
+      "weight": -0.0005,
+      "params": {}
+    }
+  },
+  "play": {
+    "env": {
+      "frequency_sampling": "sequential",
+      "scene": {
+        "num_envs": 1
+      },
+      "commands": {
+        "forward_velocity_viz": {
+          "resampling_time_range": [
+            1.0,
+            1.0
+          ],
+          "debug_vis": true,
+          "entity_name": "robot",
+          "heading_command": false,
+          "heading_control_stiffness": 1.0,
+          "rel_standing_envs": 0.0,
+          "rel_heading_envs": 1.0,
+          "rel_world_envs": 0.0,
+          "rel_forward_envs": 0.0,
+          "init_velocity_prob": 0.0,
+          "ranges": {
+            "lin_vel_x": [
+              0.0,
+              0.0
+            ],
+            "lin_vel_y": [
+              0.0,
+              0.0
+            ],
+            "ang_vel_z": [
+              0.0,
+              0.0
+            ],
+            "heading": null
+          },
+          "viz": {
+            "z_offset": 0.2,
+            "scale": 0.5
+          }
+        }
+      }
+    }
+  },
+  "agent": {
+    "max_iterations": 51
+  },
+  "description": "依据 bests/periodic_stepping_2026-10-22_iter50 的 env.yaml、agent.yaml 固定本任务相对父卡片的归档配方差异；下列覆盖参数与该归档对应，其余参数继续继承父卡片。运行时生成的 terrain.num_envs/env_spacing、Python 回调和结构选择器不作为配方覆盖。"
+}

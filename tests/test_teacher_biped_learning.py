@@ -1,4 +1,5 @@
 """Keep the successful biped exploration objective inside the joint teacher."""
+
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -9,16 +10,19 @@ import yaml
 from mjlab.sensor import ContactSensorCfg, TerrainHeightSensorCfg
 from test_universal_task import state_env
 
+from zbot_rl_mjlab.experiments.omni_teacher import (
+    configure_teacher_rewards as _recipe_configure_teacher_rewards,
+)
+from zbot_rl_mjlab.experiments.universal import universal_env_cfg
 from zbot_rl_mjlab.tasks.universal import mdp
 from zbot_rl_mjlab.tasks.universal import teacher_rewards as rewards
-from zbot_rl_mjlab.tasks.universal.env_cfg import universal_env_cfg
 from zbot_rl_mjlab.tasks.walking import mdp as walking
 
 
 def test_biped_tracking_parameters_match_successful_omni_archive():
     path = Path(__file__).resolve().parents[1] / 'bests/omni_velocity_energy_2026-10-10_iter499/env.yaml'
     archived = yaml.load(path.read_text(), Loader=yaml.BaseLoader)['rewards']
-    cfg = rewards.configure_teacher_rewards(universal_env_cfg())
+    cfg = _recipe_configure_teacher_rewards(universal_env_cfg())
     tracking = cfg.rewards['velocity_tracking']
     names = ('track_forward_speed', 'track_lateral_speed', 'track_yaw_rate')
     assert tracking.params['std'] == tuple(float(archived[name]['params']['std']) for name in names)
@@ -104,8 +108,8 @@ def test_manual_play_and_non_biped_upright_gates(monkeypatch):
 
 
 def test_biped_sensor_recipe_reuses_sole_sites_and_contact_history():
-    cfg = rewards.configure_teacher_rewards(universal_env_cfg())
-    rewards.configure_teacher_rewards(cfg)  # Reconfiguration does not duplicate sensors.
+    cfg = _recipe_configure_teacher_rewards(universal_env_cfg())
+    _recipe_configure_teacher_rewards(cfg)  # Reconfiguration does not duplicate sensors.
     feet = cast(ContactSensorCfg, next(sensor for sensor in cfg.scene.sensors if sensor.name == 'feet_ground_contact'))
     heights = [sensor for sensor in cfg.scene.sensors if sensor.name == 'foot_height_scan']
     assert feet.track_air_time and feet.history_length == cfg.decimation == 4
@@ -143,7 +147,7 @@ def test_action_rate_uses_archived_biped_weight_and_retains_other_modes():
     env.action_manager.action[:] = 1
     term.command[:, 0] = torch.tensor([1., -1.])
     term.transition_mask[:] = False
-    cfg = rewards.configure_teacher_rewards(universal_env_cfg())
+    cfg = _recipe_configure_teacher_rewards(universal_env_cfg())
     penalty = cfg.rewards['action_rate']
     torch.testing.assert_close(penalty.func(env) * penalty.weight, torch.tensor([-.3, -.06]))
     term.transition_mask[:] = True

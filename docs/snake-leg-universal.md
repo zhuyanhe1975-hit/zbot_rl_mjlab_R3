@@ -1,5 +1,7 @@
 # 蛇足全能部署学生
 
+> 历史实验记录：当前默认是[实验20 base蛇形教师](experiment20-base-adaptive-snake.md)。本文中的旧默认入口和 `ZBOT_EXPERIMENT` / `ZBOT_SKILL` 属于当时用法；当前train/run保留原命令和注释选择方式，命令行自定义参数使用Python入口，见[项目入口](../README.md)。项目外完整快照已于2026-10-21按要求删除，文内旧备份路径仅为历史记录。
+
 > 这是历史四教师、世界+X前爬配方。当前目标为两种形态的site坐标全向 `vx/vy/wz`，使用[新全向实验](snake-leg-omni.md)。`train.sh` 已切到新任务，本文旧命令仅用于复现。
 
 独立实验 `Mjlab-Zbot-6dof-Universal-Snake-Leg-Deploy`，日志目录 `logs/rsl_rl/zbot_universal_snake_leg_deploy/`。保留旧综合实验配置；新学生从头训练，避免用旧三教师运行完整续训导致教师来源不匹配。

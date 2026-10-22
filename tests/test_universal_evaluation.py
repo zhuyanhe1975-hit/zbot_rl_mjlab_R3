@@ -161,8 +161,10 @@ def test_successful_student_trajectory_packet_is_trainable_and_filters_failed_en
 def test_evaluation_config_preserves_sensor_history_and_never_mutates_training_schema():
     from mjlab.managers.event_manager import EventTermCfg
 
-    from zbot_rl_mjlab.tasks.universal.deployment import configure_deployment
-    from zbot_rl_mjlab.tasks.universal.env_cfg import universal_env_cfg
+    from zbot_rl_mjlab.experiments.universal import (
+        configure_deployment,
+        universal_env_cfg,
+    )
     from zbot_rl_mjlab.universal_evaluation import evaluation_env_cfg
 
     source = universal_env_cfg()
@@ -194,8 +196,10 @@ def test_evaluator_build_uses_passed_schema_instead_of_base_task(monkeypatch):
     from types import SimpleNamespace
 
     from zbot_rl_mjlab import universal_evaluation as evaluation
-    from zbot_rl_mjlab.tasks.universal.deployment import configure_deployment
-    from zbot_rl_mjlab.tasks.universal.env_cfg import universal_env_cfg
+    from zbot_rl_mjlab.experiments.universal import (
+        configure_deployment,
+        universal_env_cfg,
+    )
 
     source = universal_env_cfg()
     configure_deployment(source)
@@ -211,7 +215,7 @@ def test_evaluator_build_uses_passed_schema_instead_of_base_task(monkeypatch):
 def test_robust_evaluation_disturbs_every_environment_without_changing_training_fraction():
     from mjlab.managers.event_manager import EventTermCfg
 
-    from zbot_rl_mjlab.tasks.universal.env_cfg import universal_env_cfg
+    from zbot_rl_mjlab.experiments.universal import universal_env_cfg
     from zbot_rl_mjlab.universal_evaluation import evaluation_env_cfg
 
     source = universal_env_cfg()
@@ -273,7 +277,7 @@ def test_evaluator_rebuilds_initial_command_history_after_reset(monkeypatch):
 def test_deployment_evaluator_expands_only_its_own_capability_environment_count():
     import pytest
 
-    from zbot_rl_mjlab.tasks.universal.env_cfg import universal_env_cfg
+    from zbot_rl_mjlab.experiments.universal import universal_env_cfg
     from zbot_rl_mjlab.universal_evaluation import (
         UniversalEvaluator,
         evaluation_env_cfg,

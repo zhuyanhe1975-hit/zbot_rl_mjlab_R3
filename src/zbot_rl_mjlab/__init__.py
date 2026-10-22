@@ -14,7 +14,13 @@ from .experiments.omni_teacher import (
     SnakeLegOmniTeacher,
     SnakeLegOmniWideBipedTeacher,
 )
-from .experiments.site_snake import SnakeSiteOmniTeacher
+from .experiments.site_snake import (
+    SnakeBaseAdaptiveTeacher,
+    SnakeSiteAdaptiveTeacher,
+    SnakeSiteForwardRelaxedTeacher,
+    SnakeSiteForwardTeacher,
+    SnakeSiteOmniTeacher,
+)
 from .experiments.snake import SnakeOmniTeacher
 from .experiments.transformation import (
     BipedToSnake,
@@ -78,9 +84,14 @@ EXPERIMENTS = (
     SnakeLegOmniGuidedTeacher,
     SnakeOmniTeacher,
     SnakeSiteOmniTeacher,
+    SnakeSiteAdaptiveTeacher,
+    SnakeBaseAdaptiveTeacher,
+    SnakeSiteForwardTeacher,
+    SnakeSiteForwardRelaxedTeacher,
 )
 
 for experiment in EXPERIMENTS:
+    experiment.card_name = experiment.experiment_name.removeprefix('zbot_')
     experiment().register()
 
 # 仅兼容原始归档 YAML 中的三个项目回调模块名，不恢复旧实验导入接口。

@@ -1,0 +1,93 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "部署行走",
+  "task_id": "Mjlab-Zbot-6dof-Deploy-Walking",
+  "inherits": "velocity_energy_tracking.json",
+  "agent": {
+    "max_iterations": 1500
+  },
+  "addons": {
+    "BlindActor": {
+      "hidden": [
+        "base_lin_vel",
+        "yaw_error"
+      ]
+    },
+    "ObservationNoise": {
+      "std": {
+        "base_ang_vel": 0.05,
+        "projected_gravity": 0.02,
+        "joint_pos": 0.01,
+        "joint_vel": 0.15
+      },
+      "bias": {
+        "base_ang_vel": 0.02,
+        "projected_gravity": 0.05
+      }
+    },
+    "ActionDelay": {
+      "max_lag": 2
+    },
+    "MassRandomization": {
+      "alpha_range": [
+        -0.07,
+        0.07
+      ]
+    },
+    "GainRandomization": {
+      "scale": [
+        0.7,
+        1.3
+      ]
+    },
+    "BaseDisturbance": {
+      "force_range": [
+        -5.0,
+        5.0
+      ],
+      "torque_range": [
+        -0.5,
+        0.5
+      ],
+      "duration_s": [
+        0.08,
+        0.2
+      ],
+      "cooldown_s": [
+        0.8,
+        2.0
+      ],
+      "disturbed_fraction": 0.25
+    },
+    "DomainRandomization": {
+      "friction_range": [
+        0.3,
+        1.2
+      ],
+      "geom_names": [
+        "a1_geom",
+        "b6_geom"
+      ],
+      "encoder_bias_range": [
+        -0.015,
+        0.015
+      ],
+      "base_com_ranges": {
+        "0": [
+          -0.025,
+          0.025
+        ],
+        "1": [
+          -0.025,
+          0.025
+        ],
+        "2": [
+          -0.03,
+          0.03
+        ]
+      }
+    }
+  },
+  "description": "依据 bests/deploy_walking_2026-10-11_iter1499 的 env.yaml、agent.yaml 固定本任务相对父卡片的归档配方差异；下列覆盖参数与该归档对应，其余参数继续继承父卡片。运行时生成的 terrain.num_envs/env_spacing、Python 回调和结构选择器不作为配方覆盖。 保留归档后已修正的足底 site 测高坐标系，不恢复旧 body 测高方式（见 bests/README.md）。"
+}

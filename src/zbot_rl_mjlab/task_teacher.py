@@ -5,16 +5,9 @@ from typing import Any
 
 import torch
 
-from .omni_teacher import OmniTeacherRunner, OmniTeacherRunnerCfg, omni_teacher_ppo_cfg
+from .omni_teacher import OmniTeacherRunner
+from .task_models import RoutedTaskNormalizedMLP, TaskNormalizedCritics
 from .task_ppo import TASK_NAMES
-
-
-def task_teacher_ppo_cfg() -> OmniTeacherRunnerCfg:
-    cfg = omni_teacher_ppo_cfg()
-    cfg.class_name = 'zbot_rl_mjlab.task_teacher:TaskTeacherRunner'
-    cfg.algorithm.class_name = 'zbot_rl_mjlab.task_ppo:TaskPPO'
-    cfg.critic.class_name = 'zbot_rl_mjlab.task_ppo:IndependentTaskCritics'
-    return cfg
 
 
 class TaskTeacherRunner(OmniTeacherRunner):
@@ -64,21 +57,13 @@ class TaskTeacherRunner(OmniTeacherRunner):
         return super().load(path, load_cfg, strict, map_location)
 
 
-def routed_task_teacher_ppo_cfg() -> OmniTeacherRunnerCfg:
-    cfg = task_teacher_ppo_cfg()
-    cfg.class_name = 'zbot_rl_mjlab.task_teacher:RoutedTaskTeacherRunner'
-    cfg.actor.class_name = 'zbot_rl_mjlab.task_models:RoutedTaskNormalizedMLP'
-    cfg.critic.class_name = 'zbot_rl_mjlab.task_models:TaskNormalizedCritics'
-    return cfg
-
-
 class RoutedTaskTeacherRunner(TaskTeacherRunner):
     """One task-routed actor with four branches and task-specific input statistics."""
 
     def __init__(self, env, train_cfg, log_dir=None, device='cpu'):
-        expected = routed_task_teacher_ppo_cfg()
-        for key, model in (('actor', expected.actor), ('critic', expected.critic)):
-            if train_cfg[key]['class_name'] != model.class_name or not train_cfg[key].get('obs_normalization'):
+        for key, model in (('actor', RoutedTaskNormalizedMLP), ('critic', TaskNormalizedCritics)):
+            expected_class_name = f'{model.__module__}:{model.__name__}'
+            if train_cfg[key]['class_name'] != expected_class_name or not train_cfg[key].get('obs_normalization'):
                 raise ValueError(f'routed teacher requires its registered {key} model and normalization')
         super().__init__(env, train_cfg, log_dir, device)
 

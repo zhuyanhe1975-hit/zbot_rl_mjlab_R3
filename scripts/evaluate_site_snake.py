@@ -13,6 +13,11 @@ TASK_ID = 'Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher'
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--task', default=TASK_ID, choices=(
+        TASK_ID, 'Mjlab-Zbot-6dof-Snake-Site-Forward-Teacher',
+        'Mjlab-Zbot-6dof-Snake-Site-Forward-Relaxed-Teacher',
+        'Mjlab-Zbot-6dof-Snake-Site-Adaptive-Teacher',
+        'Mjlab-Zbot-6dof-Snake-Base-Adaptive-Teacher'))
     parser.add_argument('--checkpoint', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--num-envs', type=int, default=72)
@@ -29,19 +34,19 @@ def main():
     import zbot_rl_mjlab  # noqa: F401
     from zbot_rl_mjlab.site_snake_evaluation import SiteSnakeEvaluator
 
-    cfg = load_env_cfg(TASK_ID, play=True)
-    runner_cls = load_runner_cls(TASK_ID)
+    cfg = load_env_cfg(args.task, play=True)
+    runner_cls = load_runner_cls(args.task)
     if runner_cls is None:
         raise TypeError('site snake task must register its privileged teacher runner')
     runner_cls.prepare_playback_env_cfg(cfg, args.checkpoint)
     evaluator = SiteSnakeEvaluator(args.device, args.num_envs, args.seconds, cfg, args.randomized)
     try:
         evaluator._build()
-        agent = load_rl_cfg(TASK_ID)
+        agent = load_rl_cfg(args.task)
         runner = runner_cls(evaluator.wrapper, asdict(agent), device=args.device)
         runner.load(str(args.checkpoint), load_cfg={'actor': True}, strict=True, map_location=args.device)
         metrics = evaluator(runner.alg.actor)
-        report = {'checkpoint': str(args.checkpoint.resolve()), 'task': TASK_ID,
+        report = {'checkpoint': str(args.checkpoint.resolve()), 'task': args.task,
                   'randomized': args.randomized, 'num_envs': evaluator.num_envs,
                   'seconds': args.seconds, 'metrics': metrics, **evaluator.last_report}
         args.output.parent.mkdir(parents=True, exist_ok=True)

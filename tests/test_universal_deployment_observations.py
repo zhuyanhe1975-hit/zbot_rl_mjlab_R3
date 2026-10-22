@@ -4,9 +4,8 @@ import pytest
 import torch
 from test_universal_task import state_env as universal_state_env
 
+from zbot_rl_mjlab.experiments.universal import configure_deployment, universal_env_cfg
 from zbot_rl_mjlab.tasks.universal import mdp
-from zbot_rl_mjlab.tasks.universal.deployment import configure_deployment
-from zbot_rl_mjlab.tasks.universal.env_cfg import universal_env_cfg
 
 DIMS = {
     "joint_pos": 6, "joint_vel": 6, "commanded_target": 6, "actions": 6,

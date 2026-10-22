@@ -1,0 +1,368 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "site全向教师（iter599归档Beta）",
+  "task_id": "Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher",
+  "description": "参考 bests/snake_site_omni_2026-10-20_iter599 的 env.yaml、agent.yaml 和 metadata.json；与 _defaults.json 不同的 Beta 分布、熵系数已在本卡显式列出。保留当前显式的15秒回合、6000轮、拆分前向/侧向跟踪、yaw速度及倾斜角速度惩罚和训练采样设置；归档使用30秒、600轮及历史track_linear_velocity=4、track_angular_velocity=1（std=0.25）。历史线速度回调已被拆分，不能仅靠权重还原；归档回放兼容结构由任务实现维护。",
+  "inherits": "_defaults.json",
+  "env": {
+    "decimation": 4,
+    "seed": 42,
+    "episode_length_s": 15.0,
+    "recorders": {},
+    "is_finite_horizon": false,
+    "auto_reset": true,
+    "scale_rewards_by_dt": true,
+    "success_hold_s": 2.0,
+    "joint_tolerance": 0.1,
+    "final_max_body_height": 0.1,
+    "joint_speed_tolerance": 0.1,
+    "base_speed_tolerance": 0.02,
+    "max_downward_com_speed": 0.3,
+    "workspace_radius": 15.0,
+    "omni_site_frame": true,
+    "omni_frame_backend": "eager",
+    "motion_site": "foot_0_sole",
+    "snake_teacher_enabled": false,
+    "straighten_before_stand": false,
+    "standing_joint_pos": [
+      0.312,
+      0.837,
+      -2.02,
+      2.02,
+      -0.837,
+      -0.312
+    ],
+    "standing_base_height": 0.264,
+    "joint_standing_error_scale": 0.5,
+    "standing_pose_gravity_scale": 1.0,
+    "sole_alignment_height_std": 0.03,
+    "sole_alignment_angle_std_deg": 10.0,
+    "ascent_reward_stop_height": 0.23,
+    "require_sole_support_for_positive_rewards": false,
+    "curriculum_start_stage": 2,
+    "support_angle_limit_deg": 25.0,
+    "support_height_limit": 0.01,
+    "site_snake_omni": true,
+    "archive_site_checkpoint": true,
+    "command_visual_height": 0.0,
+    "command_visual_actual_velocity": false,
+    "site_up_axis": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "site_tilt_limit": 1.0471975511965976,
+    "head_body": "foot_0",
+    "head_up_axis": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "head_tilt_limit": 1.0471975511965976,
+    "max_contact_bodyweights": 8.0,
+    "scene": {
+      "num_envs": 8192,
+      "env_spacing": 4.0,
+      "entities": {
+        "robot": {
+          "init_state": {
+            "pos": [
+              0.0,
+              -0.06,
+              0.0
+            ],
+            "rot": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "lin_vel": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ang_vel": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_pos": {
+              "joint1": 0.312,
+              "joint2": 0.837,
+              "joint3": -2.02,
+              "joint4": 2.02,
+              "joint5": -0.837,
+              "joint6": -0.312
+            },
+            "joint_vel": {
+              ".*": 0.0
+            }
+          }
+        }
+      }
+    },
+    "sim": {
+      "nconmax": null,
+      "njmax": 500,
+      "contact_sensor_maxmatch": 128,
+      "broadphase": null,
+      "broadphase_filter": null,
+      "ls_parallel": null,
+      "mujoco": {
+        "timestep": 0.005,
+        "integrator": "implicitfast",
+        "impratio": 1.0,
+        "cone": "pyramidal",
+        "jacobian": "auto",
+        "solver": "newton",
+        "iterations": 10,
+        "tolerance": 1e-08,
+        "ls_iterations": 20,
+        "ls_tolerance": 0.01,
+        "ccd_iterations": 50,
+        "gravity": [
+          0.0,
+          0.0,
+          -9.81
+        ],
+        "disableflags": [],
+        "enableflags": []
+      },
+      "nan_guard": {
+        "enabled": false,
+        "buffer_size": 100,
+        "output_dir": "/tmp/mjlab/nan_dumps",
+        "max_envs_to_dump": 5
+      }
+    },
+    "actions": {
+      "joint_pos": {
+        "entity_name": "robot",
+        "clip": null,
+        "actuator_names": [
+          ".*"
+        ],
+        "scale": 1.0,
+        "offset": 0.0,
+        "preserve_order": false,
+        "use_default_offset": false,
+        "max_target_speed": 6.283185307179586,
+        "target_limit": 1.0471975511965976,
+        "joint_target_bounds": {},
+        "snake_target_limit": 1.0471975511965976,
+        "biped_residual_scale": null,
+        "transition_end_joint_radius": null
+      }
+    },
+    "commands": {
+      "transform": {
+        "resampling_time_range": [
+          5.0,
+          9.0
+        ],
+        "debug_vis": false,
+        "snake_teacher_enabled": false,
+        "training": true,
+        "mode": "snake",
+        "auto_switch_on_success": false,
+        "velocity_limits": [
+          0.2,
+          0.2,
+          0.5
+        ],
+        "hold_s": 2.0,
+        "smoothing_s": 0.25,
+        "transition_timeout_s": 8.0,
+        "gait_frequency": 0.5,
+        "forward_speed_levels": [
+          0.08,
+          0.1,
+          0.12,
+          0.15,
+          0.2
+        ],
+        "translation_training_fraction": 0.8,
+        "backward_training_speed": 0.05,
+        "lateral_training_speed": 0.05,
+        "direction_speed_multipliers": [
+          1.0,
+          1.5,
+          2.0
+        ],
+        "debug_vis_selected_only": true,
+        "task_observation_encoding": "scalar",
+        "motion_axis_min_fraction": 0.4,
+        "motion_stop_probability": 0.01,
+        "training_task_fractions": [
+          0.4,
+          0.4,
+          0.1,
+          0.1
+        ],
+        "randomize_play_modes": true,
+        "play_random_velocity": false,
+        "play_velocity": [
+          0.05,
+          0.0,
+          0.0
+        ],
+        "initialize_matched_motion": true,
+        "biped_gait_frequency_range": [
+          0.25,
+          1.0
+        ],
+        "snake_gait_frequency": 0.7,
+        "standing_ready_height": 0.24,
+        "transition_joint_tolerance": 0.15,
+        "motion_startup_s": 0.1,
+        "train_auto_recovery": false,
+        "play_auto_recovery": false
+      }
+    },
+    "metrics": {
+      "velocity_error_vx": {
+        "params": {
+          "axis": 0
+        }
+      },
+      "velocity_error_vy": {
+        "params": {
+          "axis": 1
+        }
+      },
+      "velocity_error_wz": {
+        "params": {
+          "axis": 2
+        }
+      },
+      "command_vx_positive_fraction": {
+        "params": {
+          "axis": 0,
+          "sign": 1
+        }
+      },
+      "command_vx_negative_fraction": {
+        "params": {
+          "axis": 0,
+          "sign": -1
+        }
+      },
+      "command_vy_positive_fraction": {
+        "params": {
+          "axis": 1,
+          "sign": 1
+        }
+      },
+      "command_vy_negative_fraction": {
+        "params": {
+          "axis": 1,
+          "sign": -1
+        }
+      },
+      "command_wz_positive_fraction": {
+        "params": {
+          "axis": 2,
+          "sign": 1
+        }
+      },
+      "command_wz_negative_fraction": {
+        "params": {
+          "axis": 2,
+          "sign": -1
+        }
+      }
+    }
+  },
+  "rewards": {
+    "track_forward_velocity": {
+      "weight": 1.5,
+      "params": {
+        "std": 0.05
+      }
+    },
+    "track_lateral_velocity": {
+      "weight": 0.0,
+      "params": {
+        "std": 0.05
+      }
+    },
+    "track_angular_velocity": {
+      "weight": 0.0,
+      "params": {
+        "std": 0.1
+      }
+    },
+    "wz_velocity": {
+      "weight": -0.2,
+      "params": {}
+    },
+    "site_tilt": {
+      "weight": -1.0,
+      "params": {}
+    },
+    "site_tilt_angular_velocity": {
+      "weight": -0.05,
+      "params": {}
+    },
+    "joint_pos_limits": {
+      "weight": -1.0,
+      "params": {
+        "soft_limit_factor": 0.9
+      }
+    },
+    "joint_target_limits": {
+      "weight": -1.0,
+      "params": {
+        "soft_limit_factor": 0.9,
+        "use_target": true
+      }
+    }
+  },
+  "agent": {
+    "max_iterations": 6000,
+    "actor": {
+      "distribution_cfg": {
+        "$remove": [
+          "init_std",
+          "std_type"
+        ],
+        "action_range": [
+          -1.0,
+          1.0
+        ]
+      }
+    },
+    "algorithm": {
+      "entropy_coef": 0.002
+    },
+    "console_mode": "full",
+    "validation_interval_iterations": 0,
+    "robust_validation_interval": 0
+  },
+  "play": {
+    "env": {
+      "auto_reset": false,
+      "scene": {
+        "num_envs": 1
+      },
+      "commands": {
+        "transform": {
+          "debug_vis": true,
+          "training": false,
+          "play_random_velocity": true
+        }
+      }
+    }
+  },
+  "train": {
+    "env": {
+      "commands": {
+        "transform": {
+          "motion_x_only_probability": 0.5
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,284 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "世界X蛇形推进教师",
+  "task_id": "Mjlab-Zbot-6dof-Snake-Omni-Teacher",
+  "description": "参考 bests/snake_world_x_2026-10-19_iter1499 的 env.yaml、agent.yaml、metadata.json 和 playback_args.json；与 _defaults.json 不同的 Beta 分布、熵系数已在本卡显式列出。当前显式训练设置保留后续调整：4096环境、关节目标±90°、action_rate=0、body_yaw_integral_cost=-1、新增joint_fold_cost、3000轮；归档为8192环境、±60°、-0.01、-0.5、无折叠惩罚、1500轮。归档回放以 bests/test.sh 及 playback_args.json 为准，不将当前卡片等同于历史完整配方。",
+  "inherits": "_defaults.json",
+  "env": {
+    "decimation": 4,
+    "seed": 42,
+    "episode_length_s": 30.0,
+    "recorders": {},
+    "is_finite_horizon": false,
+    "auto_reset": true,
+    "scale_rewards_by_dt": true,
+    "success_hold_s": 2.0,
+    "joint_tolerance": 0.1,
+    "final_max_body_height": 0.1,
+    "joint_speed_tolerance": 0.1,
+    "base_speed_tolerance": 0.02,
+    "max_downward_com_speed": 0.3,
+    "workspace_radius": 15.0,
+    "allow_resume_joint_limit_change": false,
+    "observation_reference": "world_x",
+    "motion_frame": "body_gravity",
+    "head_gyro_frame": "head",
+    "head_body": "foot_0",
+    "motion_site": "foot_0_sole",
+    "tail_site": "foot_1_sole",
+    "head_forward_axis": [
+      0.0,
+      0.0,
+      -1.0
+    ],
+    "head_up_axis": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "head_tilt_limit": 1.0471975511965976,
+    "head_yaw_limit": 1.0471975511965976,
+    "body_yaw_limit": 0.5235987755982988,
+    "body_yaw_integral_time_scale": 1.0,
+    "head_yaw_integral_time_scale": 1.0,
+    "forward_speed_cap": 0.2,
+    "motion_penalty_min_scale": 0.25,
+    "motion_penalty_speed_gain": 5.0,
+    "max_contact_bodyweights": 8.0,
+    "stall_min_speed": 0.01,
+    "stall_progress_fraction": 0.2,
+    "stall_grace_s": 1.0,
+    "stall_filter_s": 0.5,
+    "scene": {
+      "num_envs": 4096,
+      "env_spacing": 4.0,
+      "entities": {
+        "robot": {
+          "init_state": {
+            "pos": [
+              0.0,
+              0.0,
+              0.0555
+            ],
+            "rot": [
+              0.7071067811865476,
+              0.0,
+              -0.7071067811865476,
+              0.0
+            ],
+            "lin_vel": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ang_vel": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_pos": {
+              ".*": 0.0
+            },
+            "joint_vel": {
+              ".*": 0.0
+            }
+          }
+        }
+      }
+    },
+    "sim": {
+      "nconmax": null,
+      "njmax": 500,
+      "contact_sensor_maxmatch": 128,
+      "broadphase": null,
+      "broadphase_filter": null,
+      "ls_parallel": null,
+      "mujoco": {
+        "timestep": 0.005,
+        "integrator": "implicitfast",
+        "impratio": 1.0,
+        "cone": "pyramidal",
+        "jacobian": "auto",
+        "solver": "newton",
+        "iterations": 10,
+        "tolerance": 1e-08,
+        "ls_iterations": 20,
+        "ls_tolerance": 0.01,
+        "ccd_iterations": 50,
+        "gravity": [
+          0.0,
+          0.0,
+          -9.81
+        ],
+        "disableflags": [],
+        "enableflags": []
+      },
+      "nan_guard": {
+        "enabled": false,
+        "buffer_size": 100,
+        "output_dir": "/tmp/mjlab/nan_dumps",
+        "max_envs_to_dump": 5
+      }
+    },
+    "actions": {
+      "joint_pos": {
+        "entity_name": "robot",
+        "clip": null,
+        "actuator_names": [
+          ".*"
+        ],
+        "scale": 1.0,
+        "offset": 0.0,
+        "preserve_order": false,
+        "use_default_offset": false,
+        "max_target_speed": 6.283185307179586,
+        "target_limit": 1.5707963267948966,
+        "joint_target_bounds": {}
+      }
+    },
+    "commands": {
+      "motion": {
+        "resampling_time_range": [
+          5.0,
+          9.0
+        ],
+        "debug_vis": true,
+        "training": true,
+        "sample_velocity_commands": false,
+        "velocity_limits": [
+          0.25,
+          0.25,
+          1.5707963267948966
+        ],
+        "smoothing_s": 0.3,
+        "frequency": 0.7,
+        "translation_probability": 0.5,
+        "turn_probability": 0.2,
+        "stop_probability": 0.1,
+        "translation_min_speed": 0.0,
+        "translation_curriculum": []
+      }
+    },
+    "metrics": {
+      "world_velocity_x": {
+        "params": {
+          "axis": 0
+        }
+      },
+      "world_velocity_y": {
+        "params": {
+          "axis": 1
+        }
+      },
+      "world_velocity_z": {
+        "params": {
+          "axis": 2
+        }
+      }
+    }
+  },
+  "rewards": {
+    "alive": {
+      "weight": 0.02,
+      "params": {}
+    },
+    "head_forward_speed": {
+      "weight": 15.0,
+      "params": {}
+    },
+    "action_rate": {
+      "weight": -0.0,
+      "params": {}
+    },
+    "head_lateral_speed_cost": {
+      "weight": -5.0,
+      "params": {}
+    },
+    "head_vertical_speed_cost": {
+      "weight": -0.2,
+      "params": {}
+    },
+    "joint_pose_deviation": {
+      "weight": -0.02,
+      "params": {}
+    },
+    "joint_fold_cost": {
+      "weight": -1.0,
+      "params": {
+        "soft_angle": 2.0943951023931953,
+        "full_angle": 3.141592653589793
+      }
+    },
+    "target_saturation_fraction": {
+      "weight": -0.1,
+      "params": {}
+    },
+    "body_yaw_integral_cost": {
+      "weight": -1.0,
+      "params": {}
+    },
+    "body_yaw_cost": {
+      "weight": -0.1,
+      "params": {}
+    },
+    "body_yaw_reset_cost": {
+      "weight": -5.0,
+      "params": {}
+    },
+    "head_yaw_integral_cost": {
+      "weight": -0.5,
+      "params": {}
+    },
+    "head_yaw_cost": {
+      "weight": -0.5,
+      "params": {}
+    },
+    "head_yaw_reset_cost": {
+      "weight": -5.0,
+      "params": {}
+    },
+    "head_tilt_reset_cost": {
+      "weight": -5.0,
+      "params": {}
+    },
+    "head_angular_velocity_cost": {
+      "weight": -0.2,
+      "params": {}
+    },
+    "self_collision_reset_cost": {
+      "weight": -5.0,
+      "params": {}
+    }
+  },
+  "agent": {
+    "max_iterations": 3000,
+    "actor": {
+      "distribution_cfg": {
+        "$remove": [
+          "init_std",
+          "std_type"
+        ],
+        "action_range": [
+          -1.0,
+          1.0
+        ]
+      }
+    },
+    "algorithm": {
+      "entropy_coef": 0.002
+    }
+  },
+  "play": {
+    "env": {
+      "scene": {
+        "num_envs": 1
+      },
+      "commands": {
+        "motion": {
+          "training": false
+        }
+      }
+    }
+  }
+}

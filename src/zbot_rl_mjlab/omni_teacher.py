@@ -9,13 +9,18 @@ from typing import Any, cast
 import torch
 from mjlab.rl import (
     MjlabOnPolicyRunner,
-    RslRlModelCfg,
     RslRlOnPolicyRunnerCfg,
-    RslRlPpoAlgorithmCfg,
     RslRlVecEnvWrapper,
 )
 
-from .tasks.universal.observation_layout import teacher_motion_fields, teacher_task_ids
+from .tasks.universal.observation_layout import (
+    LEGACY_PRIVILEGED_OMNI_OBS_DIM,
+    LEGACY_SITE_SNAKE_OBS_DIM,
+    PRIVILEGED_OMNI_OBS_DIM,
+    SITE_SNAKE_OBS_DIM,
+    teacher_motion_fields,
+    teacher_task_ids,
+)
 
 
 @dataclass
@@ -23,30 +28,6 @@ class OmniTeacherRunnerCfg(RslRlOnPolicyRunnerCfg):
     console_mode: str = "compact"
     validation_interval_iterations: int = 0
     robust_validation_interval: int = 0
-
-
-def omni_teacher_ppo_cfg() -> OmniTeacherRunnerCfg:
-    """PPO及网络容量取成功归档；v2动作与网络须使用新run。"""
-    return OmniTeacherRunnerCfg(
-        class_name="zbot_rl_mjlab.omni_teacher:OmniTeacherRunner",
-        actor=RslRlModelCfg(
-            hidden_dims=(256, 128), activation="elu", obs_normalization=True,
-            distribution_cfg={"class_name": "BetaDistribution", "action_range": (-1.0, 1.0)},
-        ),
-        critic=RslRlModelCfg(hidden_dims=(256, 128), activation="elu", obs_normalization=True),
-        # bests/transform_snake_biped_bidirectional_2026-10-17_iter599/agent.yaml
-        # 与snake_to_biped_teacher_iter200相同；固定字段避免上游默认值漂移。
-        algorithm=RslRlPpoAlgorithmCfg(
-            class_name='PPO', num_learning_epochs=5, num_mini_batches=4,
-            learning_rate=3e-4, schedule='adaptive', gamma=.99, lam=.95,
-            entropy_coef=.005, desired_kl=.01, max_grad_norm=1.,
-            value_loss_coef=1., use_clipped_value_loss=True, clip_param=.2,
-            normalize_advantage_per_mini_batch=False, optimizer='adam', share_cnn_encoders=False,
-        ),
-        obs_groups={"actor": ("actor",), "critic": ("actor",)},
-        experiment_name="zbot_universal_snake_leg_omni_teacher",
-        max_iterations=6000, num_steps_per_env=24, save_interval=50, logger="tensorboard",
-    )
 
 
 def _full_resume(load_cfg: dict | None) -> bool:
@@ -65,8 +46,10 @@ def teacher_rollout_metrics(algorithm: Any) -> dict[str, float]:
     if storage is None:
         return {}
     observations = storage.observations['actor']
-    if observations.ndim != 3 or observations.shape[-1] not in (56, 59):
-        raise ValueError('teacher rollout metrics require actor observations shaped (steps, envs, 56 or 59)')
+    if observations.ndim != 3 or observations.shape[-1] not in (
+        PRIVILEGED_OMNI_OBS_DIM, LEGACY_PRIVILEGED_OMNI_OBS_DIM, SITE_SNAKE_OBS_DIM, LEGACY_SITE_SNAKE_OBS_DIM,
+    ):
+        raise ValueError('teacher rollout metrics require actor observations shaped (steps, envs, 56, 59, 61 or 63)')
     if observations.shape[0] == 0 or observations.shape[1] == 0:
         raise ValueError('teacher rollout metrics require a nonempty collected rollout')
     frames = observations.reshape(-1, observations.shape[-1])

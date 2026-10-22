@@ -1,0 +1,7 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "分任务Critic教师",
+  "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Task-Critic",
+  "inherits": "universal_snake_leg_omni_teacher_multi_critic.json"
+}

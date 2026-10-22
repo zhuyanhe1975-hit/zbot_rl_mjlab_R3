@@ -59,7 +59,7 @@ def test_five_group_environment_count_rounds_up_with_all_ascent_poses():
     source.straighten_before_stand = False
     assert evaluation.UniversalEvaluator(env_cfg=source).num_envs == 20
     assert evaluation.UniversalEvaluator(env_cfg=source, num_envs=21).num_envs == 25
-    from zbot_rl_mjlab.tasks.universal.env_cfg import universal_env_cfg
+    from zbot_rl_mjlab.experiments.universal import universal_env_cfg
     cfg = universal_env_cfg()
     cfg.snake_teacher_enabled = True
     cfg.straighten_before_stand = True

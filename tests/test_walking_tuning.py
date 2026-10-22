@@ -3,6 +3,7 @@ from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 
 import zbot_rl_mjlab  # noqa: F401
 from zbot_rl_mjlab.experiments import walking_tuning as tuning
+from zbot_rl_mjlab.experiments.cards import load_card
 from zbot_rl_mjlab.tasks.walking.env_cfg import WALKING_TASK_ID
 
 TASK = tuning.WALKING_TUNING_TASK_ID
@@ -29,10 +30,11 @@ def test_has_the_same_structure_as_walking(play):
     assert (new_cfg.step_frequency_min, new_cfg.step_frequency_max) == (0.25, 1.0)
 
 
-def test_table_covers_every_reward_and_is_what_the_task_uses():
+def test_table_covers_every_reward_and_card_weights_take_priority():
     assert set(tuning.REWARD_WEIGHTS) == set(rewards(TASK))
+    overrides = load_card('walking_tuning')['rewards']
     for name, weight in tuning.REWARD_WEIGHTS.items():
-        assert rewards(TASK)[name].weight == weight
+        assert rewards(TASK)[name].weight == overrides.get(name, {}).get('weight', weight)
 
 
 def test_has_its_own_experiment_name_and_schedule():

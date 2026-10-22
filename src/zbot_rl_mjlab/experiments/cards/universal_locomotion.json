@@ -1,0 +1,277 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "综合运动多教师",
+  "task_id": "Mjlab-Zbot-6dof-Universal-Locomotion",
+  "inherits": "_defaults.json",
+  "env": {
+    "decimation": 4,
+    "seed": 42,
+    "episode_length_s": 45.0,
+    "recorders": {},
+    "is_finite_horizon": false,
+    "auto_reset": true,
+    "scale_rewards_by_dt": true,
+    "success_hold_s": 2.0,
+    "joint_tolerance": 0.1,
+    "final_max_body_height": 0.1,
+    "joint_speed_tolerance": 0.1,
+    "base_speed_tolerance": 0.02,
+    "max_downward_com_speed": 0.3,
+    "workspace_radius": 15.0,
+    "omni_site_frame": false,
+    "omni_frame_backend": "eager",
+    "motion_site": "foot_0_sole",
+    "snake_teacher_enabled": false,
+    "straighten_before_stand": false,
+    "standing_joint_pos": [
+      0.312,
+      0.837,
+      -2.02,
+      2.02,
+      -0.837,
+      -0.312
+    ],
+    "standing_base_height": 0.264,
+    "scene": {
+      "num_envs": 8192,
+      "env_spacing": 4.0,
+      "entities": {
+        "robot": {
+          "init_state": {
+            "pos": [
+              0.0,
+              -0.06,
+              0.0
+            ],
+            "rot": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "lin_vel": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ang_vel": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_pos": {
+              "joint1": 0.312,
+              "joint2": 0.837,
+              "joint3": -2.02,
+              "joint4": 2.02,
+              "joint5": -0.837,
+              "joint6": -0.312
+            },
+            "joint_vel": {
+              ".*": 0.0
+            }
+          }
+        }
+      }
+    },
+    "sim": {
+      "nconmax": null,
+      "njmax": 500,
+      "contact_sensor_maxmatch": 64,
+      "broadphase": null,
+      "broadphase_filter": null,
+      "ls_parallel": null,
+      "mujoco": {
+        "timestep": 0.005,
+        "integrator": "implicitfast",
+        "impratio": 1.0,
+        "cone": "pyramidal",
+        "jacobian": "auto",
+        "solver": "newton",
+        "iterations": 10,
+        "tolerance": 1e-08,
+        "ls_iterations": 20,
+        "ls_tolerance": 0.01,
+        "ccd_iterations": 50,
+        "gravity": [
+          0.0,
+          0.0,
+          -9.81
+        ],
+        "disableflags": [],
+        "enableflags": []
+      },
+      "nan_guard": {
+        "enabled": false,
+        "buffer_size": 100,
+        "output_dir": "/tmp/mjlab/nan_dumps",
+        "max_envs_to_dump": 5
+      }
+    },
+    "actions": {
+      "joint_pos": {
+        "entity_name": "robot",
+        "clip": null,
+        "actuator_names": [
+          ".*"
+        ],
+        "scale": 1.0,
+        "offset": 0.0,
+        "preserve_order": false,
+        "use_default_offset": false,
+        "max_target_speed": 6.283185307179586,
+        "target_limit": 3.141592653589793,
+        "joint_target_bounds": {}
+      }
+    },
+    "commands": {
+      "transform": {
+        "resampling_time_range": [
+          6.0,
+          12.0
+        ],
+        "debug_vis": false,
+        "snake_teacher_enabled": false,
+        "training": true,
+        "mode": "source",
+        "auto_switch_on_success": false,
+        "velocity_limits": [
+          0.25,
+          0.2,
+          0.8
+        ],
+        "hold_s": 0.15,
+        "smoothing_s": 0.25,
+        "transition_timeout_s": 8.0,
+        "gait_frequency": 0.5
+      }
+    },
+    "metrics": {
+      "phase_biped_fraction": {
+        "params": {
+          "phase": 0
+        }
+      },
+      "phase_descending_fraction": {
+        "params": {
+          "phase": 1
+        }
+      },
+      "phase_snake_fraction": {
+        "params": {
+          "phase": 2
+        }
+      },
+      "phase_ascending_fraction": {
+        "params": {
+          "phase": 3
+        }
+      },
+      "biped_motion_normalized_velocity_error": {
+        "params": {
+          "phase": 0
+        }
+      },
+      "snake_motion_normalized_velocity_error": {
+        "params": {
+          "phase": 2
+        }
+      }
+    }
+  },
+  "rewards": {
+    "velocity_tracking": {
+      "weight": 4.0,
+      "params": {}
+    },
+    "mode_posture": {
+      "weight": 2.0,
+      "params": {}
+    },
+    "transition_progress": {
+      "weight": 2.0,
+      "params": {}
+    },
+    "standstill": {
+      "weight": 1.0,
+      "params": {}
+    },
+    "energy": {
+      "weight": -0.002,
+      "params": {}
+    },
+    "action_rate": {
+      "weight": -0.01,
+      "params": {}
+    },
+    "contact_impact": {
+      "weight": -0.2,
+      "params": {}
+    },
+    "failure": {
+      "weight": -5.0,
+      "params": {}
+    }
+  },
+  "agent": {
+    "max_iterations": 3000,
+    "actor": {
+      "obs_normalization": false,
+      "distribution_cfg": {
+        "$remove": [
+          "init_std",
+          "std_type"
+        ],
+        "action_range": [
+          -1.0,
+          1.0
+        ]
+      }
+    },
+    "critic": {
+      "obs_normalization": false
+    },
+    "algorithm": {
+      "entropy_coef": 0.005,
+      "distillation_enabled": true,
+      "teacher_checkpoints": null,
+      "enabled_teachers": null,
+      "teacher_warmup_enabled": true,
+      "warmup_iterations": 100,
+      "anneal_iterations": 1000,
+      "start_coef": 1.0,
+      "floor_coef": 0.02,
+      "distillation_batch_size": 1024,
+      "distillation_max_samples": 8192,
+      "distillation_updates": 32,
+      "replay_iterations": 8,
+      "anchor_max_samples": 4096,
+      "anchor_coef": 100.0,
+      "validation_interval_iterations": 25,
+      "validation_required_passes": 3,
+      "validation_min_samples": 32,
+      "validation_max_mse": 0.02,
+      "validation_use_mse": true,
+      "validation_max_std": 0.15,
+      "distillation_nll_coef": 0.01,
+      "warmup_target_std": 0.12
+    },
+    "validation_randomized": true,
+    "robust_validation_interval": 0,
+    "console_mode": "compact"
+  },
+  "play": {
+    "env": {
+      "scene": {
+        "num_envs": 1
+      },
+      "commands": {
+        "transform": {
+          "training": false,
+          "mode": "stand"
+        }
+      }
+    }
+  }
+}

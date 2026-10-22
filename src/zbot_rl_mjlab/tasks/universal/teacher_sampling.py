@@ -8,13 +8,17 @@ import torch
 def sample_motion_commands(
     standing: torch.Tensor,
     limits: tuple[float, float, float] = (.5, .2, .8),
-    *, axis_min_fraction: float = .4,
+    *, axis_min_fraction: float = .4, stop_probability: float = 1 / 8,
+    x_only_probability: float | None = None,
 ) -> torch.Tensor:
-    """Sample stop (1/8), signed axes (3/8), and mixed motion (1/2).
+    """By default sample stop (1/8), signed axes (3/8), and mixed motion (1/2).
 
     Biped mixed commands reproduce the successful omni-walking ranges. Snake
     ranges retain the universal teacher's planar command limits. Sampling does
     not shrink with tracking EMA: a stationary policy must see motion demand.
+    Without an x override, stop probabilities retain the 3:4 single/mixed ratio.
+    x_only_probability sets the absolute probability of signed pure-vx requests;
+    remaining motion preserves the relative vy/wz/mixed coverage.
     """
     if standing.ndim != 1 or standing.dtype != torch.bool:
         raise ValueError('standing must be a one-dimensional bool tensor')
@@ -22,6 +26,12 @@ def sample_motion_commands(
         raise ValueError('limits must contain three finite positive values')
     if not math.isfinite(axis_min_fraction) or not 0 < axis_min_fraction <= 1:
         raise ValueError('axis_min_fraction must be in (0, 1]')
+    if not math.isfinite(stop_probability) or not 0 <= stop_probability <= 1:
+        raise ValueError('stop_probability must be finite and in [0, 1]')
+    if x_only_probability is not None and (
+        not math.isfinite(x_only_probability) or not 0 <= x_only_probability <= 1 - stop_probability
+    ):
+        raise ValueError('x_only_probability must be finite and in [0, 1-stop_probability]')
     n = standing.numel()
     device = standing.device
     biped_low = torch.tensor((-.3, -.2, -.5), device=device)
@@ -33,7 +43,17 @@ def sample_motion_commands(
     low = torch.maximum(low, -cap)
     high = torch.minimum(high, cap)
     commands = low + torch.rand((n, 3), device=device) * (high - low)
-    category = torch.randint(16, (n,), device=device)
+    if x_only_probability is not None:
+        category = torch.randint(4, 16, (n,), device=device)
+        x_category = torch.randint(2, 4, (n,), device=device)
+        draw = torch.rand(n, device=device)
+        category = torch.where(draw < stop_probability + x_only_probability, x_category, category)
+        category = torch.where(draw < stop_probability, 0, category)
+    elif stop_probability == 1 / 8:
+        category = torch.randint(16, (n,), device=device)
+    else:
+        category = torch.randint(2, 16, (n,), device=device)
+        category = torch.where(torch.rand(n, device=device) < stop_probability, 0, category)
     axis = ((category - 2).clamp(0, 5) // 2)[:, None]
     positive = ((category - 2) % 2 == 0)[:, None]
     endpoint = torch.where(positive, high.gather(1, axis), low.gather(1, axis))

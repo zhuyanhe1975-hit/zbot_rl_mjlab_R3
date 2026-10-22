@@ -1,0 +1,49 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "蛇形站起Beta",
+  "task_id": "Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta",
+  "inherits": "transform_snake_to_biped.json",
+  "env": {
+    "curriculum_joint_error_threshold": 1.0,
+    "curriculum_prepare_pose": true,
+    "first_stage_joint_weight": 0.6,
+    "first_stage_prepared_joint_weight": 3.0,
+    "standing_stage_joint_weight": 6.0,
+    "scene": {
+      "num_envs": 8192
+    }
+  },
+  "rewards": {
+    "joint_standing": {
+      "weight": 0.6
+    },
+    "joint_symmetry": {
+      "weight": -0.2
+    }
+  },
+  "agent": {
+    "max_iterations": 1000,
+    "actor": {
+      "distribution_cfg": {
+        "$remove": [
+          "init_std",
+          "std_type",
+          "std_range"
+        ],
+        "action_range": [
+          -1.0,
+          1.0
+        ]
+      }
+    }
+  },
+  "play": {
+    "rewards": {
+      "joint_standing": {
+        "weight": 6.0
+      }
+    }
+  },
+  "description": "依据 bests/transform_snake_to_biped_beta_2026-10-17_iter2550 的 env.yaml、agent.yaml、final_effective_weights.json 核对并显式保留本卡片与父卡片不同的Beta配方。归档启动时 first_stage_joint_weight=0.1、standing_stage_joint_weight=1.0、joint_standing=0.1、joint_symmetry=-1.0；其后热更新至第2阶段关节权重6.0、对称惩罚-0.2。当前卡片保留已引入的自动准备课程（0.6→3.0→6.0）与play关节权重6.0，不将最终阶段权重误作训练初值。训练轮数按归档启动配置1000固定；不恢复已失效的外部热更新文件、resume/run/checkpoint路径或旧日志任务名。归档README注明自动课程尚未从头验证。"
+}

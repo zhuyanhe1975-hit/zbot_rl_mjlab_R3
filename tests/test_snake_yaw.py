@@ -8,8 +8,8 @@ from mjlab.managers.termination_manager import TerminationManager
 from mjlab.utils.lab_api.math import quat_mul
 from test_snake_task import state_env
 
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 from zbot_rl_mjlab.tasks.snake import mdp
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
 
 
 def set_heading(env, yaw):

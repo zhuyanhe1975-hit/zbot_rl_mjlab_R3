@@ -29,6 +29,7 @@
 """
 
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from mjlab.tasks import registry as mjlab_registry
@@ -113,54 +114,51 @@ def split_argv(argv):
     return rest, switches, options
 
 
-def build_addons(switches, options):
-    """根据给定开关与调参选项构建扩展对象，不保证排列顺序。"""
+def build_addons(switches, options, defaults=None):
+    """Use card defaults, then override only explicitly supplied CLI fields."""
+    defaults = defaults or {}
     selected = set(switches)
     if "--deployment" in selected:
         selected |= SWITCHES - {"--deployment"}
     scale = _number(options.get("--noise-scale", "1"), "--noise-scale")
     result = []
     if "--disturbance" in selected:
-        fraction = _number(
-            options.get("--disturbance-fraction", "0.25"), "--disturbance-fraction"
-        )
-        if fraction > 1.0:
-            raise CliError(f"--disturbance-fraction must be at most 1, got {fraction}")
-        force = _number(options.get("--disturbance-force", "5"), "--disturbance-force")
-        torque = _number(
-            options.get("--disturbance-torque", "0.5"), "--disturbance-torque"
-        )
-        result.append(
-            ad.BaseDisturbance(
-                force_range=(-force, force),
-                torque_range=(-torque, torque),
-                disturbed_fraction=fraction,
-            )
-        )
+        default = defaults.get(ad.BaseDisturbance, ad.BaseDisturbance())
+        values = {}
+        if "--disturbance-fraction" in options:
+            fraction = _number(options["--disturbance-fraction"], "--disturbance-fraction")
+            if fraction > 1.0:
+                raise CliError(f"--disturbance-fraction must be at most 1, got {fraction}")
+            values["disturbed_fraction"] = fraction
+        for option, field in (("--disturbance-force", "force_range"), ("--disturbance-torque", "torque_range")):
+            if option in options:
+                magnitude = _number(options[option], option)
+                values[field] = (-magnitude, magnitude)
+        result.append(replace(default, **values))
     if "--domain-randomization" in selected:
-        friction = _pair(options.get("--friction-range", "0.3,1.2"), "--friction-range")
-        result.append(ad.DomainRandomization(friction_range=friction))
+        default = defaults.get(ad.DomainRandomization, ad.DomainRandomization())
+        result.append(replace(default, friction_range=_pair(options["--friction-range"], "--friction-range"))
+                      if "--friction-range" in options else default)
     if "--mass-randomization" in selected:
-        alpha = _number(options.get("--mass-alpha", "0.07"), "--mass-alpha")
-        result.append(ad.MassRandomization(alpha_range=(-alpha, alpha)))
+        default = defaults.get(ad.MassRandomization, ad.MassRandomization())
+        if "--mass-alpha" in options:
+            alpha = _number(options["--mass-alpha"], "--mass-alpha")
+            default = replace(default, alpha_range=(-alpha, alpha))
+        result.append(default)
     if "--gain-randomization" in selected:
-        result.append(
-            ad.GainRandomization(
-                scale=_pair(options.get("--gain-scale", "0.7,1.3"), "--gain-scale")
-            )
-        )
+        default = defaults.get(ad.GainRandomization, ad.GainRandomization())
+        result.append(replace(default, scale=_pair(options["--gain-scale"], "--gain-scale"))
+                      if "--gain-scale" in options else default)
     if "--observation-noise" in selected:
-        result.append(
-            ad.ObservationNoise(
-                std={k: v * scale for k, v in ad.NOISE_STD.items()},
-                bias={k: v * scale for k, v in ad.NOISE_BIAS.items()},
-            )
-        )
+        default = defaults.get(ad.ObservationNoise, ad.ObservationNoise())
+        result.append(replace(default, std={k: v * scale for k, v in default.std.items()},
+                              bias={k: v * scale for k, v in default.bias.items()}))
     if "--action-delay" in selected:
-        lag = switches.get("--action-delay", ad.MAX_ACTION_LAG)
-        result.append(ad.ActionDelay(max_lag=ad.MAX_ACTION_LAG if lag is True else lag))
+        default = defaults.get(ad.ActionDelay, ad.ActionDelay())
+        lag = switches.get("--action-delay", True)
+        result.append(replace(default, max_lag=default.max_lag if lag is True else lag))
     if "--blind-actor" in selected:
-        result.append(ad.BlindActor())
+        result.append(defaults.get(ad.BlindActor, ad.BlindActor()))
     return result
 
 
@@ -197,7 +195,14 @@ def apply_cli(argv=None):
     base = tasks[chosen]
     if not getattr(base, "supports_walking_addons", True):
         raise CliError(f"{chosen} does not support walking add-on switches")
-    new = variant(base, chosen, base.experiment_name, *build_addons(switches, options))
+    defaults = base().collected_addons()
+    card = base().configuration_card()
+    if card is not None:
+        from .experiments.cards import configure_addons
+
+        defaults = configure_addons(defaults, card)
+    new = variant(base, chosen, base.experiment_name,
+                  *build_addons(switches, options, {type(addon): addon for addon in defaults}))
     # 沿用同一任务 ID，将已注册任务替换为扩展后的任务。
     mjlab_registry._REGISTRY.pop(chosen, None)
     new().register()

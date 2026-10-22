@@ -10,6 +10,7 @@ from mjlab.viewer import NativeMujocoViewer
 from mjlab.viewer.base import ViewerAction
 from mjlab.viewer.native.keys import KEY_BACKSLASH, KEY_LEFT_BRACKET, KEY_RIGHT_BRACKET
 
+from .tasks.universal import mdp as universal_mdp
 from .tasks.universal.env_cfg import UniversalEnvCfg
 from .tasks.universal.task_fsm import Morphology, TaskState
 from .tasks.walking import mdp
@@ -36,7 +37,7 @@ _SNAKE_DELTAS = {
 }
 
 
-def task_fsm_overlay_rows(term, env_idx):
+def task_fsm_overlay_rows(term, env_idx, actual_velocity):
     """Return the selected robot's latched task and velocity, if available."""
     fsm = getattr(term, "task_fsm", None)
     if fsm is None:
@@ -49,7 +50,7 @@ def task_fsm_overlay_rows(term, env_idx):
         ("Target", Morphology(int(fsm.target_morphology[env_idx])).name),
         ("Task", TaskState(int(fsm.task_state[env_idx])).name),
         ("Requested vx/vy/wz", " / ".join(f"{value:+.3f}" for value in term.requested_velocity[env_idx].tolist())),
-        ("Effective vx/vy/wz", " / ".join(f"{value:+.3f}" for value in term.velocity_command[env_idx].tolist())),
+        ("Actual vx/vy/wz", " / ".join(f"{value:+.3f}" for value in actual_velocity[env_idx].tolist())),
     ])
     if hasattr(term, 'retry_attempts') and int(fsm.task_state[env_idx]) == TaskState.ASCENDING:
         stage = 'STRAIGHTEN' if bool(term.straightening_mask[env_idx]) else 'RISE'
@@ -115,9 +116,12 @@ class FollowCameraViewer(NativeMujocoViewer):
     def _set_status_overlay(self, viewer):
         env = self.env.unwrapped
         term = env.command_manager.get_term("transform") if "transform" in env.cfg.commands else None
-        rows = task_fsm_overlay_rows(term, self.env_idx)
+        rows = (task_fsm_overlay_rows(term, self.env_idx, universal_mdp.tracking_velocity(env))
+                if getattr(term, 'task_fsm', None) is not None else [])
         if not rows:
             return super()._set_status_overlay(viewer)
+        if getattr(env.cfg, 'command_visual_actual_velocity', False):
+            rows.append(('Velocity arrows', 'Command: blue/orange | Actual: green/purple'))
         status = self.get_status()
         capped = " [CAPPED]" if status.capped else ""
         text_1 = "Env\nStep\nStatus\nSpeed\nTarget RT\nActual RT"

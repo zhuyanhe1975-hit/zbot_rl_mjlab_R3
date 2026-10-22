@@ -1,0 +1,15 @@
+{
+  "task_id": "Mjlab-Zbot-6dof-Velocity-Frequency-Tracking-Walking",
+  "source_run": "logs/rsl_rl/zbot_velocity_tracking/2026-10-22_09-00-05",
+  "source_checkpoint": "logs/rsl_rl/zbot_velocity_tracking/2026-10-22_09-00-05/model_499.pt",
+  "checkpoint_iteration_filename": 499,
+  "checkpoint_iter_field": 499,
+  "selection": "latest checkpoint from latest joint speed/frequency tracking run; no best-score selection",
+  "archived_at": "2026-10-22T09:05:55.672747+08:00",
+  "source_sha256": "ad119f484585a0d0335cec3a30210e72af1d9b5d5bd71da5228dcb448abea4c4",
+  "git_head": "66ceb226ef2350f5b9c928277e046ecbd3979871",
+  "source_snapshot": "archive-time workspace including uncommitted and untracked source; external MJLab and Python environment excluded",
+  "verification_boundary": "checkpoint copy and CPU strict policy loading; no independent simulation performance evaluation",
+  "replaced_archive_source": "logs/rsl_rl/zbot_velocity_tracking/2026-10-22_08-37-45/model_499.pt",
+  "replaced_archive_sha256": "f1cb3261977cdfd4c9088fe2ea5f7f11e5c9a0882e69b636a53bc115d7704400"
+}

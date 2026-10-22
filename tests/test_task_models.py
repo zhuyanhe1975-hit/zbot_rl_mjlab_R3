@@ -1,11 +1,9 @@
 """Numerical and deployment regressions for the validated routed-task models."""
 
 import copy
-import importlib.util
 import io
-from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import cast
 
 import pytest
 import torch
@@ -277,40 +275,3 @@ def test_unsupported_actor_configuration_rejected(cls):
 def test_unsupported_feature_dimension_rejected():
     with pytest.raises(ValueError, match='56 raw features'):
         EmpiricalTaskNormalization(59)
-
-
-@pytest.mark.parametrize('public_name', ['EmpiricalTaskNormalization', 'TaskNormalizedMLP', 'RoutedTaskNormalizedMLP', 'TaskNormalizedCritics'])
-def test_public_port_state_and_forward_matches_validated_diagnostic(public_name):
-    # The diagnostic artifact is optional outside the original workspace. Production
-    # code has no dependency on it; this check records migration parity where present.
-    path = Path(__file__).resolve().parents[1] / 'outputs/diagnostics/multicritic200/task_norm_trial.py'
-    if not path.is_file():
-        pytest.skip('Original bounded diagnostic artifact is unavailable')
-    spec = importlib.util.spec_from_file_location('_validated_task_models', path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    private_cls = getattr(module, public_name)
-    public_cls: Any = {'EmpiricalTaskNormalization': EmpiricalTaskNormalization,
-                       'TaskNormalizedMLP': TaskNormalizedMLP,
-                       'RoutedTaskNormalizedMLP': RoutedTaskNormalizedMLP,
-                       'TaskNormalizedCritics': TaskNormalizedCritics}[public_name]
-    x = raw()
-    obs = observations(x)
-    if public_name == 'EmpiricalTaskNormalization':
-        old, new = private_cls(), public_cls()
-        old.update(x)
-        new.load_state_dict(old.state_dict(), strict=True)
-        assert torch.equal(old(x), new(x))
-    else:
-        key = 'critic' if public_name == 'TaskNormalizedCritics' else 'actor'
-        kwargs: dict[str, Any] = {'hidden_dims': (16,), 'obs_normalization': True}
-        if key == 'actor':
-            kwargs['distribution_cfg'] = {'class_name': 'BetaDistribution', 'action_range': (-1., 1.)}
-        old = private_cls(obs, {key: [key]}, key, 1 if key == 'critic' else 6, **kwargs)
-        new = public_cls(obs, {key: [key]}, key, 1 if key == 'critic' else 6, **kwargs)
-        old.update_normalization(obs)
-        new.load_state_dict(old.state_dict(), strict=True)
-        assert torch.equal(old(obs), new(obs))
-    assert old.state_dict().keys() == new.state_dict().keys()
-    assert all(torch.equal(value, new.state_dict()[key]) for key, value in old.state_dict().items())

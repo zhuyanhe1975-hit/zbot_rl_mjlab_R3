@@ -1,0 +1,22 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "蛇足综合部署学生",
+  "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Deploy",
+  "inherits": "universal_locomotion_deploy.json",
+  "env": {
+    "snake_teacher_enabled": true,
+    "commands": {
+      "transform": {
+        "snake_teacher_enabled": true
+      }
+    }
+  },
+  "agent": {
+    "algorithm": {
+      "teacher_checkpoints": {
+        "snake": "bests/snake_world_x_2026-10-19_iter1499/model_1499.pt"
+      }
+    }
+  }
+}

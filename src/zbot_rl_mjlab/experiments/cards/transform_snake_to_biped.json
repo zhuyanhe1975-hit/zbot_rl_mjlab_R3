@@ -1,0 +1,285 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "蛇形站起Gaussian",
+  "task_id": "Mjlab-Zbot-6dof-Transform-Snake-To-Biped",
+  "inherits": "_defaults.json",
+  "env": {
+    "decimation": 4,
+    "seed": 42,
+    "episode_length_s": 16.0,
+    "recorders": {},
+    "is_finite_horizon": false,
+    "auto_reset": true,
+    "scale_rewards_by_dt": true,
+    "success_hold_s": 2.0,
+    "joint_tolerance": 0.1,
+    "final_max_body_height": 0.1,
+    "joint_speed_tolerance": 0.1,
+    "base_speed_tolerance": 0.02,
+    "max_downward_com_speed": 0.3,
+    "workspace_radius": 1.5,
+    "support_observations": false,
+    "require_sole_support_for_positive_rewards": true,
+    "initial_joint_pos": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "standing_joint_pos": [
+      0.312,
+      0.837,
+      -2.02,
+      2.02,
+      -0.837,
+      -0.312
+    ],
+    "joint_standing_error_scale": 0.5,
+    "standing_base_height": 0.264,
+    "base_height_tolerance": 0.02,
+    "sole_height_tolerance": 0.005,
+    "sole_alignment_height_std": 0.03,
+    "sole_alignment_angle_std_deg": 30.0,
+    "sole_angle_tolerance_deg": 5.0,
+    "base_z_roll_limit_deg": 179.0,
+    "base_gravity_alignment_weight": 0.0,
+    "survival_weight": 0.0,
+    "curriculum_start_stage": 1,
+    "sole_alignment_stage_threshold": 1.0,
+    "curriculum_support_hold_s": 0.5,
+    "curriculum_support_ready_fraction": 0.8,
+    "curriculum_joint_error_threshold": null,
+    "curriculum_prepare_pose": false,
+    "first_stage_initial_pose_weight": -0.02,
+    "first_stage_joint_weight": 0.1,
+    "first_stage_prepared_joint_weight": 0.0,
+    "standing_stage_joint_weight": 1.0,
+    "standing_stage_height_weight": 0.0,
+    "standing_stage_velocity_weight": 0.0,
+    "standing_stage_ramp_steps": 2400,
+    "base_support_distance_weight": -0.2,
+    "base_support_distance_std": 0.05,
+    "support_angle_limit_deg": 25.0,
+    "support_height_limit": 0.01,
+    "support_failure_hold_s": 0.1,
+    "feet_contact_weight": 0.5,
+    "end_joint_flip_weight": -1.0,
+    "end_joint_allowed_error": 1.0,
+    "first_stage_roll_rate_weight": -0.05,
+    "reward_hot_reload_path": null,
+    "scene": {
+      "num_envs": 1024,
+      "env_spacing": 4.0,
+      "entities": {
+        "robot": {
+          "init_state": {
+            "pos": [
+              0.0,
+              -0.33,
+              0.0525
+            ],
+            "rot": [
+              0.7071067811865476,
+              -0.7071067811865476,
+              0.0,
+              0.0
+            ],
+            "lin_vel": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ang_vel": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_pos": {
+              "joint1": 0.0,
+              "joint2": 0.0,
+              "joint3": 0.0,
+              "joint4": 0.0,
+              "joint5": 0.0,
+              "joint6": 0.0
+            },
+            "joint_vel": {
+              ".*": 0.0
+            }
+          }
+        }
+      }
+    },
+    "sim": {
+      "nconmax": null,
+      "njmax": 500,
+      "contact_sensor_maxmatch": 64,
+      "broadphase": null,
+      "broadphase_filter": null,
+      "ls_parallel": null,
+      "mujoco": {
+        "timestep": 0.005,
+        "integrator": "implicitfast",
+        "impratio": 1.0,
+        "cone": "pyramidal",
+        "jacobian": "auto",
+        "solver": "newton",
+        "iterations": 10,
+        "tolerance": 1e-08,
+        "ls_iterations": 20,
+        "ls_tolerance": 0.01,
+        "ccd_iterations": 50,
+        "gravity": [
+          0.0,
+          0.0,
+          -9.81
+        ],
+        "disableflags": [],
+        "enableflags": []
+      },
+      "nan_guard": {
+        "enabled": false,
+        "buffer_size": 100,
+        "output_dir": "/tmp/mjlab/nan_dumps",
+        "max_envs_to_dump": 5
+      }
+    },
+    "actions": {
+      "joint_pos": {
+        "entity_name": "robot",
+        "clip": null,
+        "actuator_names": [
+          ".*"
+        ],
+        "scale": 1.0,
+        "offset": 0.0,
+        "preserve_order": false,
+        "use_default_offset": false,
+        "max_target_speed": 1.0,
+        "target_limit": null,
+        "joint_target_bounds": {
+          "joint1": [
+            -0.688,
+            1.312
+          ],
+          "joint6": [
+            -1.312,
+            0.688
+          ]
+        }
+      }
+    },
+    "commands": {},
+    "metrics": {
+      "sole_0_angle_deg": {
+        "params": {
+          "foot_index": 0
+        }
+      },
+      "sole_1_angle_deg": {
+        "params": {
+          "foot_index": 1
+        }
+      }
+    }
+  },
+  "rewards": {
+    "end_joint_flip": {
+      "weight": -1.0,
+      "params": {}
+    },
+    "axial_roll_rate": {
+      "weight": -0.05,
+      "params": {}
+    },
+    "initial_joint_pose": {
+      "weight": -0.02,
+      "params": {}
+    },
+    "joint_standing": {
+      "weight": 0.1,
+      "params": {}
+    },
+    "base_height_progress": {
+      "weight": 0.0,
+      "params": {}
+    },
+    "base_ascent_velocity": {
+      "weight": 0.0,
+      "params": {
+        "target_speed": 0.1
+      }
+    },
+    "base_support_distance": {
+      "weight": -0.2,
+      "params": {}
+    },
+    "joint_symmetry": {
+      "weight": -1.0,
+      "params": {}
+    },
+    "sole_ground_alignment": {
+      "weight": 2.0,
+      "params": {}
+    },
+    "both_feet_contact": {
+      "weight": 0.5,
+      "params": {}
+    },
+    "sole_height": {
+      "weight": -1.0,
+      "params": {}
+    },
+    "base_z_roll": {
+      "weight": -1.0,
+      "params": {}
+    },
+    "base_gravity_alignment": {
+      "weight": 0.0,
+      "params": {}
+    },
+    "reset_failure": {
+      "weight": -10.0,
+      "params": {}
+    },
+    "survival": {
+      "weight": 0.0,
+      "params": {}
+    }
+  },
+  "agent": {
+    "actor": {
+      "distribution_cfg": {
+        "init_std": 0.5,
+        "std_range": [
+          0.1,
+          1.0
+        ]
+      }
+    },
+    "algorithm": {
+      "entropy_coef": 0.005
+    }
+  },
+  "play": {
+    "env": {
+      "curriculum_start_stage": 2,
+      "scene": {
+        "num_envs": 1
+      }
+    },
+    "rewards": {
+      "axial_roll_rate": {
+        "weight": 0.0
+      },
+      "initial_joint_pose": {
+        "weight": 0.0
+      },
+      "joint_standing": {
+        "weight": 1.0
+      }
+    }
+  }
+}

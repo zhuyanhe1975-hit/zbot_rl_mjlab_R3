@@ -1,9 +1,28 @@
 """通过多教师蒸馏预训练并联合优化的综合运动实验。"""
+
+
+import math
 from dataclasses import asdict, dataclass
 from typing import cast
 
-from ..distillation import MultiTeacherPpoCfg, MultiTeacherRunner
-from ..tasks.universal.env_cfg import TASK_ID, universal_env_cfg
+from mjlab.envs import mdp as common_mdp
+from mjlab.managers.event_manager import EventTermCfg
+from mjlab.managers.metrics_manager import MetricsTermCfg
+from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
+from mjlab.managers.reward_manager import RewardTermCfg
+from mjlab.managers.termination_manager import TerminationTermCfg
+from mjlab.rl import RslRlModelCfg
+from mjlab.sensor import ContactMatch, ContactSensorCfg
+
+from ..distillation import MultiTeacherPpoCfg, MultiTeacherRunner, MultiTeacherRunnerCfg
+from ..tasks.transformation import mdp as transform
+from ..tasks.transformation import teacher_observations as teacher
+from ..tasks.transformation.actions import JointTargetRateActionCfg
+from ..tasks.transformation.env_cfg import transformation_scene_cfg
+from ..tasks.universal import deployment as deployment_runtime
+from ..tasks.universal import mdp
+from ..tasks.universal.commands import UniversalCommandCfg
+from ..tasks.universal.env_cfg import TASK_ID, UniversalEnvCfg
 from .addons import (
     BaseDisturbance,
     DomainRandomization,
@@ -11,6 +30,94 @@ from .addons import (
     MassRandomization,
 )
 from .base import Experiment
+
+
+def universal_env_cfg(play=False, *, cfg_cls: type[UniversalEnvCfg] = UniversalEnvCfg) -> UniversalEnvCfg:
+    cfg = cast(UniversalEnvCfg, transformation_scene_cfg(play=play, cfg_cls=cfg_cls))
+    cfg.scene.num_envs = 1 if play else 8192
+    cfg.episode_length_s = 45.
+    action = cast(JointTargetRateActionCfg, cfg.actions["joint_pos"])
+    action.max_target_speed = 2 * math.pi
+    action.target_limit = math.pi
+    cfg.commands = {"transform": UniversalCommandCfg(resampling_time_range=(6., 12.), training=not play, mode="stand" if play else "source")}
+    cfg.observations = {
+        "actor": ObservationGroupCfg({"universal_state": ObservationTermCfg(func=mdp.actor_state)}, concatenate_terms=True, enable_corruption=False),
+        "critic": ObservationGroupCfg({"universal_critic_state": ObservationTermCfg(func=mdp.critic_state)}, concatenate_terms=True, enable_corruption=False),
+    }
+    cfg.scene.sensors = (
+        ContactSensorCfg(name="base_ground_contact", primary=ContactMatch(mode="body", pattern="base", entity="robot"), secondary=ContactMatch(mode="body", pattern="terrain"), fields=("found", "force"), reduce="netforce"),
+        ContactSensorCfg(name="feet_ground_contact", primary=ContactMatch(mode="body", pattern=("foot_0", "foot_1"), entity="robot"), secondary=ContactMatch(mode="body", pattern="terrain"), fields=("found", "force"), reduce="netforce"),
+        ContactSensorCfg(name="transform_ground_contact", primary=ContactMatch(mode="body", pattern=".*", entity="robot"), secondary=ContactMatch(mode="body", pattern="terrain"), fields=("force",), reduce="netforce", history_length=cfg.decimation),
+    )
+    cfg.events["reset_transition"] = EventTermCfg(func=mdp.reset_universal, mode="reset")
+    cfg.terminations = {
+        "unsafe": TerminationTermCfg(func=mdp.unsafe),
+        "demonstration_time_out": TerminationTermCfg(func=mdp.demonstration_time_out, time_out=True),
+        "time_out": TerminationTermCfg(func=mdp.play_time_out if play else common_mdp.time_out, time_out=True),
+    }
+    cfg.rewards = {
+        "velocity_tracking": RewardTermCfg(func=mdp.velocity_tracking, weight=4.),
+        "mode_posture": RewardTermCfg(func=mdp.posture_reward, weight=2.),
+        "transition_progress": RewardTermCfg(func=mdp.transition_progress_reward, weight=2.),
+        "standstill": RewardTermCfg(func=mdp.standstill_reward, weight=1.),
+        "energy": RewardTermCfg(func=mdp.energy_cost, weight=-.002),
+        "action_rate": RewardTermCfg(func=mdp.action_rate_cost, weight=-.01),
+        "contact_impact": RewardTermCfg(func=mdp.impact_cost, weight=-.2),
+        "failure": RewardTermCfg(func=mdp.failure_cost, weight=-5.),
+    }
+    cfg.metrics = {
+        **{
+            f"phase_{name}_fraction": MetricsTermCfg(func=mdp.phase_fraction, params={"phase": phase})
+            for phase, name in enumerate(("biped", "descending", "snake", "ascending"))
+        },
+        "biped_motion_normalized_velocity_error": MetricsTermCfg(func=mdp.mode_motion_error, params={"phase": 0}),
+        "snake_motion_normalized_velocity_error": MetricsTermCfg(func=mdp.mode_motion_error, params={"phase": 2}),
+    }
+    return cfg
+
+
+def universal_ppo_cfg() -> MultiTeacherRunnerCfg:
+    """六独立速度动作的综合策略，价值网络从头学习。"""
+    return MultiTeacherRunnerCfg(
+        actor=RslRlModelCfg(
+            hidden_dims=(256, 128), activation="elu", obs_normalization=False,
+            distribution_cfg={"class_name": "BetaDistribution", "action_range": (-1.0, 1.0)},
+        ),
+        critic=RslRlModelCfg(hidden_dims=(256, 128), activation="elu", obs_normalization=False),
+        experiment_name="zbot_universal_locomotion",
+        max_iterations=3000, num_steps_per_env=24, save_interval=50,
+        logger="tensorboard",
+    )
+
+
+def configure_deployment(cfg, play=False):
+    """直接定义单帧 37 维可测状态，训练与回放均使用五帧无噪声历史。"""
+    cfg.straighten_before_stand = True
+    cfg.commands['transform'] = deployment_runtime.DeploymentCommandCfg(**asdict(cfg.commands['transform']))
+    cfg.rewards['straightening'] = RewardTermCfg(func=deployment_runtime.straightening_cost, weight=-2.)
+    cfg.events['reset_transition'].func = deployment_runtime.BentSnakeReset
+    cfg.events['reset_transition'].params = {
+        'bend_fraction': .5, 'bend_limit': .2, 'roll_limit_deg': 40.,
+    }
+    functions = {
+        "joint_pos": deployment_runtime.joint_position,
+        "joint_vel": teacher.joint_velocity,
+        "commanded_target": transform.commanded_target,
+        "actions": transform.last_action,
+        "projected_gravity": transform.projected_gravity,
+        "base_ang_vel": teacher.base_angular_velocity,
+        "command": deployment_runtime.command,
+        "gait": mdp.gait_observation,
+    }
+    cfg.observations["actor"] = ObservationGroupCfg(
+        terms={name: ObservationTermCfg(func=deployment_runtime._sanitized(func)) for name, func in functions.items()},
+        concatenate_terms=True,
+        enable_corruption=False,
+        history_length=5,
+        flatten_history_dim=True,
+        # 逐项无条件清理与 MJLab 的 sanitize 结果相同，但不在每项先 .any() 同步。
+        nan_policy="disabled",
+    )
 
 
 class UniversalLocomotion(Experiment):
@@ -24,9 +131,7 @@ class UniversalLocomotion(Experiment):
     def create_env(self, play=False):
         return universal_env_cfg(play=play)
 
-    def build_ppo(self):
-        from ..distillation import universal_ppo_cfg
-
+    def _build_ppo(self):
         cfg = universal_ppo_cfg()
         cfg.experiment_name = self.experiment_name
         if self.max_iterations is not None:
@@ -71,8 +176,8 @@ class DeployUniversalLocomotion(UniversalLocomotion):
         DomainRandomization(geom_names=(".*",), encoder_bias_range=None),
     )
 
-    def build_ppo(self):
-        cfg = super().build_ppo()
+    def _build_ppo(self):
+        cfg = super()._build_ppo()
         # 有限输入无法精确复制全部特权标签，以实际闭环能力决定放行。
         cast(MultiTeacherPpoCfg, cfg.algorithm).validation_use_mse = False
         cfg.validation_randomized = False
@@ -80,8 +185,6 @@ class DeployUniversalLocomotion(UniversalLocomotion):
         return cfg
 
     def edit(self, cfg, play):
-        from ..tasks.universal.deployment import configure_deployment
-
         configure_deployment(cfg, play=play)
 
 
@@ -91,10 +194,10 @@ class SnakeLegDeploy(DeployUniversalLocomotion):
     task_id = "Mjlab-Zbot-6dof-Universal-Snake-Leg-Deploy"
     experiment_name = "zbot_universal_snake_leg_deploy"
 
-    def build_ppo(self):
+    def _build_ppo(self):
         from ..teachers import SNAKE_CHECKPOINT
 
-        cfg = super().build_ppo()
+        cfg = super()._build_ppo()
         cast(MultiTeacherPpoCfg, cfg.algorithm).teacher_checkpoints = {'snake': SNAKE_CHECKPOINT}
         return cfg
 
@@ -109,8 +212,8 @@ class SnakeLegOmniDeploy(DeployUniversalLocomotion):
     task_id = 'Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Deploy'
     experiment_name = 'zbot_universal_snake_leg_omni_deploy'
 
-    def build_ppo(self):
-        cfg = super().build_ppo()
+    def _build_ppo(self):
+        cfg = super()._build_ppo()
         algorithm = cast(MultiTeacherPpoCfg, cfg.algorithm)
         algorithm.enabled_teachers = ('transform',)
         algorithm.teacher_warmup_enabled = False

@@ -1,14 +1,11 @@
 source /home/yhzhu/AI/mjlab/.venv/bin/activate
 
-# 特权全能教师：按任务归档指导 + PPO。
-# python train.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided \
-#   --log-root logs/rsl_rl_guided \
-#   --env.commands.transform.mode source \
-#   --env.scene.num-envs 8192 \
-#   --env.omni-frame-backend cuda_graph \
-#   --agent.max-iterations 6000 \
-#   --agent.run-name task_guidance_ppo_v2 \
-#   "$@"
+# 0、按照指定频率原地踏步实验
+# python train.py Mjlab-Zbot-6dof-Periodic-Stepping \
+#     --env.step-frequency-min 0.25 \
+#     --env.step-frequency-max 1.0 \
+#     --env.scene.num-envs 8192 \
+#     --agent.max-iterations 51
 
 # 1、按照指定频率迈步+基本平地行走
 # python train.py Mjlab-Zbot-6dof-Walking \
@@ -24,9 +21,12 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
 #     --env.scene.num-envs 8192 \
 #     --agent.max-iterations 600 \
 
-# python train.py Mjlab-Zbot-6dof-Velocity-Tracking-Walking \
+# 2.5、跟踪频率 + 速度指令联合跟踪
+# python train.py Mjlab-Zbot-6dof-Velocity-Frequency-Tracking-Walking \
 #     --env.scene.num-envs 8192 \
-#     --agent.max-iterations 1500 \
+#     --agent.max-iterations 500 \
+#     --env.step-frequency-min 0.25 \
+#     --env.step-frequency-max 1.0 \
 #     --env.commands.target-speed.ranges.lin-vel-x "(0.0,0.5)" \
 #     # --env.test-frequency 1.0 \
 
@@ -157,6 +157,26 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
 #   --agent.run-name biped_scalar_only_v1
 
 # 18、新蛇形全向训练：前后、侧移、转向及组合运动。
-python train.py Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher \
-  --env.scene.num-envs 8192 \
-  --agent.max-iterations 600
+# python train.py Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 6000
+
+# 19、新蛇形全向训练：前后、侧移、转向及组合运动。自适应权重
+# python train.py Mjlab-Zbot-6dof-Snake-Site-Adaptive-Teacher \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 6000
+
+# 20、base靶标蛇形全向：继承19的奖励和自适应调权，独立模型与日志。
+# python train.py Mjlab-Zbot-6dof-Snake-Base-Adaptive-Teacher \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 6000
+
+# 特权全能教师：按任务归档指导 + PPO。
+# python train.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided \
+#   --log-root logs/rsl_rl_guided \
+#   --env.commands.transform.mode source \
+#   --env.scene.num-envs 8192 \
+#   --env.omni-frame-backend cuda_graph \
+#   --agent.max-iterations 6000 \
+#   --agent.run-name task_guidance_ppo_v2 \
+#   "$@"

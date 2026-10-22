@@ -54,6 +54,7 @@ class Experiment:
     max_iterations: int | None = None
     """PPO 迭代数；None 表示沿用公共默认值。"""
     runner_cls: type | None = None
+    card_name: str | None = None
     """注册时选用的训练运行器；None 表示使用 MJLab 默认值。"""
     addons: tuple = ()
     """本类在父类基础上添加的可选扩展（``addons.py``）。"""
@@ -73,7 +74,20 @@ class Experiment:
         """由任务族提供正确配置类型的基础环境。"""
         raise NotImplementedError("实验必须提供任务环境工厂")
 
+    def configuration_card(self):
+        """Read the registered card afresh; dynamic CLI variants inherit its values."""
+        if self.card_name is None:
+            return None
+        from .cards import load_card
+
+        card = load_card(self.card_name)
+        owner = next(cls for cls in type(self).__mro__ if 'card_name' in cls.__dict__)
+        if card.get('task_id') != owner.task_id:
+            raise ValueError(f'{self.card_name}: card task_id does not match {owner.task_id}')
+        return card
+
     def build_env(self, play=False) -> ManagerBasedRlEnvCfg:
+        card = self.configuration_card()
         cfg = self.create_env(play=play)
         if self.train_envs is not None and not play:
             cfg.scene.num_envs = self.train_envs
@@ -86,12 +100,37 @@ class Experiment:
             if edit is not None:
                 edit(self, cfg, play)
         # 最后应用扩展，使其作用于完整构建的实验。
-        for addon in self.collected_addons():
+        addons = self.collected_addons()
+        if card is not None:
+            from .cards import configure_addons
+
+            overrides = ()
+            if 'card_name' not in type(self).__dict__:
+                overrides = tuple(type(addon) for addon in type(self).__dict__.get('addons', ()))
+            addons = configure_addons(addons, card, overrides=overrides)
+        for addon in addons:
             addon.apply(cfg, play)
+        if card is not None:
+            from .cards import apply_environment
+
+            apply_environment(cfg, card, play=play)
+        if not play and 'train_envs' in self.__dict__ and self.train_envs is not None:
+            cfg.scene.num_envs = self.train_envs
         return cfg
 
     def build_ppo(self):
-        from ..rl import ppo_cfg
+        cfg = self._build_ppo()
+        card = self.configuration_card()
+        if card is not None:
+            from .cards import apply_agent
+
+            apply_agent(cfg, card)
+        if 'max_iterations' in self.__dict__ and self.max_iterations is not None:
+            cfg.max_iterations = self.max_iterations
+        return cfg
+
+    def _build_ppo(self):
+        from zbot_rl_mjlab.experiments.common import ppo_cfg
 
         cfg = ppo_cfg()
         cfg.experiment_name = self.experiment_name
@@ -115,7 +154,7 @@ class WalkingExperiment(Experiment):
     step_frequency: tuple[float, float] | None = None
 
     def create_env(self, play=False):
-        from ..tasks.walking.env_cfg import env_cfg
+        from zbot_rl_mjlab.experiments.walking import env_cfg
 
         cfg = env_cfg(play=play)
         if self.step_frequency is not None:

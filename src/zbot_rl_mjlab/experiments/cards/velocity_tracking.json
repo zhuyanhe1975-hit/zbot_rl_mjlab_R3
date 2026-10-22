@@ -1,0 +1,76 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "速度与频率联合跟踪",
+  "task_id": "Mjlab-Zbot-6dof-Velocity-Frequency-Tracking-Walking",
+  "inherits": "walking.json",
+  "env": {
+    "commands": {
+      "target_speed": {
+        "resampling_time_range": [
+          5.0,
+          10.0
+        ],
+        "debug_vis": false,
+        "entity_name": "robot",
+        "heading_command": false,
+        "heading_control_stiffness": 1.0,
+        "rel_standing_envs": 0.0,
+        "rel_heading_envs": 0.0,
+        "rel_world_envs": 0.0,
+        "rel_forward_envs": 0.0,
+        "init_velocity_prob": 0.0,
+        "ranges": {
+          "lin_vel_x": [
+            0.0,
+            0.5
+          ],
+          "lin_vel_y": [
+            0.0,
+            0.0
+          ],
+          "ang_vel_z": [
+            0.0,
+            0.0
+          ],
+          "heading": null
+        },
+        "viz": {
+          "z_offset": 0.2,
+          "scale": 0.5
+        }
+      }
+    }
+  },
+  "rewards": {
+    "$remove": [
+      "forward_velocity"
+    ],
+    "track_forward_speed": {
+      "weight": 2.0,
+      "params": {
+        "std": 0.1
+      }
+    },
+    "joint_acceleration": {
+      "weight": -0.001
+    },
+    "swing_clearance": {
+      "weight": 2.0
+    },
+    "soft_landing": {
+      "weight": -0.001
+    }
+  },
+  "play": {
+    "env": {
+      "$remove": [
+        "frequency_sampling"
+      ]
+    }
+  },
+  "agent": {
+    "max_iterations": 500
+  },
+  "description": "依据 bests/velocity_frequency_tracking_2026-10-22_iter499 的 env.yaml、agent.yaml 固定本任务相对父卡片的归档配方差异；下列覆盖参数与该归档对应，其余参数继续继承父卡片。运行时生成的 terrain.num_envs/env_spacing、Python 回调和结构选择器不作为配方覆盖。"
+}

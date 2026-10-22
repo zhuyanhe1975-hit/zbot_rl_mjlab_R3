@@ -3,7 +3,7 @@
 import hashlib
 import math
 from copy import deepcopy
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import dataclass, field
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, cast
@@ -13,24 +13,13 @@ from mjlab.rl import RslRlPpoAlgorithmCfg
 
 from .guided_ppo import GuidedTaskPPO, GuidedTaskPpoCfg
 from .omni_teacher import OmniTeacherRunnerCfg, _full_resume
-from .task_teacher import RoutedTaskTeacherRunner, routed_task_teacher_ppo_cfg
+from .task_teacher import RoutedTaskTeacherRunner
 from .teachers import DEFAULT_CHECKPOINTS, SNAKE_CHECKPOINT
 
 
 @dataclass
 class GuidedTeacherRunnerCfg(OmniTeacherRunnerCfg):
     algorithm: RslRlPpoAlgorithmCfg = field(default_factory=GuidedTaskPpoCfg)
-
-
-def guided_teacher_ppo_cfg() -> GuidedTeacherRunnerCfg:
-    baseline = routed_task_teacher_ppo_cfg()
-    algorithm = GuidedTaskPpoCfg(**(asdict(baseline.algorithm) | {
-        'class_name': 'zbot_rl_mjlab.guided_ppo:GuidedTaskPPO',
-    }))
-    values = {item.name: getattr(baseline, item.name) for item in fields(baseline) if item.name != 'algorithm'}
-    return GuidedTeacherRunnerCfg(**(values | {
-        'class_name': 'zbot_rl_mjlab.guided_teacher:GuidedTeacherRunner', 'algorithm': algorithm,
-    }))
 
 
 def guidance_sources(checkpoints: dict[str, str] | None, *, include_omni=True, include_snake=False) -> dict[str, dict[str, str]]:

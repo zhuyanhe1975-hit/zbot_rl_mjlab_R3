@@ -7,11 +7,14 @@ import torch
 from mjlab.managers.curriculum_manager import CurriculumManager
 from mjlab.managers.reward_manager import RewardManager
 
+from zbot_rl_mjlab.experiments.transformation import (
+    snake_to_biped_env_cfg as _recipe_snake_to_biped_env_cfg,
+)
 from zbot_rl_mjlab.tasks.transformation import snake_to_biped as reverse
 
 
 def _env(play=False, ramp_steps=0, num_envs=2):
-    cfg = reverse.snake_to_biped_env_cfg(play=play)
+    cfg = _recipe_snake_to_biped_env_cfg(play=play)
     # 使用固定值测试课程机制，不受实时调参影响。
     cfg.sole_alignment_stage_threshold = 1.0
     cfg.first_stage_joint_weight = 0.1
@@ -140,7 +143,7 @@ def test_unreachable_alignment_threshold_is_rejected(threshold):
 
 
 def test_promotion_ramps_over_control_steps_and_keeps_progress_across_resets():
-    assert reverse.snake_to_biped_env_cfg().standing_stage_ramp_steps == 2400
+    assert _recipe_snake_to_biped_env_cfg().standing_stage_ramp_steps == 2400
     env = _env(ramp_steps=2400)
     env.common_step_counter = 100
     env.episode_length_buf[:] = 800

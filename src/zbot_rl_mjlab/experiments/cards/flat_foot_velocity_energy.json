@@ -1,0 +1,114 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "平足节能行走",
+  "task_id": "Mjlab-Zbot-6dof-Flat-Foot-Velocity-Energy-Walking",
+  "inherits": "velocity_energy_tracking.json",
+  "env": {
+    "curriculum": {
+      "foot_flat_stance_weight": {
+        "params": {
+          "reward_name": "foot_flat_stance",
+          "stages": [
+            {
+              "step": 0,
+              "weight": -0.05
+            },
+            {
+              "step": 3600,
+              "weight": -0.15
+            },
+            {
+              "step": 7200,
+              "weight": -0.3
+            },
+            {
+              "step": 9600,
+              "weight": -0.5
+            }
+          ]
+        }
+      },
+      "foot_flat_touchdown_weight": {
+        "params": {
+          "reward_name": "foot_flat_touchdown",
+          "stages": [
+            {
+              "step": 0,
+              "weight": -0.2
+            },
+            {
+              "step": 3600,
+              "weight": -0.6
+            },
+            {
+              "step": 7200,
+              "weight": -1.2
+            },
+            {
+              "step": 9600,
+              "weight": -2.0
+            }
+          ]
+        }
+      },
+      "foot_flat_pre_landing_weight": {
+        "params": {
+          "reward_name": "foot_flat_pre_landing",
+          "stages": [
+            {
+              "step": 0,
+              "weight": -0.05
+            },
+            {
+              "step": 3600,
+              "weight": -0.15
+            },
+            {
+              "step": 7200,
+              "weight": -0.3
+            },
+            {
+              "step": 9600,
+              "weight": -0.5
+            }
+          ]
+        }
+      }
+    }
+  },
+  "rewards": {
+    "$remove": [
+      "foot_nonparallel_ground"
+    ],
+    "foot_flat_stance": {
+      "weight": -0.05,
+      "params": {
+        "sigma": 0.05
+      }
+    },
+    "foot_flat_touchdown": {
+      "weight": -0.2,
+      "params": {
+        "sigma": 0.05
+      }
+    },
+    "foot_flat_pre_landing": {
+      "weight": -0.05,
+      "params": {
+        "sigma": 0.05,
+        "height": 0.03
+      }
+    },
+    "swing_clearance": {
+      "weight": 2.0
+    },
+    "soft_landing": {
+      "weight": -0.001
+    }
+  },
+  "agent": {
+    "max_iterations": 1000
+  },
+  "description": "父卡片显式固定 bests 归档参数后，本卡片保留此前独立实验的抬脚与落地奖励及训练计划，避免继承链同步改变现有配方。"
+}

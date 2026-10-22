@@ -86,6 +86,10 @@ def test_registered_task_ids_are_preserved():
         "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided",
         "Mjlab-Zbot-6dof-Snake-Omni-Teacher",
         "Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher",
+        "Mjlab-Zbot-6dof-Snake-Site-Adaptive-Teacher",
+        "Mjlab-Zbot-6dof-Snake-Base-Adaptive-Teacher",
+        "Mjlab-Zbot-6dof-Snake-Site-Forward-Teacher",
+        "Mjlab-Zbot-6dof-Snake-Site-Forward-Relaxed-Teacher",
     ]
 
 

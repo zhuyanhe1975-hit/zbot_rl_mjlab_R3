@@ -10,3 +10,9 @@ dependencies = []
 zbot_rl_mjlab = "zbot_rl_mjlab"
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"zbot_rl_mjlab.experiments.cards" = ["*.json"]
+
+[tool.pyright]
+include = ["src/zbot_rl_mjlab", "scripts", "tests", "train.py", "play.py"]

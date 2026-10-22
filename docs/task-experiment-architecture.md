@@ -1,158 +1,72 @@
-# 任务与实验两级架构
+# 任务、实验与参数卡片分级
 
-更新日期：2026-10-18。本轮已落实任务边界、统一构建与注册、继承复用和文件归并；当前注册 20 个实验。此前重构使实验目录 14→10 个、变形任务目录 16→13 个、全部源码 38→34 个。新增综合任务后，实验目录为 11 个，全部源码为 41 个；变形任务目录仍为 13 个。
+更新：2026-10-21。保留35个实验及其模型接口，以单向依赖区分复用机制、实验装配和可编辑参数。
 
-## 职责边界
+## 从哪里进入
 
-| 层次 | 职责 | 主要位置 |
+日常调参从[实验导览](../experiments.md)点击对应卡片。网络层宽、PPO参数、环境控制量和奖励权重统一写在 `src/zbot_rl_mjlab/experiments/cards/` 的JSON文件里。
+
+| 层次 | 负责什么 | 不放什么 |
 |---|---|---|
-| 任务 | 定义环境、动作、指令、观测、奖励、终止、重置、状态和课程 | `tasks/walking/`、`tasks/transformation/`、`tasks/universal/` |
-| 实验 | 选择任务配置类型，声明任务 ID、训练参数、策略分布和可选扩展 | `experiments/` |
-| 共享任务行为 | 提供不依赖具体实验的物理扰动与配置装配 | `tasks/common.py` |
-| 训练支持 | 提供公共 PPO 默认值、热奖励控制及模型加载／迁移运行器 | `rl.py` |
-| 多教师训练支持 | 冻结教师观测／动作适配、预热、联合 PPO 与进度恢复 | `teachers.py`、`distillation.py` |
-| 机器人 | 定义唯一机器人资源、关节与执行器参数 | `robot.py`、`assets/zbot_6/ZBOT6.xml` |
+| 卡片 | 参数、显式继承、train/play差异 | Python回调、任务ID替换、Runner替换 |
+| 实验 | 选择任务能力、绑定奖励/观测/动作，组合对照与扰动 | 奖励数值计算、每步物理状态更新 |
+| 任务 | 通用场景、配置类型、命令/动作、奖励/终止/重置计算 | 具体训练的PPO配方与实验装配 |
+| 运行器/算法 | 采样、优化、蒸馏、自适应调权及检查点 | 独立实验的配置工厂 |
 
-任务代码不反向导入实验配方。行走的速度指令与奖励回调集中在 `tasks/walking/mdp.py`，不再随实验文件定义。纯物理测量与奖励仍使用 MJLab 函数回调，不为每个奖励增加对象包装。
-
-## 唯一构建和注册流程
-
-`experiments/base.py` 的 `Experiment` 提供唯一的 `build_env()` 与 `register()`。任务族通过 `create_env()` 创建基础环境，`runner_cls` 选择注册运行器。
-
-构建顺序为：
-
-1. 调用任务族工厂，直接创建最终配置类型。
-2. 训练模式覆盖 `train_envs`；回放模式保留任务工厂的环境数。
-3. 沿反向 MRO 从基类到子类，依次执行各类**自身声明**的 `reward_edit()`、`edit()`。
-4. 收集并应用 `addons`；同类型扩展由子类替换父类，再按 `order` 排序。
-
-每个类的配方钩子仅执行一次，`edit()` 内部不能调用 `super().edit()`。该约定只针对自动遍历的配方钩子；`build_ppo()` 仍采用普通的 `super()` 继承。
-
-`RewardEdit` 保留删除、调权重、合并参数、添加／替换奖励的固定顺序，并校验被修改项存在。`register()` 统一注册训练环境、回放环境、PPO 配置和运行器，不再由具体实验复制注册流程。
-
-## 实验继承与组合
-
-```text
-Experiment
-├── UniversalLocomotion
-├── WalkingExperiment
-│   ├── PeriodicStepping
-│   └── FlatWalking
-│       └── VelocityTracking
-│           └── VelocityEnergyTracking
-│               └── OmniVelocityEnergy
-└── TransformationExperiment
-    ├── BipedToSnake
-    └── SnakeToBiped
-        └── SnakeToBipedBeta
-            ├── SnakeToBipedArc
-            └── MirroredStandingExperiment
-                ├── SnakeToBipedRobust
-                └── TeacherTrainingExperiment
-                    ├── SnakeToBipedTeacher
-                    └── SnakeBipedBidirectional
+```mermaid
+flowchart LR
+  Guide[实验导览] --> Cards[JSON实验卡片]
+  Cards --> Experiment[实验装配与统一构建]
+  Experiment --> Task[任务机制与物理场景]
+  Experiment --> Runner[运行器与算法]
+  Task --> Environment[MJLab环境]
+  Runner --> Environment
 ```
 
-上图展示主干；行走调参与部署变体仍保留具名实验类和独立任务 ID。
+任务层没有到实验层的反向导入。运行回调和dataclass保持原模块路径；搬动的是配置组装函数，保护归档中的函数/类型身份。
 
-`WalkingExperiment` 提供行走工厂及步频覆盖。`TransformationExperiment` 提供变形工厂与共同 Gaussian PPO 默认值。`BipedToSnake` 和 `SnakeToBiped` 是方向相反的兄弟，不再通过相反行为复用训练参数。
+## 实验配方的归属
 
-`MirroredStandingExperiment` 共用镜像动作、随机滚转、紧凑站立行为和鲁棒训练设置；任务层 `presets.py` 负责实际装配。`TeacherTrainingExperiment` 共用教师物理单位缩放所需的训练参数；单向教师与双向实验分别安装自己的观测和行为，双向实验不再继承完整单向教师。
+| 任务族 | 环境与奖励装配、PPO配方 | 可复用行为 |
+|---|---|---|
+| 双足行走 | `experiments/walking.py`；平足、扰动、部署和调参增量仍在对应具名实验模块 | `tasks/walking/` |
+| 单向变形 | `experiments/transformation.py` | `tasks/transformation/` |
+| 双向变形 | `experiments/bidirectional.py` | `tasks/transformation/commanded.py` |
+| 世界X蛇形推进 | `experiments/snake.py` | `tasks/snake/` |
+| Site/Base/前进对照/归档蛇形 | `experiments/site_snake.py` | `tasks/snake/site_omni.py`、`site_forward.py`、`base_omni.py`与归档运行器 |
+| 综合部署学生 | `experiments/universal.py` | `tasks/universal/`与`distillation.py` |
+| 特权教师及分组/分任务/指导变体 | `experiments/omni_teacher.py` | `tasks/universal/`与各教师运行器 |
+| 公共默认 | `experiments/common.py`；可编辑数值由 `_defaults.json` 及实验卡片提供 | 共享addons与物理行为 |
 
-扰动、观测噪声、延迟和域随机化继续由 `addons` 组合。`variants.py` 集中扰动及部署配方；`variant()` 仍支持命令行动态组合。变形任务不接受行走专用扩展。
+原 `tasks/transformation/presets.py` 只有实验装配，已并入变形实验模块并删除。原任务/运行器模块的环境和PPO工厂已迁出，项目内部及测试导入统一到实验层，没有保留两套配置或转发工厂。
 
-Gaussian／Beta、六动作／三动作、普通／教师／指令观测对应实际模型接口差异，仍明确区分。
+共享的 `transformation_scene_cfg` 和机器人spec仍在任务/模型层，因为它们服务于多种能力，而不是某一项训练配方。
 
-## 配置直接构造与共享字段
+## 一次构建，一次参数覆盖
 
-```text
-TransformationEnvCfg
-├── UniversalEnvCfg
-├── BipedToSnakeEnvCfg
-└── SnakeToBipedEnvCfg
-    └── RobustSnakeToBipedEnvCfg
-        └── BidirectionalEnvCfg
-```
+1. `create_env()` 选择任务场景与配置类型。
+2. 沿基类到子类执行自身声明的 `reward_edit()` / `edit()`，每个钩子一次，钩子中不调用 `super().edit()`。
+3. 读取卡片继承链，配置同类型addons；动态命令行变体的显式参数优先，然后按固定顺序各应用一次。
+4. 应用公共环境/奖励参数，再应用train/play差异。扩展拥有的扰动/噪声/延迟参数只在addons中配置，不在env中重复覆盖。
+5. `build_ppo()` 调用 `_build_ppo()` 完成普通Python继承的配方组装，再统一应用卡片的agent参数。
+6. `register()` 把最终train/play环境、PPO配置和Runner送入MJLab。之后命令行参数可以覆盖注册默认值。
 
-`transformation_scene_cfg(..., cfg_cls=...)` 直接构造最终 dataclass。方向工厂再安装各自行为，不再逐层创建配置并复制 dataclass 字段。起立工厂还接受动作配置类型与紧凑站立选项，以复用场景而避免先装配完整下降奖励再删除。
+所有注册实验共用 `build_env()`、`build_ppo()` 和 `register()`。子类只覆盖 `_build_ppo()`，避免某个子实验忘记应用卡片，也避免父类过早应用造成覆盖失效。
 
-公共配置字段保留原默认值。`final_max_body_height` 不仅用于正向下降，也用于反向恢复和双向下降条件，因此保留在共享配置中。配置继承与实验继承分别表达字段复用和训练配方复用，不必机械保持相同树形。
+卡片每次构建都重新读文件；没有代码生成步骤或需要同步的第二份参数文件。注册配置已创建后，重新启动训练/回放来获取修改，运行中的策略不热更网络。动态CLI变体继承原实验卡片，但保留自身任务标识和新增扩展。
 
-## 状态更新时序
+## 继承与模型边界
 
-`TransformationState.reset(ids, step)` 统一清空保持时间并记录控制步；`FallRetryState.reset(ids, step)` 管理跌倒恢复相关字段，调用方不再逐项清空其内部状态。
+- 实验类保留已有的真实行为继承；卡片以 `inherits` 显式声明参数继承，子卡片覆盖值优先。
+- `train` / `play` 表达实际模式差异，例如回放不自动重置、训练才启用外扰；这些差异不再藏在另一份参数表。
+- 奖励、观测、动作及重置函数继续由任务层实现。卡片可选参数，不能借参数文件替换执行代码。
+- Site iter599归档仍为56维Beta，现代自适应/base/forward仍为61维Gaussian；对应卡片和Runner独立。改变网络结构或控制接口后需要匹配检查点，归档文件不随卡片编辑改变。
+- `train.sh`、`run.sh` 完全保持本轮开始时的字节内容和原注释选择方式。
 
-`TransformationState.advance_hold(valid, step, dt)` 用 `last_step` 保证同一控制步仅累计一次：条件有效则累加，否则归零。下降、起立和鲁棒站立提供各自目标条件，保留原有保护与课程顺序。
+## 验证约束
 
-双向任务调用 `advance_hold(..., commit=False)`，先累计目标保持时间，再用同一份“本步尚未更新”标记推进指令切换计时，最后提交 `last_step`。不能提前提交，否则会跳过切换计时。指令切换通过状态对象的重置方法清理旧目标计时和恢复状态。
+`tests/test_experiment_configuration_contracts.py` 对全部35实验的train/play环境、PPO、Runner和回调路径做完整配置对照；初始卡片和分层迁移必须保持这些契约。
 
-## 归并后的模块
+`tests/test_experiment_cards.py` 验证继承、字段校验、文件更新生效、真实实验网络/奖励同步及训练/回放参数一致。`tests/test_experiment_architecture.py` 约束任务层依赖方向、配置工厂归属和统一构建入口。
 
-- `tasks/transformation/poses.py` 集中蛇形与弧形姿态常量，数值不变。
-- `tasks/transformation/actions.py` 同时包含独立动作父类和镜像动作子类，保留各自动作维数和关节映射。
-- 下降任务 ID 和配置工厂直接定义在 `tasks/transformation/env_cfg.py`，删除纯重导出包装。
-- `experiments/walking.py` 集中基础、速度、能效和全向行走配方；`variants.py` 集中扰动及部署配方。
-- `rl.py` 集中 `ppo_cfg`、`HotRewardController`、`SnakeToBipedHotRewardRunner` 和 `RobustSnakeToBipedRunner`，任务模块不再承担训练器职责。
-- `reverse_observations.py` 与 `teacher_observations.py` 保持独立，避免为减少文件数引入循环依赖。
-
-```text
-src/zbot_rl_mjlab/
-├── __init__.py
-├── robot.py
-├── cli.py
-├── viewer.py
-├── rl.py
-├── teachers.py
-├── distillation.py
-├── tasks/
-│   ├── __init__.py
-│   ├── common.py
-│   ├── walking/
-│   │   ├── __init__.py
-│   │   ├── env_cfg.py
-│   │   ├── mdp.py
-│   │   └── actions.py
-│   ├── universal/
-│   │   ├── __init__.py
-│   │   ├── env_cfg.py
-│   │   ├── commands.py
-│   │   └── mdp.py
-│   └── transformation/
-│       ├── __init__.py
-│       ├── env_cfg.py
-│       ├── mdp.py
-│       ├── actions.py
-│       ├── poses.py
-│       ├── presets.py
-│       ├── snake_to_biped.py
-│       ├── robust.py
-│       ├── commanded.py
-│       ├── roll_reset.py
-│       ├── reverse_observations.py
-│       ├── teacher_observations.py
-│       └── std_projection.py
-└── experiments/
-    ├── __init__.py
-    ├── base.py
-    ├── common.py
-    ├── addons.py
-    ├── walking.py
-    ├── variants.py
-    ├── walking_tuning.py
-    ├── flat_foot_velocity_energy.py
-    ├── transformation.py
-    ├── bidirectional.py
-    └── universal.py
-```
-
-## 综合任务的组合复用
-
-`UniversalLocomotion` 直接继承中性 `Experiment`，通过 `create_env()` 装配综合任务、`runner_cls` 选择 `MultiTeacherRunner`，不继承某个已有行为配方。`UniversalEnvCfg` 继承共享变形场景字段，复用全身接触场景和六独立目标速度动作，替换指令、观测、奖励和终止条件。`UniversalCommand` 管理目标构型、四阶段、平滑速度、保持时间、手动控制和速度课程。
-
-`TeacherEnsemble` 位于训练支持层，按学生状态重建三个旧教师输入并转换输出；任务层不依赖教师。`MultiTeacherPPO` 管理监督缓存、Actor 预热和联合 PPO；`MultiTeacherRunner` 在训练时加载教师并核对续训来源，回放仅使用学生。现有 19 个实验配置保留不变。综合任务的 50／53 维观测、六维 Beta 动作构成新模型接口，旧检查点通过教师参与训练。使用方法和限制见[综合运动说明](universal-locomotion.md)。
-
-## 兼容性与验证边界
-
-重构保持任务 ID、实验名、观测项顺序及维度、策略分布、动作映射、奖励参数、传感器、控制周期和训练／回放差异。模型权重与归档原始 YAML 不变；历史配置中的项目回调模块路径由包内兼容别名解析，不保留旧转发文件。此兼容只覆盖项目符号，不意味着 MJLab 历史 YAML 中的所有标签均可直接反序列化。
-
-配置基线、继承钩子、状态时序、历史回调和模型加载由回归测试覆盖；教师起立及双向切换另有 GPU 回放检查。测试与回放证明接口和所覆盖行为保持兼容，不证明策略收敛或实机可用。类型检查仍有既有诊断，具体运行结果见[清理与验证记录](cleanup-report.md)。
+主动调参后，配置契约对照可能报差异；先核实变更就是预期参数，再有意识地更新基线，不能为了让测试通过自动覆盖基线。网络/动作参数修改后的收敛与实机效果不由配置契约证明。

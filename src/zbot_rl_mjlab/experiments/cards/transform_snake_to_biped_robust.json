@@ -1,0 +1,153 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "鲁棒镜像站起",
+  "task_id": "Mjlab-Zbot-6dof-Transform-Snake-To-Biped-Beta-Robust",
+  "inherits": "transform_snake_to_biped_beta.json",
+  "env": {
+    "$remove": [
+      "metrics"
+    ],
+    "require_sole_support_for_positive_rewards": false,
+    "sole_alignment_angle_std_deg": 10.0,
+    "curriculum_start_stage": 2,
+    "curriculum_prepare_pose": false,
+    "first_stage_joint_weight": 3.0,
+    "standing_stage_joint_weight": 12.0,
+    "standing_stage_height_weight": 1.0,
+    "standing_stage_velocity_weight": 8.0,
+    "standing_stage_ramp_steps": 0,
+    "base_support_distance_weight": 0.0,
+    "feet_contact_weight": 0.0,
+    "pretrained_checkpoint": null,
+    "disturbance_initial_scale": 1.0,
+    "disturbance_warmup_steps": 0,
+    "disturbance_ramp_steps": 0,
+    "ascent_reward_stop_height": 0.23,
+    "fall_retry_arm_height": 0.18,
+    "fall_retry_height": 0.1,
+    "fall_retry_hold_s": 0.1,
+    "recovery_target_speed": 0.5,
+    "recovery_snake_hold_s": 0.5,
+    "recovery_target_tolerance": 0.02,
+    "initial_roll_range_deg": [
+      -90.0,
+      90.0
+    ],
+    "initial_roll_clearance": 0.0001,
+    "early_contact_motion_threshold": 0.01,
+    "early_contact_drop_threshold": 0.001,
+    "early_contact_min_down_speed": 0.03,
+    "stagnation_height_tolerance": 0.03,
+    "stagnation_joint_tolerance": 0.25,
+    "stagnation_joint_speed": 0.03,
+    "stagnation_base_speed": 0.01,
+    "stagnation_angular_speed": 0.05,
+    "stagnation_hold_s": 1.0,
+    "stagnation_grace_s": 0.3,
+    "actions": {
+      "joint_pos": {
+        "max_target_speed": 6.283185307179586
+      }
+    },
+    "events": {
+      "base_disturbance": {
+        "params": {
+          "force_range": [
+            0.0,
+            0.0
+          ],
+          "torque_range": [
+            0.0,
+            0.0
+          ],
+          "duration_s": [
+            0.08,
+            0.2
+          ],
+          "cooldown_s": [
+            0.8,
+            2.0
+          ],
+          "asset_cfg": {
+            "name": "robot",
+            "joint_names": null,
+            "body_names": [
+              "base"
+            ],
+            "geom_names": null,
+            "site_names": null,
+            "actuator_names": null,
+            "tendon_names": null,
+            "camera_names": null,
+            "light_names": null,
+            "material_names": null,
+            "texture_names": null,
+            "pair_names": null,
+            "preserve_order": false
+          },
+          "body_point_offset": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "disturbed_fraction": 0.0
+        }
+      }
+    }
+  },
+  "rewards": {
+    "$remove": [
+      "end_joint_flip",
+      "axial_roll_rate",
+      "initial_joint_pose",
+      "base_support_distance",
+      "joint_symmetry",
+      "both_feet_contact",
+      "sole_height",
+      "base_z_roll",
+      "base_gravity_alignment",
+      "survival"
+    ],
+    "joint_standing": {
+      "weight": 12.0
+    },
+    "base_height_progress": {
+      "weight": 1.0
+    },
+    "base_ascent_velocity": {
+      "weight": 8.0,
+      "params": {
+        "target_speed": 0.15,
+        "pose_error_range": [
+          0.2,
+          0.8
+        ]
+      }
+    },
+    "sole_ground_alignment": {
+      "weight": 1.0,
+      "params": {
+        "angle_power": 1.0
+      }
+    }
+  },
+  "agent": {
+    "max_iterations": 2000,
+    "algorithm": {
+      "learning_rate": 0.0001,
+      "entropy_coef": 0.001
+    }
+  },
+  "play": {
+    "$remove": [
+      "rewards"
+    ],
+    "env": {
+      "$remove": [
+        "curriculum_start_stage"
+      ],
+      "seed": -1
+    }
+  }
+}

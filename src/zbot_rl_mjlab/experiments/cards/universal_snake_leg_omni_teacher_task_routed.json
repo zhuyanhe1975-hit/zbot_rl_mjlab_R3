@@ -1,0 +1,44 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "分任务网络教师",
+  "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Task-Routed",
+  "inherits": "universal_snake_leg_omni_teacher_task_critic.json",
+  "env": {
+    "commands": {
+      "transform": {
+        "velocity_limits": [
+          0.15,
+          0.08,
+          0.4
+        ],
+        "forward_speed_levels": [
+          0.03,
+          0.05,
+          0.08,
+          0.1,
+          0.15
+        ],
+        "direction_speed_multipliers": [
+          1.0,
+          1.5
+        ],
+        "motion_axis_min_fraction": 0.1,
+        "play_velocity": [
+          0.15,
+          0.0,
+          0.0
+        ]
+      }
+    }
+  },
+  "play": {
+    "env": {
+      "commands": {
+        "transform": {
+          "play_random_velocity": true
+        }
+      }
+    }
+  }
+}

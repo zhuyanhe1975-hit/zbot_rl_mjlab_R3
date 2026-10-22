@@ -6,9 +6,13 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from zbot_rl_mjlab.experiments.transformation import (
+    snake_to_biped_env_cfg as _recipe_snake_to_biped_env_cfg,
+)
 from zbot_rl_mjlab.robot import DEFAULT_JOINT_POS, JOINT_NAMES
 from zbot_rl_mjlab.tasks.transformation import mdp
 from zbot_rl_mjlab.tasks.transformation import snake_to_biped as reverse
+from zbot_rl_mjlab.tasks.transformation.poses import SNAKE_ROOT_QUAT
 
 
 def _standing_env(num_envs=2):
@@ -47,7 +51,7 @@ def _standing_env(num_envs=2):
     )
     scene.env_origins = torch.zeros(num_envs, 3)
     scene["feet_ground_contact"] = SimpleNamespace(data=SimpleNamespace(found=torch.ones(num_envs, 2)))
-    cfg = reverse.snake_to_biped_env_cfg(play=False)
+    cfg = _recipe_snake_to_biped_env_cfg(play=False)
     return SimpleNamespace(
         num_envs=num_envs,
         device="cpu",
@@ -133,9 +137,9 @@ def test_hot_reward_runner_is_registered_only_for_reverse_transformation():
 
 @pytest.mark.parametrize("reverse_first", [False, True])
 def test_constructing_reverse_does_not_mutate_forward_pose_or_objectives(reverse_first):
-    from zbot_rl_mjlab.tasks.transformation.env_cfg import transformation_env_cfg
+    from zbot_rl_mjlab.experiments.transformation import transformation_env_cfg
 
-    factories = [transformation_env_cfg, reverse.snake_to_biped_env_cfg]
+    factories = [transformation_env_cfg, _recipe_snake_to_biped_env_cfg]
     if reverse_first:
         factories.reverse()
     configs = {factory.__name__: factory(play=True) for factory in factories}
@@ -165,7 +169,7 @@ def test_reverse_ppo_and_control_period_match_original_transformation_defaults()
 
     from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
 
-    from zbot_rl_mjlab.rl import ppo_cfg
+    from zbot_rl_mjlab.experiments.common import ppo_cfg
     from zbot_rl_mjlab.tasks.transformation.env_cfg import TASK_ID as forward_id
 
     cfg = load_env_cfg(reverse.TASK_ID)
@@ -191,6 +195,9 @@ def test_reverse_ppo_and_control_period_match_original_transformation_defaults()
     forward_settings = asdict(forward_ppo)
     reverse_settings.pop("experiment_name")
     forward_settings.pop("experiment_name")
+    # The forward best has its own archived 200-iteration launch schedule.
+    assert forward_settings.pop("max_iterations") == 200
+    assert reverse_settings.pop("max_iterations") == 1000
     assert reverse_settings == forward_settings
 
 
@@ -230,7 +237,7 @@ def test_reverse_config_builders_are_isolated_from_every_other_experiment():
 def test_reverse_initial_pose_is_horizontal_with_all_six_joint_targets_zero():
     from mjlab.utils.lab_api.math import quat_apply_inverse
 
-    pose = reverse.snake_to_biped_env_cfg().scene.entities["robot"].init_state
+    pose = _recipe_snake_to_biped_env_cfg().scene.entities["robot"].init_state
     assert pose.joint_pos == dict.fromkeys(JOINT_NAMES, 0.0)
     assert pose.joint_vel == {".*": 0.0}
     gravity = quat_apply_inverse(
@@ -486,7 +493,7 @@ def test_success_and_support_require_real_contact_even_when_sites_are_near_groun
 
 def test_train_and_play_disable_independent_height_and_ascent_objectives():
     for play in (False, True):
-        cfg = reverse.snake_to_biped_env_cfg(play=play)
+        cfg = _recipe_snake_to_biped_env_cfg(play=play)
         assert cfg.standing_stage_height_weight == 0.0
         assert cfg.standing_stage_velocity_weight == 0.0
         assert cfg.rewards["base_height_progress"].weight == 0.0
@@ -932,7 +939,7 @@ def test_first_stage_joint_reward_is_active_in_low_snake_initial_pose():
     from mjlab.managers.reward_manager import RewardManager
 
     env = _standing_env()
-    env.cfg = reverse.snake_to_biped_env_cfg(play=False)
+    env.cfg = _recipe_snake_to_biped_env_cfg(play=False)
     env.scene["robot"].data.joint_pos[:] = torch.tensor(reverse.SNAKE_JOINT_POS)
     env.scene["robot"].data.body_link_pos_w[:, 6, 2] = reverse.SNAKE_ROOT_POS[2]
     score = reverse.joint_standing_reward(env)
@@ -1041,7 +1048,7 @@ def _rolled_env(angle_degrees, yaw_degrees=0.0):
     env.cfg.base_z_roll_limit_deg = 90.0
     half = math.radians(angle_degrees) / 2
     yaw_half = math.radians(yaw_degrees) / 2
-    ref = torch.tensor(reverse.SNAKE_ROOT_QUAT)
+    ref = torch.tensor(SNAKE_ROOT_QUAT)
     local_twist = torch.tensor([math.cos(half), 0.0, 0.0, math.sin(half)])
     world_yaw = torch.tensor([math.cos(yaw_half), 0.0, 0.0, math.sin(yaw_half)])
     root = quat_mul(world_yaw, quat_mul(ref, local_twist))
@@ -1176,7 +1183,7 @@ def test_base_roll_limit_is_configurable_and_independent_per_environment():
     env = _rolled_env(31.0)
     env.cfg.base_z_roll_limit_deg = 30.0
     assert reverse.base_z_roll_exceeded(env).all()
-    env.scene["robot"].data.root_link_quat_w[0] = torch.tensor(reverse.SNAKE_ROOT_QUAT)
+    env.scene["robot"].data.root_link_quat_w[0] = torch.tensor(SNAKE_ROOT_QUAT)
     env.scene["robot"].data.body_link_quat_w[0, 6] = (
         _rolled_env(0.0).scene["robot"].data.body_link_quat_w[0, 6]
     )
@@ -1209,7 +1216,7 @@ def test_native_standing_is_roll_zero_and_snake_stays_inside_standing_corridor()
         measured.append(torch.rad2deg(roll).abs().item())
     assert 63.0 < measured[0] < 65.0
     assert measured[-1] < 0.01
-    assert max(measured) < reverse.snake_to_biped_env_cfg(play=True).base_z_roll_limit_deg
+    assert max(measured) < _recipe_snake_to_biped_env_cfg(play=True).base_z_roll_limit_deg
 
 
 def test_native_standing_distinguishes_axial_roll_from_heading_changes():

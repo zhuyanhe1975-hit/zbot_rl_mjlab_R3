@@ -9,11 +9,8 @@ import pytest
 import torch
 from mjlab.rl import MjlabOnPolicyRunner
 
-from zbot_rl_mjlab.omni_teacher import (
-    OmniTeacherRunner,
-    omni_teacher_ppo_cfg,
-    teacher_rollout_metrics,
-)
+from zbot_rl_mjlab.experiments.omni_teacher import omni_teacher_ppo_cfg
+from zbot_rl_mjlab.omni_teacher import OmniTeacherRunner, teacher_rollout_metrics
 
 
 def algorithm(observations):
@@ -116,11 +113,21 @@ def test_runner_snapshots_metrics_before_update_clears_storage(monkeypatch, caps
     assert capsys.readouterr().out == ''
 
 
-def test_scalar_layout_preserves_all_task_and_motion_metrics():
+def test_scalar_and_site_layouts_preserve_all_task_and_motion_metrics():
     legacy = torch.zeros(2, 4, 59)
     legacy[..., 39:43] = torch.eye(4)
     legacy[..., 43:46] = torch.tensor([.2, -.1, .3])
     legacy[..., 53:56] = torch.tensor([.1, -.03, .2])
     compact = torch.cat((legacy[..., :39], torch.arange(4).expand(2, 4)[..., None], legacy[..., 43:]), dim=-1)
     assert compact.shape[-1] == 56
-    assert teacher_rollout_metrics(algorithm(compact)) == teacher_rollout_metrics(algorithm(legacy))
+    # Large sentinels make decoding any extra site features as motion observable.
+    legacy_site = torch.cat((
+        compact[..., :46], torch.full((2, 4, 2), 11.), compact[..., 47:], torch.full((2, 4, 6), 99.),
+    ), dim=-1)
+    site = torch.cat((compact[..., :46], compact[..., 47:], torch.full((2, 4, 6), 99.)), dim=-1)
+    assert legacy_site.shape[-1] == 63
+    assert site.shape[-1] == 61
+    expected = teacher_rollout_metrics(algorithm(legacy))
+    assert teacher_rollout_metrics(algorithm(compact)) == expected
+    assert teacher_rollout_metrics(algorithm(legacy_site)) == expected
+    assert teacher_rollout_metrics(algorithm(site)) == expected

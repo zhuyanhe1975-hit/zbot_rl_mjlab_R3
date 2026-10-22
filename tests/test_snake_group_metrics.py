@@ -7,8 +7,8 @@ import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.managers.metrics_manager import MetricsManager, MetricsTermCfg
 
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 from zbot_rl_mjlab.tasks.snake import mdp
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
 
 
 def group_env(monkeypatch):

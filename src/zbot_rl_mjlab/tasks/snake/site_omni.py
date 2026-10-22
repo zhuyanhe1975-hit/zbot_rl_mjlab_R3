@@ -1,40 +1,37 @@
-"""Standalone privileged snake teacher with commands relative to foot_0_sole.
+"""Standalone snake teacher with velocities expressed in the current head frame.
 
-G1-style exponential velocity tracking adapted to crawling. Both the
-tracked point and the command frame are foot_0_sole; no world heading is locked.
+Signed scalar velocity tracking adapted to crawling. The
+tracked point and gravity-aligned velocity frame both follow foot_0_sole.
 """
 import math
-from dataclasses import asdict, dataclass
-from typing import cast
+from dataclasses import dataclass
 
 import torch
 from mjlab.envs import mdp as common_mdp
-from mjlab.managers.event_manager import EventTermCfg
-from mjlab.managers.metrics_manager import MetricsTermCfg
-from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
-from mjlab.managers.reward_manager import RewardTermCfg
-from mjlab.managers.termination_manager import TerminationTermCfg
-from mjlab.sensor import ContactMatch, ContactSensorCfg
 from mjlab.utils.lab_api.math import quat_apply_inverse
 
+from ..common import constant
+from ..transformation.poses import SNAKE_JOINT_POS
 from ..universal import mdp
-from ..universal.actions import SnakeCrawlJointTargetRateActionCfg
-from ..universal.env_cfg import universal_env_cfg
-from ..universal.omni import motion_site_index, reset_omni
+from ..universal.observation_layout import (
+    PRIVILEGED_OMNI_OBS_DIM,
+    teacher_motion_fields,
+)
+from ..universal.omni import motion_site_index
 from ..universal.privileged import (
     PrivilegedOmniCommand,
     PrivilegedOmniCommandCfg,
     privileged_state,
 )
 from ..universal.teacher_rewards import ArchiveOmniTeacherEnvCfg
-from . import mdp as snake_mdp
 
 
 @dataclass(kw_only=True)
 class SiteSnakeCommandCfg(PrivilegedOmniCommandCfg):
-    resampling_time_range: tuple[float, float] = (5., 9.)
-    velocity_limits: tuple[float, float, float] = (.2, .2, .5)
+    resampling_time_range: tuple[float, float] = (15., 15.)
+    velocity_limits: tuple[float, float, float] = (0.2, 0.2, 2.0)
     motion_axis_min_fraction: float = .4
+    motion_stop_probability: float = .01
     mode: str = 'snake'
 
     def __post_init__(self):
@@ -46,6 +43,9 @@ class SiteSnakeCommandCfg(PrivilegedOmniCommandCfg):
 
 
 class SiteSnakeCommand(PrivilegedOmniCommand):
+    # Continuous command sampling does not use the inherited deployment stages.
+    uses_speed_course = False
+
     def __init__(self, cfg: SiteSnakeCommandCfg, env):
         if cfg.mode != 'snake':
             raise ValueError("Site snake teacher requires mode='snake'")
@@ -60,6 +60,9 @@ class SiteSnakeCommand(PrivilegedOmniCommand):
 @dataclass
 class SiteSnakeEnvCfg(ArchiveOmniTeacherEnvCfg):
     site_snake_omni: bool = True
+    archive_site_checkpoint: bool = False
+    command_visual_height: float = 0.
+    command_visual_actual_velocity: bool = False
     site_up_axis: tuple[float, float, float] = (1., 0., 0.)
     site_tilt_limit: float = math.pi / 3
     head_body: str = 'foot_0'
@@ -72,23 +75,60 @@ def command(env):
     return mdp.command_term(env).velocity_command
 
 
-def linear_tracking(env, std_min=.02, std_scale=.5, std_max=.1):
-    """Zbot XY kernel, capped at the archived walking width of .1 m/s.
+def site_snake_state(env):
+    """61D motion-frame state: explicit velocity tracking error and local gravity."""
+    state = privileged_state(env)
+    if state.shape[-1] != PRIVILEGED_OMNI_OBS_DIM:
+        raise ValueError('site snake observations require scalar task encoding')
+    target, actual, _ = teacher_motion_fields(state)
+    tracking_error = _normalized_velocity_error(env, target, actual)
+    values = (state[..., :46], state[..., 47:],
+              tracking_error, site_projected_gravity(env))
+    return torch.nan_to_num(torch.cat(values, -1), nan=0., posinf=0., neginf=0.)
 
-    A fixed humanoid width would give almost full credit to a stationary snake.
-    Zero-command and pure-turn trials still penalize unwanted site translation.
-    """
+
+def _normalized_velocity_error(env, target, actual):
+    """Signed command-minus-site velocity error, scaled by each axis's command limit."""
+    limits = constant(target, mdp.command_term(env).cfg.velocity_limits)
+    return (target - actual) / limits
+
+
+def relative_velocity_scores(target, actual, limits):
+    """Linear relative tracking score: stationary=-1, half-speed=0, matched=1."""
+    moving = target.abs() > 1e-6
+    scale = torch.where(moving, target.abs(), limits)
+    error = (target - actual).abs() / scale
+    return torch.where(moving, 1. - 2. * error, -actual.abs() / limits).clamp(-2., 1.)
+
+
+def _velocity_tracking_reward(env):
     target = command(env)
     actual = mdp.tracking_velocity(env)
-    std = (std_min + std_scale * target[:, :2].norm(dim=-1)).clamp(max=std_max)
-    return torch.exp(-(actual[:, :2] - target[:, :2]).square().sum(-1) / std.square())
+    limits = constant(target, mdp.command_term(env).cfg.velocity_limits)
+    return relative_velocity_scores(target, actual, limits)
 
 
-def angular_tracking(env, std=.25):
-    """Use the archived Zbot omni yaw width, including during translation."""
-    target = command(env)
-    actual = mdp.tracking_velocity(env)
-    return torch.exp(-((actual[:, 2] - target[:, 2]) / std).square())
+def linear_tracking(env):
+    """Sum forward/lateral relative tracking scores in the current head frame."""
+    return _velocity_tracking_reward(env)[:, :2].sum(-1)
+
+
+def forward_tracking(env):
+    return _velocity_tracking_reward(env)[:, 0]
+
+
+def lateral_tracking(env):
+    return _velocity_tracking_reward(env)[:, 1]
+
+
+def angular_tracking(env):
+    """Signed site yaw-rate tracking without a yaw-angle target."""
+    return _velocity_tracking_reward(env)[:, 2]
+
+
+def failure_reset_cost(env):
+    """One fixed event cost for a failed episode, independent of the control step size."""
+    return common_mdp.is_terminated(env) / env.step_dt
 
 
 def joint_limit_penalty(env, soft_limit_factor=.9, use_target=False):
@@ -105,12 +145,37 @@ def joint_limit_penalty(env, soft_limit_factor=.9, use_target=False):
     return (position.abs() - soft_limit_factor * limit).clamp_min(0.).sum(-1)
 
 
-def _site_up_cosine(env):
+def joint_pose_deviation_cost(env):
+    """Mean squared joint deviation from the straight snake reset pose."""
+    position = env.scene['robot'].data.joint_pos
+    return (position - constant(position, SNAKE_JOINT_POS)).square().mean(-1)
+
+
+def site_projected_gravity(env):
+    """Unit gravity expressed in the actual snake-head site frame, independent of world yaw."""
     quat = env.scene['robot'].data.site_quat_w[:, motion_site_index(env)]
     gravity = quat.new_tensor(env.cfg.sim.mujoco.gravity)
     gravity = gravity / gravity.norm().clamp_min(1e-6)
-    local_gravity = quat_apply_inverse(quat, gravity.expand(quat.shape[0], -1))
-    up = quat.new_tensor(env.cfg.site_up_axis)
+    return quat_apply_inverse(quat, gravity.expand(quat.shape[0], -1))
+
+
+def site_tilt_angular_velocity_penalty(env):
+    """Squared site angular velocity perpendicular to gravity; yaw is excluded."""
+    angular = env.scene['robot'].data.site_ang_vel_w[:, motion_site_index(env)]
+    gravity = constant(angular, env.cfg.sim.mujoco.gravity)
+    gravity = gravity / gravity.norm().clamp_min(1e-6)
+    tilt_rate = angular - (angular * gravity).sum(-1, keepdim=True) * gravity
+    return tilt_rate.square().sum(-1)
+
+
+def site_yaw_velocity_penalty(env):
+    """Squared actual motion-site wz, independent of the yaw-rate command."""
+    return env.scene['robot'].data.site_ang_vel_w[:, motion_site_index(env), 2].square()
+
+
+def _site_up_cosine(env):
+    local_gravity = site_projected_gravity(env)
+    up = constant(local_gravity, env.cfg.site_up_axis)
     return -(local_gravity * up).sum(-1).clamp(-1., 1.)
 
 
@@ -141,66 +206,3 @@ def command_exposure(env, axis, sign):
 def site_height(env):
     return (env.scene['robot'].data.site_pos_w[:, motion_site_index(env), 2]
             - env.scene.env_origins[:, 2])
-
-
-def site_snake_env_cfg(play=False) -> SiteSnakeEnvCfg:
-    cfg = cast(SiteSnakeEnvCfg, universal_env_cfg(play=play, cfg_cls=SiteSnakeEnvCfg))
-    cfg.omni_site_frame = True
-    cfg.motion_site = 'foot_0_sole'
-    cfg.workspace_radius = 15.
-    cfg.episode_length_s = 30.
-    cfg.auto_reset = not play
-    action = SnakeCrawlJointTargetRateActionCfg(**asdict(cfg.actions['joint_pos']))
-    action.target_limit = math.pi / 3
-    action.snake_target_limit = math.pi / 3
-    action.max_target_speed = 2 * math.pi
-    action.biped_residual_scale = None
-    action.transition_end_joint_radius = None
-    cfg.actions['joint_pos'] = action
-    cfg.commands = {'transform': SiteSnakeCommandCfg(
-        training=not play, mode='snake', task_observation_encoding='scalar',
-        debug_vis=play,
-        play_random_velocity=play,
-    )}
-    cfg.events = {
-        'reset_scene': EventTermCfg(func=common_mdp.reset_scene_to_default, mode='reset'),
-        'reset_transition': EventTermCfg(func=reset_omni, mode='reset'),
-    }
-    cfg.observations = {'actor': ObservationGroupCfg(
-        {'privileged': ObservationTermCfg(func=privileged_state)},
-        concatenate_terms=True, enable_corruption=False, nan_policy='disabled',
-    )}
-    cfg.scene.sensors = (*cfg.scene.sensors, ContactSensorCfg(
-        name='snake_self_contact',
-        primary=ContactMatch(mode='subtree', pattern='foot_0', entity='robot'),
-        secondary=ContactMatch(mode='subtree', pattern='foot_0', entity='robot'),
-        fields=('found', 'force', 'dist'), reduce='maxforce', history_length=cfg.decimation,
-    ))
-    cfg.sim.contact_sensor_maxmatch = 128
-    cfg.rewards = {
-        'track_linear_velocity': RewardTermCfg(
-            func=linear_tracking, weight=4., params={'std_min': .02, 'std_scale': .5, 'std_max': .1}),
-        'track_angular_velocity': RewardTermCfg(
-            func=angular_tracking, weight=1., params={'std': .25}),
-        'site_tilt': RewardTermCfg(func=site_tilt_penalty, weight=-1.0),
-        'joint_pos_limits': RewardTermCfg(
-            func=joint_limit_penalty, weight=-1., params={'soft_limit_factor': .9}),
-        'joint_target_limits': RewardTermCfg(
-            func=joint_limit_penalty, weight=-1., params={'soft_limit_factor': .9, 'use_target': True}),
-    }
-    cfg.terminations = {} if play else {
-        'self_collision': TerminationTermCfg(func=snake_mdp.self_collision),
-        'site_tilt': TerminationTermCfg(func=site_tilt_limit_reached),
-    }
-    cfg.metrics = {
-        **{f'velocity_error_{name}': MetricsTermCfg(func=velocity_error, params={'axis': axis})
-           for axis, name in enumerate(('vx', 'vy', 'wz'))},
-        **{f'command_{name}_{direction}_fraction': MetricsTermCfg(
-            func=command_exposure, params={'axis': axis, 'sign': sign})
-           for axis, name in enumerate(('vx', 'vy', 'wz'))
-           for sign, direction in ((1, 'positive'), (-1, 'negative'))},
-        'site_height': MetricsTermCfg(func=site_height),
-        'site_tilt_rad': MetricsTermCfg(func=site_tilt),
-    }
-    cfg.viewer.lookat = (0., 0., .05)
-    return cfg

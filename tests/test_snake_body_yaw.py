@@ -10,8 +10,8 @@ from mjlab.managers.termination_manager import TerminationManager
 from test_snake_task import state_env
 from test_snake_yaw import set_heading
 
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 from zbot_rl_mjlab.tasks.snake import mdp
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
 
 
 def set_body_heading(env, yaw):

@@ -7,8 +7,8 @@ import torch
 from mjlab.utils.lab_api.math import quat_mul
 from test_snake_task import state_env
 
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 from zbot_rl_mjlab.tasks.snake import mdp
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
 
 
 @pytest.mark.parametrize('yaw', [0., .4, math.pi / 2, math.pi, -math.pi / 2])

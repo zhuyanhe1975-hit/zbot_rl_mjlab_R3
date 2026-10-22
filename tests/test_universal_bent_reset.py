@@ -1,11 +1,15 @@
 """弯曲初态仅扩展部署训练，保留双足及规范蛇形并缓存碰撞包络。"""
+
 from types import SimpleNamespace
 
 import pytest
 import torch
 
+from zbot_rl_mjlab.experiments.universal import (
+    configure_deployment as _recipe_configure_deployment,
+)
+from zbot_rl_mjlab.experiments.universal import universal_env_cfg
 from zbot_rl_mjlab.tasks.universal import deployment
-from zbot_rl_mjlab.tasks.universal.env_cfg import universal_env_cfg
 
 
 def fixture(monkeypatch, *, fraction=1., training=True):
@@ -67,7 +71,7 @@ def test_canonical_and_play_reset_do_not_build_bend_bank(monkeypatch,fraction,tr
 def test_only_deployment_enables_straightening_and_bent_reset():
     base=universal_env_cfg()
     assert not base.straighten_before_stand
-    deployment.configure_deployment(base)
+    _recipe_configure_deployment(base)
     assert base.straighten_before_stand
     assert base.events['reset_transition'].func is deployment.BentSnakeReset
     assert base.observations['actor'].history_length==5

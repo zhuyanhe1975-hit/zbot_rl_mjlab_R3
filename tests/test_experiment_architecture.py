@@ -66,6 +66,7 @@ def test_registration_uses_selected_runner_and_both_environment_modes(monkeypatc
 def test_every_registered_experiment_uses_one_build_and_register_template():
     for experiment in zbot_rl_mjlab.EXPERIMENTS:
         assert experiment.build_env is Experiment.build_env
+        assert experiment.build_ppo is Experiment.build_ppo
         assert experiment.register is Experiment.register
 
 
@@ -79,3 +80,36 @@ def test_transformation_directions_and_bidirectional_are_not_concrete_parent_tas
 
     assert not issubclass(SnakeToBiped, BipedToSnake)
     assert not issubclass(SnakeBipedBidirectional, SnakeToBipedTeacher)
+
+
+def test_task_mechanics_do_not_depend_on_experiment_recipes():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / 'src/zbot_rl_mjlab'
+    for path in (root / 'tasks').rglob('*.py'):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.ImportFrom):
+                assert 'experiments' not in (node.module or ''), f'{path}:{node.lineno}'
+            elif isinstance(node, ast.Import):
+                assert all('experiments' not in alias.name for alias in node.names), f'{path}:{node.lineno}'
+
+
+def test_runtime_runners_do_not_define_training_recipes():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / 'src/zbot_rl_mjlab'
+    for path in root.glob('*.py'):
+        functions = {node.name for node in ast.parse(path.read_text()).body if isinstance(node, ast.FunctionDef)}
+        assert not any(name.endswith('ppo_cfg') for name in functions), path
+
+
+def test_registered_experiments_have_independent_matching_cards():
+    from zbot_rl_mjlab.experiments.cards import load_card
+
+    names = [experiment.card_name for experiment in zbot_rl_mjlab.EXPERIMENTS]
+    assert len(set(names)) == len(names)
+    for experiment in zbot_rl_mjlab.EXPERIMENTS:
+        assert experiment.card_name is not None
+        assert load_card(experiment.card_name)['task_id'] == experiment.task_id

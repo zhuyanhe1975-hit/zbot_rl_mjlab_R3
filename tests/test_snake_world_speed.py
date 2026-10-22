@@ -8,8 +8,8 @@ from mjlab.envs import mdp as common_mdp
 from mjlab.utils.lab_api.math import quat_apply, quat_mul
 from test_snake_task import state_env
 
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 from zbot_rl_mjlab.tasks.snake import mdp
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
 
 
 @pytest.mark.parametrize('play', [False, True])

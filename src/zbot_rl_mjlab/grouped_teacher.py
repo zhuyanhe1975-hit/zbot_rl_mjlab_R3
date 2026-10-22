@@ -5,17 +5,8 @@ from typing import Any
 
 import torch
 
-from .omni_teacher import OmniTeacherRunner, OmniTeacherRunnerCfg, omni_teacher_ppo_cfg
+from .omni_teacher import OmniTeacherRunner
 from .tasks.universal.reward_groups import GROUP_NAMES, install_reward_group_capture
-
-
-def grouped_teacher_ppo_cfg() -> OmniTeacherRunnerCfg:
-    """Keep the successful PPO recipe while replacing its value estimator."""
-    cfg = omni_teacher_ppo_cfg()
-    cfg.class_name = "zbot_rl_mjlab.grouped_teacher:GroupedTeacherRunner"
-    cfg.algorithm.class_name = "zbot_rl_mjlab.grouped_ppo:GroupedPPO"
-    cfg.critic.class_name = "zbot_rl_mjlab.grouped_ppo:IndependentRewardCritics"
-    return cfg
 
 
 class GroupedTeacherRunner(OmniTeacherRunner):

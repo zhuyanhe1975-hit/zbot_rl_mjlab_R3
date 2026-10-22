@@ -158,6 +158,9 @@ class SnakeVelocityCommand(CommandTerm):
         if not indices:
             return
         origins = self._env.scene["robot"].data.site_pos_w[:, motion_site_index(self._env)]
+        height = getattr(self._env.cfg, 'command_visual_height', 0.)
+        if height:
+            origins = origins + origins.new_tensor((0., 0., height))
         if getattr(self._env.cfg, "observation_reference", "command") == "world_x":
             reference = torch.zeros_like(origins)
             reference[:, :2] = motion_axes(self._env)[0]
@@ -179,11 +182,22 @@ class SnakeVelocityCommand(CommandTerm):
             yaw = torch.zeros_like(origins)
             yaw[:, 2] = normalized[:, 2]
             vectors_and_colors = ((linear, (.2, .4, 1., .9)), (yaw, (1., .55, .1, .9)))
+            if getattr(self._env.cfg, 'command_visual_actual_velocity', False):
+                from ..universal.mdp import tracking_velocity
+
+                measured = tracking_velocity(self._env)
+                normalized_actual = measured / measured.new_tensor(self.cfg.velocity_limits)
+                actual_linear = torch.zeros_like(origins)
+                actual_linear[:, :2] = forward*normalized_actual[:, :1] + left*normalized_actual[:, 1:2]
+                actual_yaw = torch.zeros_like(origins)
+                actual_yaw[:, 2] = normalized_actual[:, 2]
+                vectors_and_colors += ((actual_linear, (.1, 1., .2, .9)),
+                                       (actual_yaw, (.7, .3, 1., .9)))
         starts = origins.detach().cpu().numpy()
         # 回放以零指令启动；保留基点，避免把静止误认为可视化未开启。
         for i in indices:
             visualizer.add_sphere(starts[i], radius=.012, color=(.2, .4, 1., .9))
-        for vectors, color in vectors_and_colors:
+        for index, (vectors, color) in enumerate(vectors_and_colors):
             norms = vectors.norm(dim=-1, keepdim=True)
             # 单次按键的速度很小，箭头至少显示4厘米；方向和零值保持真实。
             lengths = (.15 * norms).clamp_min(.04)
@@ -191,7 +205,8 @@ class SnakeVelocityCommand(CommandTerm):
             visible = (norms[:, 0] > 1e-3).cpu().tolist()
             for i in indices:
                 if visible[i]:
-                    visualizer.add_arrow(starts[i], ends[i], color=color, width=.008)
+                    # Thinner measured arrows leave the command visible when aligned.
+                    visualizer.add_arrow(starts[i], ends[i], color=color, width=.008 if index < 2 else .005)
 
     def _update_command(self, env_ids):
         # 重置路径只清零，避免局部重置时多推进一次其他环境的滤波器。

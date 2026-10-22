@@ -1,0 +1,39 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "双足平地行走",
+  "task_id": "Mjlab-Zbot-6dof-Walking",
+  "inherits": "periodic_stepping.json",
+  "env": {
+    "step_frequency_min": 0.25,
+    "scene": {
+      "num_envs": 8192
+    }
+  },
+  "rewards": {
+    "$remove": [
+      "planar_velocity"
+    ],
+    "frequency_tracking": {
+      "weight": 2.0
+    },
+    "forward_velocity": {
+      "weight": 2.0,
+      "params": {
+        "$remove": [
+          "scale"
+        ]
+      }
+    },
+    "swing_clearance": {
+      "weight": 0.5
+    },
+    "soft_landing": {
+      "weight": -0.02
+    }
+  },
+  "agent": {
+    "max_iterations": 600
+  },
+  "description": "依据 bests/zbot_walking 的 env.yaml、agent.yaml 固定本任务相对父卡片的归档配方差异；下列覆盖参数与该归档对应，其余参数继续继承父卡片。运行时生成的 terrain.num_envs/env_spacing、Python 回调和结构选择器不作为配方覆盖。"
+}

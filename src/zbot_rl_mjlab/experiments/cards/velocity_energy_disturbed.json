@@ -1,0 +1,57 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "受扰节能行走",
+  "task_id": "Mjlab-Zbot-6dof-Velocity-Energy-Disturbed-Walking",
+  "inherits": "velocity_energy_tracking.json",
+  "addons": {
+    "BaseDisturbance": {
+      "force_range": [
+        -5.0,
+        5.0
+      ],
+      "torque_range": [
+        -0.5,
+        0.5
+      ],
+      "duration_s": [
+        0.08,
+        0.2
+      ],
+      "cooldown_s": [
+        0.8,
+        2.0
+      ],
+      "disturbed_fraction": 0.25
+    },
+    "DomainRandomization": {
+      "friction_range": [
+        0.3,
+        1.2
+      ],
+      "geom_names": [
+        "a1_geom",
+        "b6_geom"
+      ],
+      "encoder_bias_range": [
+        -0.015,
+        0.015
+      ],
+      "base_com_ranges": {
+        "0": [
+          -0.025,
+          0.025
+        ],
+        "1": [
+          -0.025,
+          0.025
+        ],
+        "2": [
+          -0.03,
+          0.03
+        ]
+      }
+    }
+  },
+  "description": "依据 bests/velocity_energy_disturbed_2026-10-10_iter499 的 env.yaml、agent.yaml 固定本任务相对父卡片的归档配方差异；下列覆盖参数与该归档对应，其余参数继续继承父卡片。运行时生成的 terrain.num_envs/env_spacing、Python 回调和结构选择器不作为配方覆盖。"
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "步频奖励调参",
+  "task_id": "Mjlab-Zbot-6dof-Walking-Tuning",
+  "inherits": "walking.json",
+  "rewards": {
+    "frequency_tracking": {
+      "weight": 1.5
+    },
+    "swing_clearance": {
+      "params": {
+        "target": 0.05
+      },
+      "weight": 2.0
+    },
+    "forward_velocity": {
+      "params": {
+        "scale": 0.2
+      }
+    },
+    "soft_landing": {
+      "weight": -0.001
+    }
+  },
+  "agent": {
+    "max_iterations": 600
+  },
+  "description": "父卡片显式固定 bests 归档参数后，本卡片保留此前独立实验的抬脚与落地奖励及训练计划，避免继承链同步改变现有配方。"
+}

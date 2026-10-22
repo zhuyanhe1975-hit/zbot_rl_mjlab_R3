@@ -8,7 +8,7 @@ import tyro
 from test_snake_runner_recipe import make_runner
 
 from play import PlayConfig, SampledPlayPolicy
-from zbot_rl_mjlab.tasks.snake.env_cfg import snake_env_cfg
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 
 
 def test_cli_default_is_deterministic_and_sampling_is_explicit():

@@ -5,28 +5,18 @@ energy and foot quality units come from deploy_walking iter1499. Phase gates
 are joint-task adaptations, not claims that this combined task was validated.
 """
 from dataclasses import dataclass
-from typing import cast
 
 import torch
-from mjlab.managers.event_manager import EventTermCfg
-from mjlab.managers.reward_manager import RewardTermCfg
-from mjlab.managers.termination_manager import TerminationTermCfg
-from mjlab.sensor import TerrainHeightSensorCfg
 
 from ..transformation import commanded
 from ..transformation import snake_to_biped as standing
 from ..walking import mdp as walking
-from ..walking.env_cfg import env_cfg as walking_env_cfg
 from . import mdp
 from .env_cfg import UniversalEnvCfg
 from .teacher_snake_rewards import (
     exploration_scale,
-    snake_joint_deviation,
     snake_motion_score,
-    snake_target_saturation,
-    snake_vertical_speed,
 )
-from .teacher_transition import reset_transition_failure_memory, transition_failure
 
 
 @dataclass
@@ -213,46 +203,3 @@ def biped_fallen(env, height=.22, tilt=.75):
     if not term.cfg.training:
         failed &= ~term.manual_control
     return failed
-
-
-def configure_teacher_rewards(cfg):
-    """Install archival units once, retaining the current joint-task objectives."""
-    for name in ('energy', 'contact_impact', 'failure'):
-        cfg.rewards.pop(name, None)
-    cfg.rewards.update({
-        'mode_posture': RewardTermCfg(func=transition_posture, weight=2.),
-        'transition_progress': RewardTermCfg(func=transition_progress, weight=2.),
-        'velocity_tracking': RewardTermCfg(func=teacher_velocity_tracking, weight=1., params={'std': (.1, .1, .25), 'axis_weights': (2., 1., 1.)}),
-        'biped_upright': RewardTermCfg(func=biped_upright, weight=.2),
-        'joint_limits': RewardTermCfg(func=biped_joint_limits, weight=-.1),
-        'joint_acceleration': RewardTermCfg(func=biped_joint_acceleration, weight=-.0001),
-        'soft_landing': RewardTermCfg(func=biped_soft_landing, weight=-.02, params={'sensor_name': 'feet_ground_contact'}),
-        'swing_clearance': RewardTermCfg(func=biped_swing_clearance, weight=.5, params={'height_sensor_name': 'foot_height_scan', 'target': .05, 'std': .04}),
-        'action_rate': RewardTermCfg(func=teacher_action_rate, weight=-.01),
-        'joint_standing': RewardTermCfg(func=transition_pose, weight=12.),
-        'base_height_progress': RewardTermCfg(func=transition_height, weight=1.),
-        'base_ascent_velocity': RewardTermCfg(func=transition_ascent, weight=8., params={'target_speed': .15, 'pose_error_range': (.2, .8)}),
-        'sole_ground_alignment': RewardTermCfg(func=transition_sole, weight=1., params={'angle_power': 1.}),
-        'reset_failure': RewardTermCfg(func=transition_failure_cost, weight=-10.),
-        'stand_finish_joint_speed': RewardTermCfg(func=transition_finish_speed, weight=-.02),
-        'descent_ground_impact': RewardTermCfg(func=transition_descent_impact, weight=-2., params={'max_body_weights': 2.}),
-        'joint_energy': RewardTermCfg(func=teacher_joint_energy, weight=-.5, params={'energy_scale': 10.}),
-        'snake_vertical_speed': RewardTermCfg(func=snake_vertical_speed, weight=-.2),
-        'snake_joint_deviation': RewardTermCfg(func=snake_joint_deviation, weight=-.02),
-        'snake_target_saturation': RewardTermCfg(func=snake_target_saturation, weight=-.1),
-        'support_foot_slip': RewardTermCfg(func=biped_support_foot_slip, weight=-5., params={'sensor_name': 'feet_ground_contact', 'site_names': ('foot_0_sole', 'foot_1_sole')}),
-        'foot_nonparallel_ground': RewardTermCfg(func=biped_foot_nonparallel, weight=-5., params={'sensor_name': 'feet_ground_contact', 'std': .1}),
-    })
-    cfg.events['reset_archive_ascent_memory'] = EventTermCfg(func=reset_ascent_memory, mode='reset')
-    cfg.terminations['biped_fallen'] = TerminationTermCfg(func=biped_fallen, params={'height': .22, 'tilt': .75})
-    cfg.terminations['transition_failure'] = TerminationTermCfg(func=transition_failure)
-    cfg.events['reset_transition_failure_memory'] = EventTermCfg(func=reset_transition_failure_memory, mode='reset')
-    for sensor in cfg.scene.sensors:
-        if sensor.name == 'feet_ground_contact':
-            sensor.track_air_time = True
-            sensor.history_length = cfg.decimation
-    if not any(sensor.name == 'foot_height_scan' for sensor in cfg.scene.sensors):
-        height = cast(TerrainHeightSensorCfg, next(sensor for sensor in walking_env_cfg().scene.sensors if sensor.name == 'foot_height_scan'))
-        height.debug_vis = False
-        cfg.scene.sensors = (*cfg.scene.sensors, height)
-    return cfg

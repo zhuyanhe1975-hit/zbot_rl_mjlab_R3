@@ -1,0 +1,13 @@
+{
+  "task_id": "Mjlab-Zbot-6dof-Periodic-Stepping",
+  "source_run": "logs/rsl_rl/zbot_periodic_stepping/2026-10-22_07-58-11",
+  "source_checkpoint": "logs/rsl_rl/zbot_periodic_stepping/2026-10-22_07-58-11/model_50.pt",
+  "checkpoint_iteration_filename": 50,
+  "checkpoint_iter_field": 50,
+  "selection": "latest checkpoint from latest periodic-stepping run; no best-score selection",
+  "archived_at": "2026-10-22T07:59:53.508203+08:00",
+  "source_sha256": "9456d7163dc6b55499ae9448f7870693dbb581a45f7131cbea93ecf8fc89e060",
+  "git_head": "66ceb226ef2350f5b9c928277e046ecbd3979871",
+  "source_snapshot": "archive-time workspace including uncommitted and untracked source; external MJLab and Python environment excluded",
+  "verification_boundary": "checkpoint copy and CPU strict policy loading; no independent simulation performance evaluation"
+}

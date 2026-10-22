@@ -1,0 +1,51 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "归档指导全能教师",
+  "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided",
+  "inherits": "universal_snake_leg_omni_teacher_task_routed.json",
+  "env": {
+    "commands": {
+      "transform": {
+        "transition_timeout_s": 16.0,
+        "training_task_fractions": [
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ],
+        "guided_transition_rules": true,
+        "straightening_joint_tolerance": 0.08,
+        "straightening_hold_s": 0.1,
+        "retry_motion_threshold": 0.25
+      }
+    }
+  },
+  "rewards": {
+    "$remove": [
+      "mode_posture",
+      "transition_progress"
+    ]
+  },
+  "agent": {
+    "algorithm": {
+      "guidance_enabled": true,
+      "guidance_tasks": [
+        0,
+        1,
+        3
+      ],
+      "teacher_checkpoints": null,
+      "guidance_max_samples_per_task": 2048,
+      "guidance_batch_size": 1024,
+      "guidance_updates": 4,
+      "guidance_start_coef": 1.0,
+      "guidance_floor_coef": 0.05,
+      "guidance_agreement_mse": 0.02,
+      "guidance_agreement_min_samples": 32,
+      "guidance_agreement_passes": 5,
+      "guidance_decay": 0.98,
+      "guidance_ema_beta": 0.9
+    }
+  }
+}

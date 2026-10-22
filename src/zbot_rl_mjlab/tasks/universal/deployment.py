@@ -1,18 +1,14 @@
 """综合部署学生的传感器历史输入；特权状态仅向价值网络保留。"""
 
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from itertools import pairwise
 from typing import cast
 
 import torch
 from mjlab.managers.manager_base import ManagerTermBase
-from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
-from mjlab.managers.reward_manager import RewardTermCfg
 
 from ..common import PartialBaseImpulse, constant
-from ..transformation import mdp as transform
-from ..transformation import teacher_observations as teacher
 from ..transformation.poses import SNAKE_ROOT_POS, SNAKE_ROOT_QUAT
 from ..transformation.roll_reset import collision_radial_envelope, rolled_root_states
 from . import mdp
@@ -36,17 +32,20 @@ class DeploymentCommandCfg(UniversalCommandCfg):
 class DeploymentCommand(UniversalCommand):
     """归直阶段由编码器、内部目标和 IMU 决定，不使用高度或接触。"""
 
+    uses_speed_course = True
+
     def __init__(self, cfg: DeploymentCommandCfg, env):
         super().__init__(cfg, env)
-        for direction in ('forward', 'backward', 'left', 'right'):
-            levels = self.course_levels(direction)
-            maximum = cfg.velocity_limits[0 if direction in ('forward', 'backward') else 1]
-            if not levels or any(not math.isfinite(value) or value <= 0 for value in levels) or any(a >= b for a, b in pairwise(levels)) or levels[-1] > maximum:
-                raise ValueError('各方向速度档位必须为递增正数，且不超过对应指令上限')
+        if self.uses_speed_course:
+            for direction in ('forward', 'backward', 'left', 'right'):
+                levels = self.course_levels(direction)
+                maximum = cfg.velocity_limits[0 if direction in ('forward', 'backward') else 1]
+                if not levels or any(not math.isfinite(value) or value <= 0 for value in levels) or any(a >= b for a, b in pairwise(levels)) or levels[-1] > maximum:
+                    raise ValueError('各方向速度档位必须为递增正数，且不超过对应指令上限')
+            if any(not math.isfinite(value) or not 0 < value <= maximum for value, maximum in ((cfg.backward_training_speed, cfg.velocity_limits[0]), (cfg.lateral_training_speed, cfg.velocity_limits[1]))):
+                raise ValueError('后退与侧移训练速度必须为正数，且不超过对应指令上限')
         if not math.isfinite(cfg.translation_training_fraction) or not 0 <= cfg.translation_training_fraction <= 1:
             raise ValueError('平移课程采样比例必须在0～1之间')
-        if any(not math.isfinite(value) or not 0 < value <= maximum for value, maximum in ((cfg.backward_training_speed, cfg.velocity_limits[0]), (cfg.lateral_training_speed, cfg.velocity_limits[1]))):
-            raise ValueError('后退与侧移训练速度必须为正数，且不超过对应指令上限')
         self.motion_speed_stages = dict.fromkeys(('forward', 'backward', 'left', 'right'), 0)
         self.motion_speed_passes = self.motion_speed_stages.copy()
         self.motion_speed_failures = self.motion_speed_stages.copy()
@@ -178,36 +177,6 @@ def _sanitized(func):
         return torch.nan_to_num(func(env), nan=0.0, posinf=0.0, neginf=0.0)
     observe.__name__ = observe.__qualname__ = getattr(func, "__name__", "observe")
     return observe
-
-
-def configure_deployment(cfg, play=False):
-    """直接定义单帧 37 维可测状态，训练与回放均使用五帧无噪声历史。"""
-    cfg.straighten_before_stand = True
-    cfg.commands['transform'] = DeploymentCommandCfg(**asdict(cfg.commands['transform']))
-    cfg.rewards['straightening'] = RewardTermCfg(func=straightening_cost, weight=-2.)
-    cfg.events['reset_transition'].func = BentSnakeReset
-    cfg.events['reset_transition'].params = {
-        'bend_fraction': .5, 'bend_limit': .2, 'roll_limit_deg': 40.,
-    }
-    functions = {
-        "joint_pos": joint_position,
-        "joint_vel": teacher.joint_velocity,
-        "commanded_target": transform.commanded_target,
-        "actions": transform.last_action,
-        "projected_gravity": transform.projected_gravity,
-        "base_ang_vel": teacher.base_angular_velocity,
-        "command": command,
-        "gait": mdp.gait_observation,
-    }
-    cfg.observations["actor"] = ObservationGroupCfg(
-        terms={name: ObservationTermCfg(func=_sanitized(func)) for name, func in functions.items()},
-        concatenate_terms=True,
-        enable_corruption=False,
-        history_length=5,
-        flatten_history_dim=True,
-        # 逐项无条件清理与 MJLab 的 sanitize 结果相同，但不在每项先 .any() 同步。
-        nan_policy="disabled",
-    )
 
 
 class BentSnakeReset(ManagerTermBase):

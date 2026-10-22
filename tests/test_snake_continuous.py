@@ -8,13 +8,10 @@ import torch
 from mjlab.utils.lab_api.math import quat_apply, quat_apply_inverse, quat_mul
 from test_snake_task import state_env
 
+from zbot_rl_mjlab.experiments.snake import snake_env_cfg
 from zbot_rl_mjlab.tasks.snake import mdp
 from zbot_rl_mjlab.tasks.snake.commands import SnakeVelocityCommandCfg
-from zbot_rl_mjlab.tasks.snake.env_cfg import (
-    SNAKE_JOINT_LIMIT,
-    SNAKE_MAX_TARGET_SPEED,
-    snake_env_cfg,
-)
+from zbot_rl_mjlab.tasks.snake.env_cfg import SNAKE_JOINT_LIMIT, SNAKE_MAX_TARGET_SPEED
 from zbot_rl_mjlab.tasks.transformation.actions import JointTargetRateActionCfg
 
 
@@ -281,7 +278,7 @@ def test_world_speed_rewards_preserve_physical_action_bounds():
         'action_rate': -.0,
         'self_collision_reset_cost': -5.,
     }
-    assert cfg.actions['joint_pos'].target_limit == SNAKE_JOINT_LIMIT == math.pi / 3
+    assert cfg.actions['joint_pos'].target_limit == SNAKE_JOINT_LIMIT == math.pi / 2
     assert isinstance(cfg.actions['joint_pos'], JointTargetRateActionCfg)
     assert cfg.actions['joint_pos'].max_target_speed == SNAKE_MAX_TARGET_SPEED == 2 * math.pi
     assert not cfg.actions['joint_pos'].use_default_offset

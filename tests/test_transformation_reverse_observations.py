@@ -6,9 +6,12 @@ import pytest
 import torch
 from mjlab.managers.observation_manager import ObservationManager
 
+from zbot_rl_mjlab.experiments.transformation import (
+    snake_to_biped_env_cfg as _recipe_snake_to_biped_env_cfg,
+)
+from zbot_rl_mjlab.experiments.transformation import transformation_env_cfg
 from zbot_rl_mjlab.tasks.transformation import mdp
 from zbot_rl_mjlab.tasks.transformation import snake_to_biped as reverse
-from zbot_rl_mjlab.tasks.transformation.env_cfg import transformation_env_cfg
 from zbot_rl_mjlab.tasks.transformation.reverse_observations import (
     SUPPORT_OBSERVATION_COLUMNS,
     reserved_hold_observation,
@@ -49,7 +52,7 @@ def env_fixture(enabled=True):
         ),
     )
     scene.env_origins = torch.tensor([[0.0, 0.0, 0.3]]).expand(2, 3)
-    cfg = reverse.snake_to_biped_env_cfg()
+    cfg = _recipe_snake_to_biped_env_cfg()
     cfg.support_observations = enabled
     cfg.standing_stage_ramp_steps = 100
     env = SimpleNamespace(
@@ -170,9 +173,9 @@ def test_stage_two_without_ramp_state_matches_explicit_full_objective():
 
 
 def test_configuration_isolation_preserves_forward_task_and_fresh_defaults():
-    first = reverse.snake_to_biped_env_cfg()
+    first = _recipe_snake_to_biped_env_cfg()
     first.support_observations = True
-    second = reverse.snake_to_biped_env_cfg()
+    second = _recipe_snake_to_biped_env_cfg()
     forward = transformation_env_cfg()
     assert not second.support_observations
     assert not hasattr(forward, "support_observations")

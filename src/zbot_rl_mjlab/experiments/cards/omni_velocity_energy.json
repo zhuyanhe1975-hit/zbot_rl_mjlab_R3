@@ -1,0 +1,63 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "双足全向节能行走",
+  "task_id": "Mjlab-Zbot-6dof-Omni-Velocity-Energy-Walking",
+  "inherits": "velocity_energy_tracking.json",
+  "env": {
+    "commands": {
+      "target_speed": {
+        "ranges": {
+          "lin_vel_x": [
+            -0.3,
+            0.5
+          ],
+          "lin_vel_y": [
+            -0.2,
+            0.2
+          ],
+          "ang_vel_z": [
+            -0.5,
+            0.5
+          ]
+        },
+        "full_scale": [
+          0.5,
+          0.2,
+          0.5
+        ]
+      }
+    }
+  },
+  "rewards": {
+    "$remove": [
+      "lateral_velocity",
+      "yaw_drift"
+    ],
+    "track_lateral_speed": {
+      "weight": 1.0,
+      "params": {
+        "std": 0.1
+      }
+    },
+    "track_yaw_rate": {
+      "weight": 1.0,
+      "params": {
+        "std": 0.25
+      }
+    }
+  },
+  "play": {
+    "env": {
+      "commands": {
+        "$remove": [
+          "forward_velocity_viz"
+        ],
+        "target_speed": {
+          "debug_vis": true
+        }
+      }
+    }
+  },
+  "description": "依据 bests/omni_velocity_energy_2026-10-10_iter499 的 env.yaml、agent.yaml 固定本任务相对父卡片的归档配方差异；下列覆盖参数与该归档对应，其余参数继续继承父卡片。运行时生成的 terrain.num_envs/env_spacing、Python 回调和结构选择器不作为配方覆盖。"
+}

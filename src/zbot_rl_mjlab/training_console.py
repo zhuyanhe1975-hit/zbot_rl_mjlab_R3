@@ -6,6 +6,7 @@ import inspect
 import statistics
 import sys
 from contextlib import redirect_stdout
+from datetime import timedelta
 from functools import wraps
 from typing import Any, TextIO
 
@@ -59,12 +60,76 @@ def install_compact_logging(logger: Any, *, rewards_only: bool = False) -> None:
         if rewards_only:
             width, pad = values.get('width', 80), values.get('pad', 40)
             lines = ['#' * width, f" Learning iteration {values['it']}/{values['total_it']} ".center(width), '']
+            collect, learn = values['collect_time'], values['learn_time']
+            size = logger.cfg['num_steps_per_env'] * logger.num_envs * logger.gpu_world_size
+            lines.extend([
+                f"{'Total steps:':>{pad}} {logger.tot_timesteps}",
+                f"{'Steps per second:':>{pad}} {int(size / (collect + learn))}",
+                f"{'Collection time:':>{pad}} {collect:.3f}s",
+                f"{'Learning time:':>{pad}} {learn:.3f}s",
+                f"{'Mean action std:':>{pad}} {values['action_std'].mean().item():.3f}",
+            ])
+            reward = f'{statistics.mean(logger.rewbuffer):.2f}' if logger.rewbuffer else '--'
+            length = f'{statistics.mean(logger.lenbuffer):.2f}' if logger.lenbuffer else '--'
+            lines.extend([
+                f"{'Mean reward:':>{pad}} {reward}",
+                f"{'Mean episode length:':>{pad}} {length}",
+                f"{'Current episode length (steps):':>{pad}} {logger.cur_episode_length.mean().item():.2f}",
+            ])
+            for key, label, precision in (
+                ('rollout_episode_age_s', 'Current episode age (s)', 2),
+                ('rollout_reset_count', 'Resets (rollout)', 0),
+                ('rollout_termination_count', 'Terminations (no timeout)', 0),
+                ('rollout_timeout_count', 'Timeouts (rollout)', 0),
+            ):
+                if key in losses:
+                    lines.append(f"{label + ':':>{pad}} {losses[key]:.{precision}f}")
             if 'rollout_reward_rate' in losses:
                 lines.append(f"{'Mean reward rate (/s):':>{pad}} {losses['rollout_reward_rate']:.4f}")
                 for name, value in losses.items():
                     if name.startswith('rollout_reward_') and name != 'rollout_reward_rate':
                         label = f"Reward/{name.removeprefix('rollout_reward_')} (/s):"
                         lines.append(f"{label:>{pad}} {value:.4f}")
+            for axis in ('vx', 'vy', 'wz'):
+                key = f'velocity_weight_used_{axis}'
+                if key in losses:
+                    label = f'Adaptive {axis} weight (used -> next):'
+                    lines.append(f"{label:>{pad}} {losses[key]:.3f} -> "
+                                 f"{losses[f'velocity_weight_next_{axis}']:.3f} | "
+                                 f"score EMA {losses[f'velocity_score_ema_{axis}']:.3f}")
+            if 'velocity_learning_stage' in losses:
+                stage = int(losses['velocity_learning_stage'])
+                description = 'planar first' if stage == 1 else 'yaw learning'
+                label = 'Velocity learning stage:'
+                lines.append(f"{label:>{pad}} {stage} ({description}) | "
+                             f"positive {int(losses['velocity_planar_positive_updates'])}/20 | "
+                             f"regression {int(losses['velocity_planar_regression_updates'])}/10")
+            if 'velocity_reward_ratio_target' in losses:
+                label = 'Velocity reward planar / yaw (/s):'
+                lines.append(f"{label:>{pad}} {losses['velocity_reward_planar_mean']:.4f} / "
+                             f"{losses['velocity_reward_yaw_mean']:.4f}")
+                if 'velocity_reward_forward_mean' in losses:
+                    label = 'Velocity reward vx / vy (/s):'
+                    lines.append(f"{label:>{pad}} {losses['velocity_reward_forward_mean']:.4f} / "
+                                 f"{losses['velocity_reward_lateral_mean']:.4f}")
+                    xy_ratio = (f"{losses['velocity_forward_to_lateral_reward_ratio']:.3f}"
+                                if losses['velocity_planar_reward_ratio_valid'] else '--')
+                    xy_limited = ' | weight bound active' if losses['velocity_planar_target_limited'] else ''
+                    label = 'Vx/vy reward (actual / target):'
+                    lines.append(f"{label:>{pad}} {xy_ratio} / 1.000{xy_limited}")
+                ratio = (f"{losses['velocity_yaw_to_planar_reward_ratio']:.3f}"
+                         if losses['velocity_reward_ratio_valid'] else '--')
+                limited = ' | weight bound active' if losses['velocity_yaw_target_limited'] else ''
+                label = 'Yaw/planar reward (actual / target):'
+                lines.append(f"{label:>{pad}} {ratio} / {losses['velocity_reward_ratio_target']:.3f}{limited}")
+            done = values['it'] + 1 - values['start_it']
+            remaining = values['total_it'] - values['start_it'] - done
+            lines.extend([
+                '-' * width,
+                f"{'Iteration time:':>{pad}} {collect + learn:.2f}s",
+                f"{'Time elapsed:':>{pad}} {timedelta(seconds=int(logger.tot_time))}",
+                f"{'ETA:':>{pad}} {timedelta(seconds=int(logger.tot_time / done * remaining))}",
+            ])
             print('\n'.join(lines))
             return result
         collect, learn = values["collect_time"], values["learn_time"]
@@ -95,6 +160,7 @@ def install_compact_logging(logger: Any, *, rewards_only: bool = False) -> None:
                 f"reward_rate {losses['rollout_reward_rate']:.3f}/s | "
                 f"episode_age {losses['rollout_episode_age_s']:.2f}s | "
                 f"resets {losses['rollout_reset_count']:.0f} | "
+                f"timeouts {losses.get('rollout_timeout_count', 0):.0f} | "
                 f"policy_std {values['action_std'].mean().item():.3f}"
             )
             lines.append(' | '.join(
@@ -158,24 +224,31 @@ def install_site_snake_rollout_logging(logger: Any, env: Any) -> None:
     process = logger.process_env_step
     original_log = logger.log
     signature = inspect.signature(original_log)
-    rates = collisions = None
+    rates = counts = None
     steps = 0
 
     @wraps(process)
     def process_step(*args: Any, **kwargs: Any) -> Any:
-        nonlocal rates, collisions, steps
+        nonlocal rates, counts, steps
         result = process(*args, **kwargs)
         if logger.writer is None:
             return result
         # process_env_step accepts rewards, dones, extras, optional intrinsic rewards.
         dones = args[1] if len(args) > 1 else kwargs['dones']
+        extras = args[2] if len(args) > 2 else kwargs['extras']
         current = env.reward_manager._step_reward.detach().mean(0)
         if rates is None:
             rates = torch.zeros_like(current)
-            collisions = current.new_zeros(())
-        assert rates is not None and collisions is not None
+            counts = current.new_zeros(2)  # All resets, then timeout resets.
+        assert rates is not None and counts is not None
         rates.add_(current)
-        collisions.add_((dones > 0).sum())
+        ended = dones > 0
+        time_outs = extras.get('time_outs')
+        if time_outs is None:
+            time_outs = getattr(getattr(env, 'termination_manager', None), 'time_outs', None)
+        timed_out = (ended & time_outs.to(device=ended.device).reshape_as(ended).bool()
+                     if time_outs is not None else torch.zeros_like(ended))
+        counts.add_(torch.stack((ended.sum(), timed_out.sum())))
         steps += 1
         return result
 
@@ -185,20 +258,22 @@ def install_site_snake_rollout_logging(logger: Any, env: Any) -> None:
         nonlocal steps
         if not steps or logger.writer is None:
             return original_log(*args, **kwargs)
-        assert rates is not None and collisions is not None
+        assert rates is not None and counts is not None
         bound = signature.bind(*args, **kwargs)
         metrics = dict(bound.arguments['loss_dict'])
-        values = torch.cat((rates / steps, collisions.reshape(1),
+        values = torch.cat((rates / steps, counts,
                             (logger.cur_episode_length.mean() * env.step_dt).reshape(1))).cpu().tolist()
-        for name, value in zip(env.reward_manager.active_terms, values[:-2], strict=True):
+        for name, value in zip(env.reward_manager.active_terms, values[:-3], strict=True):
             metrics[f'rollout_reward_{name}'] = value
-        metrics['rollout_reward_rate'] = sum(values[:-2])
-        metrics['rollout_reset_count'] = values[-2]
+        metrics['rollout_reward_rate'] = sum(values[:-3])
+        metrics['rollout_reset_count'] = values[-3]
+        metrics['rollout_timeout_count'] = values[-2]
+        metrics['rollout_termination_count'] = values[-3] - values[-2]
         metrics['rollout_episode_age_s'] = values[-1]
         bound.arguments['loss_dict'] = metrics
         result = original_log(*bound.args, **bound.kwargs)
         rates.zero_()
-        collisions.zero_()
+        counts.zero_()
         steps = 0
         return result
 
