@@ -1,11 +1,14 @@
 # bests 实验卡片差异说明
 
-2026-10-22 对照 `bests/` 中14个归档的 `env.yaml`、`agent.yaml`、保存时奖励记录和回放参数，将相对父卡片的差异显式放在对应实验卡片。`description` 标明来源及历史差异；没有覆盖的字段继续继承父卡片。归档模型、原始配置和校验和不作改动。
+2026-10-22 对照 `bests/` 中17个归档的 `env.yaml`、`agent.yaml`、保存时奖励记录和回放参数，将相对父卡片的差异显式放在对应实验卡片。`description` 标明来源及历史差异；没有覆盖的字段继续继承父卡片。归档模型、原始配置和校验和不作改动。
 
 卡片位于 `src/zbot_rl_mjlab/experiments/cards/`。
 
 | 卡片 | 对应 bests 目录 | 显式配置及核对结果 |
 |---|---|---|
+| `universal_snake_leg_omni_student_disturbed.json` | `universal_student_disturbed_2026-10-22_iter499` | 实际500次DAgger更新，原启动YAML保留500轮；当前卡片默认150轮。五帧280维Gaussian学生，训练25%环境受扰、预热外扰系数1，默认归档回放100%受扰。 |
+| `universal_snake_leg_omni_student.json` | `universal_student_clean_2026-10-22_iter150` | 用户指定检查点iter150，实际151次DAgger更新；教师冻结。归档回放参数将基座受扰比例设为0，原始训练YAML不改写。 |
+| `universal_snake_leg_omni_teacher_guided.json` | `universal_three_teacher_gaussian_mirror_2026-10-22_iter499` | 500轮、三教师指导，全Gaussian、6/3/6/3自由度，原生采样范围及干净单帧观测；结构化模型由任务实现配置。 |
 | `periodic_stepping.json` | `periodic_stepping_2026-10-22_iter50` | 步频下限0.25 Hz、8192训练环境、51轮；保留原地踏步奖励。 |
 | `walking.json` | `zbot_walking` | 抬脚奖励0.5、落地惩罚−0.02、600轮；保留已有前进及步频配置。 |
 | `disturbed_walking.json` | `zbot_disturbed_walking` | 抬脚0.5、落地−0.02、600轮；扰动力/力矩和域随机化已完整列出。 |

@@ -1,0 +1,36 @@
+--- git commit ---
+f135c1daa0f278bd19e323c2b9f256ca541ae2c5
+
+
+--- git status ---
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   src/mjlab/rl/config.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	.omx/
+
+no changes added to commit (use "git add" and/or "git commit -a") 
+
+
+--- git diff ---
+diff --git a/src/mjlab/rl/config.py b/src/mjlab/rl/config.py
+index 8ce233d..cda781b 100644
+--- a/src/mjlab/rl/config.py
++++ b/src/mjlab/rl/config.py
+@@ -102,8 +102,8 @@ class RslRlBaseRunnerCfg:
+   """Optional label appended to the timestamped run directory
+   (e.g. ``2025-01-27_14-30-00_{run_name}``). Also becomes the
+   display name for the run in wandb."""
+-  logger: Literal["wandb", "tensorboard"] = "wandb"
+-  """The logger to use. Default is wandb."""
++  logger: Literal["wandb", "tensorboard"] = "tensorboard"
++  """The logger to use. Default is local TensorBoard."""
+   wandb_project: str = "mjlab"
+   """The wandb project name."""
+   wandb_tags: Tuple[str, ...] = ()

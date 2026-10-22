@@ -16,17 +16,17 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
 
 # 2、按照指定频率迈步+平地行走+扰动力和力矩
 # python play.py Mjlab-Zbot-6dof-Disturbed-Walking \
-#     --env.step-frequency-min 0.5 \
-#     --env.step-frequency-max 0.5 \
+#     --env.step-frequency-min 0.25 \
+#     --env.step-frequency-max 0.25 \
 #     --env.scene.num-envs 1 \
 #     --checkpoint-file bests/zbot_disturbed_walking/model_599.pt
 
 # 2.5、跟踪频率 + 速度指令联合跟踪
 # python play.py Mjlab-Zbot-6dof-Velocity-Frequency-Tracking-Walking \
-#     --env.step-frequency-min 0.25 \
-#     --env.step-frequency-max 1.0 \
-#     --env.commands.target-speed.ranges.lin-vel-x "(0.0,0.5)" \
-#     --env.scene.num-envs 16 \
+#     --env.step-frequency-min 0.5 \
+#     --env.step-frequency-max 0.5 \
+#     --env.commands.target-speed.ranges.lin-vel-x "(0.05,0.05)" \
+#     --env.scene.num-envs 1 \
 #     --checkpoint-file bests/velocity_frequency_tracking_2026-10-22_iter499/model_499.pt
 
 # 3、跟踪速度指令，但频率不跟踪，增加节省能量的奖励
@@ -78,3 +78,34 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
 # python play.py Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher \
 #   --env.scene.num-envs 1 \
 #   --checkpoint-file bests/snake_site_omni_2026-10-20_iter599/model_599.pt
+
+# 21、 三教师指导的新全能教师；默认选择独立训练目录下的最新检查点。
+# python play.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided \
+#   --env.scene.num-envs 1 \
+#   --checkpoint-file bests/universal_three_teacher_gaussian_mirror_2026-10-22_iter499/model_499.pt
+
+# 22、归档全能教师 → 历史观测学生；由用户启动训练。
+# 22.a 学生继承全能教师 - 150代即可
+# python play.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student \
+#   --env.scene.num-envs 1 \
+#   --checkpoint-file bests/universal_student_clean_2026-10-22_iter150/model_150.pt \
+#   "$@"
+
+# 22.b 学生PPO自学微调
+# python play.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-PPO \
+#   --log-root logs/rsl_rl_universal_student_ppo_v2 \
+#   --env.scene.num-envs 1 \
+#   "$@"
+
+# 22.c 学生PPO v4：默认回放 v4 日志目录下最新检查点
+# python play.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-PPO-V4 \
+#   --log-root logs/rsl_rl_universal_student_ppo_v4 \
+#   --env.scene.num-envs 1 \
+#   "$@"
+
+# 22.d 外部扰动学生：独立日志目录的最新模型；回放环境全部受扰，避免单环境被抽为静默。
+# python play.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-Disturbed \
+#   --log-root logs/rsl_rl_universal_student_disturbed \
+#   --env.scene.num-envs 1 \
+#   --checkpoint-file bests/universal_student_disturbed_2026-10-22_iter499/model_499.pt \
+# #   "$@"

@@ -1,14 +1,16 @@
-# Zbot 强化学习实验
+# Zbot 强化学习实验（R3）
 
-**[打开实验导览与参数卡片](experiments.md)**：35个实验的网络、PPO、环境与奖励参数统一从卡片修改。
+**[打开实验导览与参数卡片](experiments.md)**：40个实验的网络、PPO、环境与奖励参数统一从卡片修改。
 
-基于外部 MJLab 的六关节 Zbot 仿真训练项目，当前注册 **35 个实验**：双足行走、蛇形运动、双向变形，以及多教师指导的综合运动。训练使用 MuJoCo、PyTorch 和 RSL-RL；本仓库不复制 MJLab 或安装新的运行依赖。
+基于外部 MJLab 的六关节 Zbot 仿真训练项目，当前注册 **40 个实验**：双足行走、蛇形运动、双向变形，以及多教师指导的综合运动。训练使用 MuJoCo、PyTorch 和 RSL-RL；本仓库不复制 MJLab 或安装新的运行依赖。
+
+2026-10-22：综合学生实验在此封存为R3，见[封存与验证记录](docs/r3-freeze.md)。冻结教师、无扰动学生`model_150.pt`及受扰学生`model_499.pt`均已归档，入口见[bests索引](bests/README.md)。学生仍使用五帧传感器历史，未加入yaw；相对航向观测仅为后续待验证方案。PPO各版本保留作实验记录，不表示已达到质量目标。原始训练日志和临时诊断结果仅保留在本机。
 
 ## 当前实验与入口
 
 `train.sh`、`run.sh` 保留本地逐项命令和注释选择方式，实际启用项以脚本内容为准。跨机器使用时，推荐下面的 `scripts/python.sh` 入口，通过 `MJLAB_ROOT` 或 `ZBOT_PYTHON` 选择已经安装 MJLab 的环境。
 
-本地 `train.sh`、`run.sh` 的环境激活路径属于原作者机器配置；分享前未改动其选中实验或参数。回放已归档模型可直接使用 `bests/test.sh`，避免依赖已清理的训练日志。
+封存前最后训练分支为[22.d外部扰动蒸馏学生](docs/universal-student.md)：直接继承22.a的纯DAgger学生流程，冻结原全能教师，不加载PPO学生。基座各轴随机力±5N、力矩±0.5N·m，持续0.08～0.20秒、间隔0.8～2秒；训练约25%环境受扰，从教师预热第一轮起生效。卡片默认150轮（20轮教师预热、100轮交接、30轮学生独立执行），最后实际训练覆盖为500轮。封存时`train.sh`、`run.sh`的实验命令均已注释，保留8192环境、500轮训练及归档模型回放示例；运行脚本不会自动启动训练或回放。22.a及PPO v2/v3/v4配置和本地已有日志保留。
 
 独立模型索引仍可通过原有 `bests/test.sh` 使用：
 
@@ -43,10 +45,10 @@ export MJLAB_ROOT=/实际路径/mjlab
 | `src/zbot_rl_mjlab/tasks/transformation/` | 变形、镜像动作、课程和恢复 |
 | `src/zbot_rl_mjlab/tasks/universal/` | 综合运动、任务状态机、特权观测和共享动作 |
 | `src/zbot_rl_mjlab/*teacher*.py`、`*ppo.py`、`distillation.py` | 教师适配、PPO、蒸馏和检查点契约 |
-| `src/zbot_rl_mjlab/base_snake_teacher.py` | 当前实验的两阶段自适应调权 |
+| `src/zbot_rl_mjlab/base_snake_teacher.py` | base蛇形实验的两阶段自适应调权 |
 | `src/zbot_rl_mjlab/robot.py`、`assets/zbot_6/ZBOT6.xml` | 六关节模型、执行器与物理参数 |
 | `scripts/`、`tests/` | 评估诊断工具和回归测试 |
-| `bests/` | 14个正式归档模型、配置、校验和与复现资料 |
+| `bests/` | 17个正式归档模型、配置、校验和与复现资料 |
 | `docs/` | 任务说明、坐标约定和历史实验记录 |
 
 任务层定义环境行为，实验层组合配方，Runner负责训练和模型兼容；实验构建钩子按MRO由基类到子类执行一次，细节见[架构说明](docs/task-experiment-architecture.md)。
@@ -76,6 +78,6 @@ python3 scripts/package_release.py
 - [坐标系约定](docs/zbot-coordinate-system.md)、[执行器](docs/rs00-actuator.md)
 - [蛇形site奖励](docs/site-snake-g1-rewards.md)、[自适应权重](docs/site-snake-adaptive-weights.md)、[前进对照](docs/site-snake-forward-ablation.md)
 - [双向变形](docs/bidirectional-transformation.md)、[综合运动](docs/universal-locomotion.md)
-- [特权教师](docs/privileged-omni-teacher.md)、[指导教师](docs/guided-privileged-teacher.md)
+- [特权教师](docs/privileged-omni-teacher.md)、[指导教师](docs/guided-privileged-teacher.md)、[全能学生](docs/universal-student.md)
 
 `logs/`、`outputs/`、`work/`及缓存为本地训练/诊断产物，不纳入版本管理。2026-10-21已按要求删除项目外旧完整快照，未再创建完整备份；保留的本地模型资料见[bests索引](bests/归档位置.json)。

@@ -1,0 +1,12 @@
+{
+  "strict_actor_loading": true,
+  "actual_play_entrypoint": true,
+  "device": "cuda:0",
+  "num_envs": 8,
+  "steps": 128,
+  "finite_observation_action_reward": true,
+  "teacher_loaded": false,
+  "disturbed_fraction": 0.0,
+  "nonzero_wrench_env_frames": 0,
+  "performance_qualification": false
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "全能学生PPO v4：平滑质心速度进展",
+  "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-PPO-V4",
+  "inherits": "universal_snake_leg_omni_student_ppo_v3.json",
+  "description": "继承v3初始化、迭代数和验证保护，仅以世界系平滑质量加权质心速度替换速度奖励，命令旋转对齐平滑机身航向，并将蛇形速度上限改为(0.06,0.06,0.5)，避免头部摆动被算作整体平移。",
+  "agent": {
+    "experiment_name": "zbot_universal_snake_leg_omni_student_ppo_v4",
+    "run_name": "student150_ppo_v4"
+  },
+  "env": {
+    "commands": {
+      "transform": {
+        "snake_velocity_limits": [
+          0.06,
+          0.06,
+          0.5
+        ]
+      }
+    }
+  },
+  "rewards": {
+    "velocity_tracking": {
+      "params": {
+        "$remove": [
+          "std",
+          "snake_std",
+          "axis_weights"
+        ],
+        "limits": {
+          "biped": [
+            0.5,
+            0.2,
+            0.5
+          ],
+          "snake": [
+            0.06,
+            0.06,
+            0.5
+          ]
+        },
+        "time_constant": 0.75,
+        "w_lat": 0.3
+      }
+    }
+  }
+}

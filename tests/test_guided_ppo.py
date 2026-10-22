@@ -286,7 +286,7 @@ def test_routed_bc_preserves_inactive_head_parameters_and_existing_adam_momentum
 
 
 def test_four_task_guidance_default_optimizes_biped_and_balances_minority_tasks():
-    assert GuidedTaskPpoCfg().guidance_tasks == (0, 1, 3)
+    assert GuidedTaskPpoCfg().guidance_tasks == (0, 1, 2, 3)
     obs = observations(tuple([0] * 100 + [1] * 10 + [2] * 10 + [3] * 10))
     alg = algorithm(obs, steps=1, actor_cls=RoutedTaskNormalizedMLP,
                     guidance_tasks=(0, 1, 2, 3), guidance_updates=1, guidance_batch_size=400,
@@ -347,18 +347,18 @@ def test_configured_task_subset_preserves_excluded_coefficient_contract():
         alg.load(saved, None, True)
 
 
-def test_default_guidance_excludes_unqualified_snake_teacher():
+def test_default_guidance_includes_site_snake_task():
     defaults = GuidedTaskPpoCfg()
     obs = observations(tuple([0, 1, 2, 3] * 10))
     alg = algorithm(obs, steps=1, guidance_tasks=defaults.guidance_tasks,
                     actor_cls=RoutedTaskNormalizedMLP, guidance_updates=1)
-    assert alg.guidance_coefficients == [1., 1., 0., 1.]
+    assert alg.guidance_coefficients == [1., 1., 1., 1.]
     alg._cache_guidance(obs, torch.full((40, 6), .6), torch.ones(40))
-    assert alg._guidance_counts == [10, 10, 0, 10]
-    assert 2 not in alg._guidance_samples
+    assert alg._guidance_counts == [10, 10, 10, 10]
+    assert 2 in alg._guidance_samples
     snake_before = copy.deepcopy(alg._raw_actor.mlp.heads[2].state_dict())
     metrics = alg._guidance_update()
-    assert 'guidance_snake_motion_optimized' not in metrics
-    assert state_equal(snake_before, alg._raw_actor.mlp.heads[2].state_dict())
-    assert all(parameter.grad is None for parameter in alg._raw_actor.mlp.heads[2].parameters())
-    assert alg.save()['guided_task_ppo']['guided_tasks'] == [0, 1, 3]
+    assert metrics['guidance_snake_motion_optimized'] > 0
+    assert not state_equal(snake_before, alg._raw_actor.mlp.heads[2].state_dict())
+    assert any(parameter.grad is not None for parameter in alg._raw_actor.mlp.heads[2].parameters())
+    assert alg.save()['guided_task_ppo']['guided_tasks'] == [0, 1, 2, 3]

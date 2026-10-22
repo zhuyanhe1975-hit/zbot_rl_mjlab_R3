@@ -1,0 +1,43 @@
+{
+  "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-Disturbed",
+  "source_run": "logs/rsl_rl_universal_student_disturbed/zbot_universal_snake_leg_omni_student_disturbed/2026-10-22_18-06-59_universal_teacher_dagger_disturbed_22d",
+  "source_checkpoint": "logs/rsl_rl_universal_student_disturbed/zbot_universal_snake_leg_omni_student_disturbed/2026-10-22_18-06-59_universal_teacher_dagger_disturbed_22d/model_499.pt",
+  "checkpoint_iteration_filename": 499,
+  "checkpoint_iter_field": 499,
+  "completed_dagger_iterations": 500,
+  "selection": "latest final checkpoint of newest disturbed student run; not performance-ranked",
+  "archived_at": "2026-10-22T18:37:26.532507+08:00",
+  "source_sha256": "ba0085ebaaf0e5fb8815f74afb55e143d3deb3b8d86aa14061d6e913ce400c9f",
+  "git_head": "efcf50a078766c722401666a334681efd1bb3ae9",
+  "recipe": {
+    "role": "universal_sensor_history_student",
+    "schema_version": 1,
+    "frame_dim": 56,
+    "history_length": 5,
+    "imu_reference": "base",
+    "task_routing": "software_fsm_v1",
+    "task_encoding": "one_hot_recovery_v1",
+    "action_contract": "gaussian_position6_rate6_mirror3_v1",
+    "task_action_dims": [
+      6,
+      3,
+      6,
+      3
+    ],
+    "teacher_sha256": "1cac9ff22f290cc89965353f1231cbad1a5296303ddbf508bc660257b2902875"
+  },
+  "teacher_source": {
+    "path": "/home/yhzhu/myWorks_vips/zbot_rl_mjlab_R3/bests/universal_three_teacher_gaussian_mirror_2026-10-22_iter499/model_499.pt",
+    "sha256": "1cac9ff22f290cc89965353f1231cbad1a5296303ddbf508bc660257b2902875"
+  },
+  "training_algorithm": "DAgger v2; no PPO or critic optimization",
+  "source_snapshot": "archive-time source/resources including uncommitted files, not a training-start full workspace; excludes other bests, training logs, diagnostics, and external environments",
+  "verification_boundary": "strict loading, archive integrity, bounded finite playback; no full skill or hardware qualification",
+  "source_snapshot_file_count": 404,
+  "source_snapshot_sha256": "6aa13695aed43ca66b851373e44349a5b60453da34e1bed2347519f91f487718",
+  "actor_frame_dim": 56,
+  "actor_history_length": 5,
+  "actor_observation_dim": 280,
+  "actor_encoded_network_input_dim": 305,
+  "playback_disturbed_fraction": 1.0
+}

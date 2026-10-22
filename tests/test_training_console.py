@@ -398,3 +398,48 @@ def test_console_reports_velocity_curriculum_progress(capsys, stage, description
                  'velocity_planar_positive_updates': 7., 'velocity_planar_regression_updates': 2.})
     output = capsys.readouterr().out
     assert f'{stage} ({description}) | positive 7/20 | regression 2/10' in output
+
+
+@pytest.mark.parametrize('with_task_denominators', [False, True])
+def test_dagger_console_separates_task_outcomes_and_preserves_tensorboard(capsys, with_task_denominators):
+    baseline, compact = make_logger(), make_logger()
+    losses = {
+        'dagger_teacher_fraction': .375,
+        'dagger_teacher_beta': .4,
+        'dagger_optimizer_steps': 32.,
+        'dagger_supervised_rows': 65536.,
+        'dagger_anchor_samples': 16384.,
+    }
+    tasks = ('biped', 'descending', 'snake', 'ascending')
+    for task_index, task in enumerate(tasks, start=1):
+        losses[f'dagger_{task}_mse'] = task_index / 100
+        prefix = f'task_{task}_'
+        losses[prefix + 'success_count'] = float(task_index)
+        losses[prefix + 'biped_fallen_count'] = float(task_index + 10)
+        losses[prefix + 'unsafe_count'] = float(task_index + 20)
+        losses[prefix + 'time_out_count'] = float(task_index + 30)
+        if with_task_denominators:
+            losses[prefix + 'reward_rate'] = task_index * .125
+            losses[prefix + 'mean_episode_s'] = task_index * .5
+    log(baseline, losses)
+    capsys.readouterr()
+    install_compact_logging(compact)
+    log(compact, losses)
+    output = capsys.readouterr().out
+    assert len(output.splitlines()) == 6
+    assert ('DAgger teacher 38% (beta 0.40) | updates 32 | rows 65536 | anchor 16384'
+            in output)
+    for task_index, task in enumerate(tasks, start=1):
+        rate = f'{task_index * .125:.3f}' if with_task_denominators else '--'
+        duration = f'{task_index * .5:.2f}s' if with_task_denominators else '--'
+        assert (f'{task}: mse {task_index / 100:.4f} | reward/s {rate} | episode {duration} | '
+                f'success {task_index} | falls {task_index + 10} | unsafe {task_index + 20} | '
+                f'timeout {task_index + 30}') in output
+    # Global completed-episode averages remain in TensorBoard, not this task table.
+    assert 'reward 2.00' not in output and 'ep_len 150.0' not in output
+    assert 'Mean reward:' not in output and 'Mean episode length:' not in output
+    assert compact.writer.scalars == baseline.writer.scalars
+    assert compact.writer.scalars['Train/mean_reward'] == (2., 3)
+    assert compact.writer.scalars['Loss/dagger_supervised_rows'] == (65536., 3)
+    assert compact.tot_timesteps == baseline.tot_timesteps == 48
+    assert compact.ep_extras == baseline.ep_extras == []

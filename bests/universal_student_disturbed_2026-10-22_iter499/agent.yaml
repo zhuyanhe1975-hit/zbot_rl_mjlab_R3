@@ -1,0 +1,80 @@
+seed: 42
+num_steps_per_env: 24
+max_iterations: 500
+obs_groups:
+  actor: !!python/tuple
+  - actor
+  critic: !!python/tuple
+  - teacher
+save_interval: 50
+experiment_name: zbot_universal_snake_leg_omni_student_disturbed
+run_name: universal_teacher_dagger_disturbed_22d
+logger: tensorboard
+wandb_project: mjlab
+wandb_tags: !!python/tuple []
+resume: false
+load_run: .*
+load_checkpoint: model_.*.pt
+clip_actions: null
+upload_model: true
+class_name: zbot_rl_mjlab.student:UniversalStudentRunner
+actor:
+  hidden_dims: !!python/tuple
+  - 256
+  - 128
+  activation: elu
+  obs_normalization: true
+  cnn_cfg: null
+  distribution_cfg:
+    class_name: zbot_rl_mjlab.gaussian_action_models:GaussianTaskDistribution
+    init_std: 1.0
+    std_type: scalar
+    rate_init_std: 0.5
+    learn_std: false
+  rnn_type: null
+  rnn_hidden_dim: 256
+  rnn_num_layers: 1
+  class_name: zbot_rl_mjlab.student_models:HistoryGaussianStudentMLP
+critic:
+  hidden_dims: !!python/tuple
+  - 256
+  - 128
+  activation: elu
+  obs_normalization: true
+  cnn_cfg: null
+  distribution_cfg: null
+  rnn_type: null
+  rnn_hidden_dim: 256
+  rnn_num_layers: 1
+  class_name: zbot_rl_mjlab.task_models:LocalFrameTaskNormalizedCritics
+algorithm:
+  num_learning_epochs: 5
+  num_mini_batches: 4
+  learning_rate: 0.0003
+  schedule: adaptive
+  gamma: 0.99
+  lam: 0.95
+  entropy_coef: 0.005
+  desired_kl: 0.01
+  max_grad_norm: 1.0
+  value_loss_coef: 1.0
+  use_clipped_value_loss: true
+  clip_param: 0.2
+  normalize_advantage_per_mini_batch: false
+  optimizer: adam
+  share_cnn_encoders: false
+  class_name: zbot_rl_mjlab.student:StudentDAgger
+  teacher_checkpoint: bests/universal_three_teacher_gaussian_mirror_2026-10-22_iter499/model_499.pt
+  teacher_sha256: 1cac9ff22f290cc89965353f1231cbad1a5296303ddbf508bc660257b2902875
+  dagger_updates: 0
+  dagger_epochs: 1
+  dagger_batch_size: 2048
+  teacher_warmup_iterations: 20
+  teacher_mix_iterations: 100
+  dagger_anchor_fraction: 0.25
+  dagger_anchor_max_samples_per_task: 4096
+  dagger_max_samples_per_task: 4096
+  dagger_replay_iterations: 4
+console_mode: compact
+validation_interval_iterations: 0
+robust_validation_interval: 0

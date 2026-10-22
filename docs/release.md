@@ -1,6 +1,6 @@
 # 分享发布与复现
 
-发布形式为完整源码包，包含35个注册实验、实验卡片、机器人资源、测试、文档及14个bests归档。当前代码依赖仓库根目录的 `assets/`、`bests/`，不将独立wheel作为交付形式。
+发布形式为完整源码包，包含40个注册实验、实验卡片、机器人资源、测试、文档及17个bests归档。当前代码依赖仓库根目录的 `assets/`、`bests/`，不将独立wheel作为交付形式。
 
 ## 生成分享包
 
@@ -33,7 +33,7 @@ export MJLAB_ROOT=/实际路径/mjlab
   --frequency 0.5 --target-speed 0.3 --env.scene.num-envs 16
 ```
 
-注册数量应为35。源码入口会设置模块搜索路径，不要求先安装本项目。需要将本项目注册到外部MJLab环境时，可在该环境使用已有构建工具执行 `python -m pip install --no-deps --no-build-isolation -e .`；采用editable方式，保留完整源码树。
+注册数量应为40。源码入口会设置模块搜索路径，不要求先安装本项目。需要将本项目注册到外部MJLab环境时，可在该环境使用已有构建工具执行 `python -m pip install --no-deps --no-build-isolation -e .`；采用editable方式，保留完整源码树。
 
 原作者的 `train.sh`、`run.sh` 保留既有环境激活路径、选中实验和参数；它们不是接收方环境的自动安装脚本。跨机器优先使用上述通用入口。
 

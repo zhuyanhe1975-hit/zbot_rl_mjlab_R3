@@ -1,7 +1,7 @@
 """冻结多教师及无副作用观测适配。
 
 位置教师通过单步限速转换指导目标速度策略；执行器接口不同，不能精确复现旧步态。
-蛇形教师仅在显式启用且处于归档验证覆盖范围时指导世界+X推进。
+旧蛇形教师保留世界+X覆盖；site 蛇形归档供综合教师在原生全向指令范围内使用。
 """
 
 import math
@@ -35,6 +35,8 @@ _TEACHERS = {
 
 _SNAKE_SPEC = ("Snake-Omni-Teacher", "snake_world_x_2026-10-19_iter1499/model_1499.pt", 51, 6)
 SNAKE_CHECKPOINT = str(_ROOT / "bests" / _SNAKE_SPEC[1])
+_SNAKE_SITE_SPEC = ("Snake-Site-Omni-Teacher", "snake_site_omni_2026-10-20_iter599/model_599.pt", 56, 6)
+SNAKE_SITE_CHECKPOINT = str(_ROOT / "bests" / _SNAKE_SITE_SPEC[1])
 
 
 DEFAULT_CHECKPOINTS = {key: str(_ROOT / "bests" / spec[1]) for key, spec in _TEACHERS.items()}
@@ -48,7 +50,7 @@ def validate_teacher_selection(names: tuple[str, ...] | None) -> tuple[str, ...]
         raise ValueError("教师选择必须是非空名称序列")
     if len(set(names)) != len(names):
         raise ValueError("教师选择不能重复")
-    unknown = set(names) - {*_TEACHERS, "snake"}
+    unknown = set(names) - {*_TEACHERS, "snake", "snake_site"}
     if unknown:
         raise ValueError(f"未知教师：{sorted(unknown)}")
     return tuple(names)
@@ -97,13 +99,15 @@ class TeacherEnsemble:
         if self.device != torch.device(env.device):
             raise ValueError("教师与学生必须在同一设备，避免逐步跨设备复制")
         checkpoints = checkpoints or {}
-        all_specs = {**_TEACHERS, "snake": _SNAKE_SPEC}
+        all_specs = {**_TEACHERS, "snake": _SNAKE_SPEC, "snake_site": _SNAKE_SITE_SPEC}
         names = validate_teacher_selection(enabled_teachers)
         unknown = checkpoints.keys() - all_specs.keys()
         if unknown:
             raise ValueError(f"未知教师：{sorted(unknown)}")
         if names is None:
             names = tuple(_TEACHERS) + (("snake",) if "snake" in checkpoints else ())
+        if "snake" in names and "snake_site" in names:
+            raise ValueError("不能同时启用世界轴和 site 蛇形教师")
         disabled = checkpoints.keys() - set(names)
         if disabled:
             raise ValueError(f"检查点覆盖包含未启用教师：{sorted(disabled)}")
@@ -123,7 +127,8 @@ class TeacherEnsemble:
         # 先检查全部路径，避免漏掉教师时只加载了一部分模型。
         paths = {}
         for key in specs:
-            path = Path(checkpoints[key]).expanduser() if key in checkpoints else Path(SNAKE_CHECKPOINT if key == "snake" else DEFAULT_CHECKPOINTS[key])
+            default_path = SNAKE_CHECKPOINT if key == "snake" else SNAKE_SITE_CHECKPOINT if key == "snake_site" else DEFAULT_CHECKPOINTS[key]
+            path = Path(checkpoints[key]).expanduser() if key in checkpoints else Path(default_path)
             if not path.is_absolute():
                 path = _ROOT / path
             if not path.is_file():
@@ -136,6 +141,17 @@ class TeacherEnsemble:
             checkpoint = torch.load(paths[key], map_location=self.device, weights_only=False)
             if key == "snake":
                 self._restore_snake_recipe(cfg, checkpoint)
+            elif key == "snake_site":
+                from .archived_site_snake import (
+                    ArchivedSiteSnakeCommandCfg,
+                    ArchivedSiteSnakeTeacherRunner,
+                )
+
+                metadata = ArchivedSiteSnakeTeacherRunner._validate_checkpoint(checkpoint)
+                command_cfg = cast(ArchivedSiteSnakeCommandCfg, cfg.commands["transform"])
+                command_cfg.velocity_limits = metadata["velocity_limits"]
+                command_cfg.snake_gait_frequency = .7
+                ArchivedSiteSnakeTeacherRunner._restore_action_cfg(cfg, metadata)
             obs = TensorDict({"actor": reference.new_zeros(env.num_envs, dimension)}, batch_size=[env.num_envs])
             model = MLPModel(obs=obs, obs_groups={"actor": ["actor"]}, obs_set="actor", output_dim=outputs, hidden_dims=actor_cfg.hidden_dims, activation=actor_cfg.activation, obs_normalization=actor_cfg.obs_normalization, distribution_cfg=actor_cfg.distribution_cfg).to(self.device)
             model.load_state_dict(checkpoint["actor_state_dict"], strict=True)
@@ -260,7 +276,12 @@ class TeacherEnsemble:
         world = heading * command.velocity_command[:, :1] + lateral * command.velocity_command[:, 1:2]
         forward = walking_mdp._forward_world(env)[:, :2]
         left = torch.stack((-forward[:, 1], forward[:, 0]), -1)
-        return torch.stack(((world * forward).sum(-1), (world * left).sum(-1), command.velocity_command[:, 2]), -1)
+        # Legacy walking uses a downward-positive yaw axis. New local-reference
+        # commands use world-up yaw; transform labels into the archive convention.
+        yaw = command.velocity_command[:, 2]
+        if getattr(getattr(env, 'cfg', None), 'guided_local_reference', False):
+            yaw = -yaw
+        return torch.stack(((world * forward).sum(-1), (world * left).sum(-1), yaw), -1)
 
     def _walking_observation_state(self, velocity=None, gravity=None):
         # 仅在单次查询中共享；公开 observation 每次仍读取当前环境状态。
@@ -342,7 +363,7 @@ class TeacherEnsemble:
             target = target[env_ids]
             if limits.shape[0] != 1:
                 limits = limits[env_ids]
-        if key == "snake":
+        if key in ("snake", "snake_site"):
             teacher_target = target.clamp(-cfg.target_limit, cfg.target_limit)
             desired = (teacher_target + output.clamp(-1, 1) * cfg.max_target_speed * env.step_dt).clamp(-cfg.target_limit, cfg.target_limit)
         elif key == "transform":

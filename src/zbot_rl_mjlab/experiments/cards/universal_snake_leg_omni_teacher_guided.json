@@ -1,10 +1,11 @@
 {
   "$schema": "./schema.json",
   "schema_version": 1,
-  "title": "归档指导全能教师",
+  "title": "三教师指导全能教师",
   "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided",
   "inherits": "universal_snake_leg_omni_teacher_task_routed.json",
   "env": {
+    "guided_local_reference": true,
     "commands": {
       "transform": {
         "transition_timeout_s": 16.0,
@@ -17,9 +18,53 @@
         "guided_transition_rules": true,
         "straightening_joint_tolerance": 0.08,
         "straightening_hold_s": 0.1,
-        "retry_motion_threshold": 0.25
+        "retry_motion_threshold": 0.25,
+        "aligned_teacher_sampling": true,
+        "velocity_limits": [
+          0.5,
+          0.2,
+          0.5
+        ],
+        "biped_velocity_ranges": [
+          [
+            -0.3,
+            0.5
+          ],
+          [
+            -0.2,
+            0.2
+          ],
+          [
+            -0.5,
+            0.5
+          ]
+        ],
+        "snake_velocity_limits": [
+          0.2,
+          0.2,
+          0.5
+        ],
+        "biped_resampling_time_range": [
+          5.0,
+          10.0
+        ],
+        "snake_resampling_time_range": [
+          5.0,
+          9.0
+        ],
+        "snake_motion_axis_min_fraction": 0.4,
+        "snake_motion_stop_probability": 0.125
       }
-    }
+    },
+    "actions": {
+      "joint_pos": {
+        "target_limit": null
+      }
+    },
+    "native_biped_actions": true,
+    "mirrored_transform_actions": true,
+    "all_gaussian_actions": true,
+    "omni_frame_backend": "cuda_graph"
   },
   "rewards": {
     "$remove": [
@@ -33,6 +78,7 @@
       "guidance_tasks": [
         0,
         1,
+        2,
         3
       ],
       "teacher_checkpoints": null,
@@ -46,6 +92,18 @@
       "guidance_agreement_passes": 5,
       "guidance_decay": 0.98,
       "guidance_ema_beta": 0.9
-    }
-  }
+    },
+    "actor": {
+      "distribution_cfg": {
+        "init_std": 1.0,
+        "std_type": "scalar",
+        "rate_init_std": 0.5,
+        "$remove": [
+          "action_range"
+        ]
+      }
+    },
+    "max_iterations": 500
+  },
+  "description": "当前全能Actor统一Gaussian：任务0/1/2/3的真实动作维数6/3/6/3，变形严格镜像。冻结教师保留各自原生分布；采样和物理范围按归档对齐，观测干净单帧。 对应归档 bests/universal_three_teacher_gaussian_mirror_2026-10-22_iter499，完成500轮保存iter499。"
 }

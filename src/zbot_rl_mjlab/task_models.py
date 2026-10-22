@@ -117,3 +117,128 @@ class TaskNormalizedCritics(IndependentTaskCritics):
             if not model.obs_normalization:
                 raise ValueError('TaskNormalizedCritics requires obs_normalization=True')
             model.add_module("obs_normalizer", EmpiricalTaskNormalization(56))
+
+
+class OneHotTaskEncoding(nn.Module):
+    """Replace the raw task code by four categories and a recovery residual.
+
+    Normalization and FSM routing still consume the 56-feature observation. Only
+    the trainable MLP consumes these 60 features; morphology remains unchanged.
+    The existing ascent recovery code 3.25 retains its observable .25 residual.
+    """
+
+    def forward(self, raw: torch.Tensor) -> torch.Tensor:
+        code = raw[:, 39:40]
+        task = code.round()
+        categorical = torch.nn.functional.one_hot(task.squeeze(-1).long(), 4).to(raw.dtype)
+        return torch.cat((raw[:, :39], categorical, code - task, raw[:, 40:]), dim=-1)
+
+
+class OneHotRoutedTaskNormalizedMLP(RoutedTaskNormalizedMLP):
+    """Independent actor heads with categorical task features before every MLP."""
+
+    def _get_latent_dim(self) -> int:
+        # MLPModel constructs and initializes the appropriately sized RSL-RL MLP.
+        return 60
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        routed = cast(TaskRoutedNetwork, self.mlp)
+        routed.heads = nn.ModuleList([
+            nn.Sequential(OneHotTaskEncoding(), head) for head in routed.heads
+        ])
+
+
+class _OneHotTaskNormalizedMLP(TaskNormalizedMLP):
+    """RSL-RL scalar critic with raw moments and encoded trainable inputs."""
+
+    def _get_latent_dim(self) -> int:
+        return 60
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.mlp = nn.Sequential(OneHotTaskEncoding(), self.mlp)
+
+
+class OneHotTaskNormalizedCritics(TaskNormalizedCritics):
+    """Independent task critics using the same categorical features as the actor."""
+
+    def __init__(
+        self, obs: Any, obs_groups: dict[str, list[str]], obs_set: str,
+        output_dim: int, **kwargs: Any,
+    ) -> None:
+        super().__init__(obs, obs_groups, obs_set, output_dim, **kwargs)
+        self.critics = nn.ModuleList([
+            _OneHotTaskNormalizedMLP(obs, obs_groups, obs_set, output_dim, **kwargs)
+            for _ in self.critics
+        ])
+
+
+class LocalFrameTaskNormalization(EmpiricalTaskNormalization):
+    """Keep the circular heading raw until its sine/cosine encoding.
+
+    Moment updates retain the historical 56-feature, per-task layout. Heading
+    moments are recorded for compatibility but never applied to the angle.
+    """
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        tasks = x[:, 39].round().long()
+        normalized = (x - self._mean[tasks]) / (self._std[tasks] + self.eps)
+        return torch.cat((
+            normalized[:, :38], x[:, 38:40], normalized[:, 40:46],
+            x[:, 46:47], normalized[:, 47:],
+        ), dim=-1)
+
+
+class LocalFrameTaskEncoding(OneHotTaskEncoding):
+    """Categorical task features plus a continuous circular heading pair."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.task_encoding = OneHotTaskEncoding()
+
+    def forward(self, raw: torch.Tensor) -> torch.Tensor:
+        encoded = self.task_encoding(raw)
+        heading = raw[:, 46:47]
+        return torch.cat((encoded[:, :50], heading.sin(), heading.cos(), encoded[:, 51:]), dim=-1)
+
+
+class LocalFrameRoutedTaskNormalizedMLP(RoutedTaskNormalizedMLP):
+    """Versioned local-frame actor with raw56 input and 61 trainable features."""
+
+    def _get_latent_dim(self) -> int:
+        return 61
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.obs_normalizer = LocalFrameTaskNormalization(self.obs_dim)
+        routed = cast(TaskRoutedNetwork, self.mlp)
+        routed.heads = nn.ModuleList([
+            nn.Sequential(LocalFrameTaskEncoding(), head) for head in routed.heads
+        ])
+
+
+class _LocalFrameTaskNormalizedMLP(TaskNormalizedMLP):
+    """Scalar critic with raw heading preservation and circular encoding."""
+
+    def _get_latent_dim(self) -> int:
+        return 61
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.obs_normalizer = LocalFrameTaskNormalization(self.obs_dim)
+        self.mlp = nn.Sequential(LocalFrameTaskEncoding(), self.mlp)
+
+
+class LocalFrameTaskNormalizedCritics(TaskNormalizedCritics):
+    """Independent task critics matching the local-frame actor encoding."""
+
+    def __init__(
+        self, obs: Any, obs_groups: dict[str, list[str]], obs_set: str,
+        output_dim: int, **kwargs: Any,
+    ) -> None:
+        super().__init__(obs, obs_groups, obs_set, output_dim, **kwargs)
+        self.critics = nn.ModuleList([
+            _LocalFrameTaskNormalizedMLP(obs, obs_groups, obs_set, output_dim, **kwargs)
+            for _ in self.critics
+        ])

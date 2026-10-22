@@ -9,6 +9,9 @@ PROJECT_DIR="$(dirname "$BESTS_DIR")"
 
 task_of() {
   case "$1" in
+    universal_student_disturbed_*) echo "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-Disturbed" ;;
+    universal_student_clean_*) echo "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student" ;;
+    universal_three_teacher_gaussian_mirror_*) echo "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided" ;;
     velocity_frequency_tracking_*) echo "Mjlab-Zbot-6dof-Velocity-Frequency-Tracking-Walking" ;;
     periodic_stepping_*) echo "Mjlab-Zbot-6dof-Periodic-Stepping" ;;
     snake_site_omni_*) echo "Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher" ;;

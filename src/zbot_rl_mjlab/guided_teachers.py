@@ -1,7 +1,7 @@
 """Frozen archival guidance for privileged task PPO; legacy adapters stay unchanged.
 
-Optional historical snake guidance rotates a read-only data view into its task-
-entry heading. This is forward-only coverage; it is disabled by default.
+The optional site snake uses its native 56D Beta contract for signed commands.
+Historical world-X snake guidance remains a separate forward-only opt-in.
 """
 
 import math
@@ -43,10 +43,14 @@ def _forward_covered(value):
 
 
 class GuidedTeacherEnsemble(TeacherEnsemble):
-    """Task-matched omni walking, transformation and forward snake guidance."""
+    """Task-matched omni walking, transformation and optional snake guidance."""
 
-    def __init__(self, env, device=None, checkpoints=None, include_omni=True, include_snake=False):
-        names = (('omni',) if include_omni else ()) + ('transform',) + (('snake',) if include_snake else ())
+    def __init__(self, env, device=None, checkpoints=None, include_omni=True, include_snake=False, include_site_snake=False):
+        if include_snake and include_site_snake:
+            raise ValueError('cannot enable both historical and site snake teachers')
+        names = ((('omni',) if include_omni else ()) + ('transform',)
+                 + (('snake',) if include_snake else ())
+                 + (('snake_site',) if include_site_snake else ()))
         super().__init__(env, device, checkpoints, enabled_teachers=names)
         if not include_snake:
             return
@@ -58,9 +62,76 @@ class GuidedTeacherEnsemble(TeacherEnsemble):
         self._guided_heading[:, 0] = 1.
         self._guided_stamp = None
 
+    def _site_snake_observation(self):
+        """Run the restored 56D recipe on an isolated native snake command view."""
+        from .tasks.universal.omni import site_heading
+        from .tasks.universal.privileged import privileged_state
+
+        env = self.env
+        command = env.command_manager.get_term('transform')
+        cfg = self.configs['snake_site']
+        if not hasattr(self, '_site_proxy'):
+            n, reference = env.num_envs, env.scene['robot'].data.joint_pos
+            self._site_command = SimpleNamespace(
+                cfg=cfg.commands['transform'], teacher_cfg=cfg.commands['transform'],
+                standing_mode=torch.zeros(n, device=self.device, dtype=torch.bool),
+                current_morphology=torch.full((n,), -1, device=self.device, dtype=torch.long),
+                current_task=torch.full((n,), 2, device=self.device, dtype=torch.long),
+                phase=torch.full((n,), 2, device=self.device, dtype=torch.long),
+                command=reference.new_full((n, 1), -1.),
+                gait_frequency=reference.new_full((n,), cfg.commands['transform'].snake_gait_frequency),
+                heading=reference.new_tensor((1., 0.)).expand(n, 2).clone(),
+                initial_heading=reference.new_tensor((1., 0.)).expand(n, 2).clone(),
+                heading_initialized=torch.zeros(n, device=self.device, dtype=torch.bool),
+            )
+            self._site_proxy = SimpleNamespace()
+            self._site_episode = torch.full_like(env.episode_length_buf, -1)
+            self._site_task = torch.full_like(command.current_task, -1)
+            self._site_stamp = None
+        native, proxy = self._site_command, self._site_proxy
+        stamp = (env.common_step_counter, getattr(env, '_observation_generation', 0))
+        fresh = ((env.episode_length_buf < self._site_episode) | (self._site_episode < 0)
+                 | (command.current_task != self._site_task))
+        if stamp != self._site_stamp:
+            fresh |= (env.episode_length_buf == 0) & (self._site_episode == 0)
+        native.heading_initialized[fresh] = False
+        self._site_episode.copy_(env.episode_length_buf)
+        self._site_task.copy_(command.current_task)
+        self._site_stamp = stamp
+        proxy.cfg, proxy.scene, proxy.sim = cfg, env.scene, env.sim
+        proxy.device, proxy.num_envs, proxy.step_dt = env.device, env.num_envs, env.step_dt
+        proxy.common_step_counter, proxy.episode_length_buf = env.common_step_counter, env.episode_length_buf
+        proxy.command_manager = SimpleNamespace(get_term=lambda name: native)
+        action = env.action_manager.get_term('joint_pos')
+        native_action = SimpleNamespace(
+            commanded_target=action.commanded_target,
+            raw_action=(action.raw_action * action.rate_cfg.max_target_speed
+                        / cfg.actions['joint_pos'].max_target_speed).clamp(-1, 1),
+        )
+        proxy.action_manager = SimpleNamespace(get_term=lambda name: native_action)
+        heading = site_heading(proxy)
+        source = command.heading / command.heading.norm(dim=-1, keepdim=True).clamp_min(1e-6)
+        left = torch.stack((-source[:, 1], source[:, 0]), -1)
+        native_left = torch.stack((-heading[:, 1], heading[:, 0]), -1)
+
+        def in_site_frame(value):
+            world = source * value[:, :1] + left * value[:, 1:2]
+            return torch.stack(((world * heading).sum(-1), (world * native_left).sum(-1), value[:, 2]), -1)
+
+        native.velocity_command = in_site_frame(command.velocity_command)
+        native.requested_velocity = in_site_frame(command.requested_velocity)
+        return privileged_state(proxy)
+
     def _convert(self, key, output, env_ids=None):
+        if key == 'transform' and getattr(getattr(self.env, 'cfg', None), 'mirrored_transform_actions', False):
+            source_speed = self.configs['transform'].actions['joint_pos'].max_target_speed
+            target_speed = self.env.action_manager.get_term('joint_pos').rate_cfg.max_target_speed
+            return expand_mirror(output * source_speed / target_speed)
         if key != 'omni':
             return super()._convert(key, output, env_ids=env_ids)
+        if getattr(getattr(self.env, 'cfg', None), 'native_biped_actions', False):
+            # Both policies now use the archived Gaussian position action itself.
+            return output
         action = self.env.action_manager.get_term('joint_pos')
         residual_scale = getattr(action.rate_cfg, 'biped_residual_scale', None)
         if residual_scale is None or not math.isfinite(residual_scale) or residual_scale <= 0:
@@ -224,12 +295,37 @@ class GuidedTeacherEnsemble(TeacherEnsemble):
                              & (snake_mdp.body_yaw_abs_deviation(proxy) < cfg.body_yaw_limit)
                              & (data.joint_pos.abs().amax(-1) <= limit + .1)
                              & (action.commanded_target.abs().amax(-1) <= limit))
+        site_observation = None
+        if 'snake_site' in self.models:
+            from .tasks.snake.site_omni import site_height, site_tilt
+
+            site_observation = self._site_snake_observation()
+            proxy, cfg = self._site_proxy, self.configs['snake_site']
+            limits = data.joint_pos.new_tensor(cfg.commands['transform'].velocity_limits)
+            native = self._site_command
+            frequency = command.gait_frequency
+            valid_command = (torch.isfinite(command.heading).all(-1)
+                             & (command.heading.norm(dim=-1) > .1)
+                             & torch.isfinite(frequency)
+                             & ((frequency - cfg.commands['transform'].snake_gait_frequency).abs() < 1e-6))
+            for velocity in (native.velocity_command, native.requested_velocity):
+                valid_command &= (torch.isfinite(velocity).all(-1)
+                                  & (velocity.abs() <= limits + 1e-6).all(-1))
+            limit = cfg.actions['joint_pos'].target_limit
+            masks['snake_site'] = ((tasks == 2) & ~command.standing_mode & ~command.transition_mask
+                                   & valid_command & (height < .12) & (site_height(proxy) < .12)
+                                   & (site_tilt(proxy) <= cfg.site_tilt_limit)
+                                   & (data.joint_pos.abs().amax(-1) <= limit + .1)
+                                   & (action.commanded_target.abs().amax(-1) <= limit))
         # actor_state sanitizes invalid values; independently reject invalid physics.
         for name in ('body_link_quat_w', 'body_link_pos_w', 'body_link_lin_vel_w',
                      'body_link_ang_vel_w', 'site_pos_w', 'site_quat_w'):
             finite_state &= torch.isfinite(getattr(data, name)).flatten(1).all(-1)
         if 'snake' in self.models:
             finite_state &= torch.isfinite(data.body_com_lin_vel_w).flatten(1).all(-1)
+        if 'snake_site' in self.models:
+            for name in ('body_com_lin_vel_w', 'body_com_pos_w', 'site_lin_vel_w', 'site_ang_vel_w'):
+                finite_state &= torch.isfinite(getattr(data, name)).flatten(1).all(-1)
         result = action.commanded_target.new_zeros(env.num_envs, 6)
         weights = result.new_zeros(env.num_envs)
         ids = torch.full((env.num_envs,), -1, device=self.device, dtype=torch.long)
@@ -242,7 +338,8 @@ class GuidedTeacherEnsemble(TeacherEnsemble):
             counts[name] = 0
             if not selected.numel():
                 continue
-            values = observation if name == 'snake' else self.observation(name)
+            values = (observation if name == 'snake' else site_observation
+                      if name == 'snake_site' else self.observation(name))
             assert values is not None
             inputs = TensorDict({'actor': values[selected]}, batch_size=[selected.numel()])
             output = self.models[name](inputs, stochastic_output=False)
@@ -258,6 +355,8 @@ class GuidedTeacherEnsemble(TeacherEnsemble):
                 torch.zeros_like(action.commanded_target), action.commanded_target,
                 action._target_limits(), env.step_dt, action.rate_cfg.max_target_speed,
             )
+            if getattr(getattr(env, 'cfg', None), 'mirrored_transform_actions', False):
+                corrective_rates = expand_mirror(project_mirror(corrective_rates))
             recovering &= torch.isfinite(corrective_rates).all(-1)
             result[recovering] = corrective_rates[recovering]
             weights[recovering] = 1.

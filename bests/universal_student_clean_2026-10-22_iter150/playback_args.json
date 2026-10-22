@@ -1,0 +1,6 @@
+[
+  "--env.scene.num-envs",
+  "1",
+  "--env.events.base-disturbance.params.disturbed-fraction",
+  "0.0"
+]

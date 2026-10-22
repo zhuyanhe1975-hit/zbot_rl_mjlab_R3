@@ -1,0 +1,43 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "全能学生PPO v3：方向进展、全任务保留与验证保护",
+  "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-PPO-V3",
+  "inherits": "universal_snake_leg_omni_student_ppo_v2.json",
+  "description": "独立可复现实验：同一150代弱学生冷启动，四任务常数参考、按实际帧数平衡优势、双足/蛇形正负方向采样和有符号速度进展；保留v2变形代价与严格验收。只验证改进假设，不代表基线已具备蛇形平移能力。",
+  "agent": {
+    "experiment_name": "zbot_universal_snake_leg_omni_student_ppo_v3",
+    "max_iterations": 300,
+    "run_name": "student150_ppo_v3",
+    "algorithm": {
+      "learning_rate": 1e-5,
+      "critic_warmup_iterations": 20,
+      "reference_tasks": [0, 1, 2, 3],
+      "reference_start_coef": 0.2,
+      "reference_floor_coef": 0.2,
+      "task_balanced_advantages": true
+    },
+    "validation_interval_iterations": 10,
+    "validation_selection_enabled": true,
+    "validation_regression_tolerance": 0.25,
+    "validation_regression_patience": 3,
+    "save_interval": 10
+  },
+  "env": {
+    "commands": {
+      "transform": {
+        "balanced_motion_commands": true,
+        "snake_command_initial_scale": 1.0,
+        "snake_command_ramp_iterations": 0
+      }
+    }
+  },
+  "rewards": {
+    "velocity_tracking": {
+      "weight": 1.0,
+      "params": {
+        "$remove": ["axis_weights"]
+      }
+    }
+  }
+}

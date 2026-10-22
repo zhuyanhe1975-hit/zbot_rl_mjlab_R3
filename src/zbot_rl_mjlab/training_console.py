@@ -140,6 +140,13 @@ def install_compact_logging(logger: Any, *, rewards_only: bool = False) -> None:
             (f"[{run}] {values['it']}/{values['total_it']} | "
              f"{fps:,} steps/s | collect {collect:.3f}s learn {learn:.3f}s")
         ]
+        if 'student_ppo_critic_warmup' in losses:
+            phase = 'Critic warmup' if losses['student_ppo_critic_warmup'] else 'PPO'
+            lines.append(f"student phase {phase} | updates {losses['student_ppo_completed_updates']:.0f}")
+            if 'student_ppo_reference_coefficient' in losses:
+                lines.append(f"student reference coef {losses['student_ppo_reference_coefficient']:.4f} | "
+                             f"KL biped {losses.get('student_ppo_reference_task0_kl', 0):.4f} "
+                             f"snake {losses.get('student_ppo_reference_task2_kl', 0):.4f}")
         if "distillation_warmup" in losses:
             phase = "warmup" if losses["distillation_warmup"] else "PPO"
             lines.append(
@@ -153,6 +160,30 @@ def install_compact_logging(logger: Any, *, rewards_only: bool = False) -> None:
                 for task, label in (('descent', 'down'), ('snake_motion', 'snake'), ('ascent', 'up'))
             )
             lines.append(f"guide {losses['guidance']:.4f} | labels {biped}{counts}")
+        if 'dagger_teacher_beta' in losses:
+            lines.append(
+                f"DAgger teacher {losses['dagger_teacher_fraction']:.0%} "
+                f"(beta {losses['dagger_teacher_beta']:.2f}) | "
+                f"updates {losses['dagger_optimizer_steps']:.0f} | "
+                f"rows {losses['dagger_supervised_rows']:.0f} | "
+                f"anchor {losses['dagger_anchor_samples']:.0f}"
+            )
+            for task in ('biped', 'descending', 'snake', 'ascending'):
+                prefix = f'task_{task}_'
+                rate = losses.get(prefix + 'reward_rate')
+                duration = losses.get(prefix + 'mean_episode_s')
+                rate_text = '--' if rate is None else f'{rate:.3f}'
+                duration_text = '--' if duration is None else f'{duration:.2f}s'
+                lines.append(
+                    f"{task}: mse {losses[f'dagger_{task}_mse']:.4f} | "
+                    f"reward/s {rate_text} | episode {duration_text} | "
+                    f"success {losses.get(prefix + 'success_count', 0):.0f} | "
+                    f"falls {losses.get(prefix + 'biped_fallen_count', 0):.0f} | "
+                    f"unsafe {losses.get(prefix + 'unsafe_count', 0):.0f} | "
+                    f"timeout {losses.get(prefix + 'time_out_count', 0):.0f}"
+                )
+            print('\n'.join(lines))
+            return result
         reward = f"{statistics.mean(logger.rewbuffer):.2f}" if logger.rewbuffer else "--"
         length = f"{statistics.mean(logger.lenbuffer):.1f}" if logger.lenbuffer else "--"
         if 'rollout_reward_rate' in losses:
@@ -205,8 +236,13 @@ def install_compact_logging(logger: Any, *, rewards_only: bool = False) -> None:
             )
             lines.append('validation ' + ' '.join(groups) + f' transform={transitions}/2')
         else:
+            if 'validation_biped_moving_success' in losses:
+                lines.append(f"student validation biped {losses['validation_biped_moving_success']:.0%} "
+                             f"snake {losses['validation_snake_moving_success']:.0%} | "
+                             f"down/up handoff {losses['validation_descent_handoff_fraction']:.0%}/"
+                             f"{losses['validation_ascent_handoff_fraction']:.0%}")
             successes = [f"{key.removesuffix('_success')}={value:.0%}" for key, value in losses.items()
-                         if key.endswith("_success") and not key.startswith("robust_")]
+                         if key.endswith("_success") and not key.startswith(("robust_", "validation_"))]
             if successes:
                 lines.append("validation " + " ".join(successes))
         print("\n".join(lines))

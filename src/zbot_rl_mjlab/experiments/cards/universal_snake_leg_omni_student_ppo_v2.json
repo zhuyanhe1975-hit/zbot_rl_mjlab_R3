@@ -1,0 +1,127 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "全能学生PPO v2：切换收敛与运动保留",
+  "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-PPO",
+  "inherits": "universal_snake_leg_omni_student.json",
+  "description": "从150代DAgger学生重开PPO v2：训练/回放统一滞回归直判据、变形末段收敛与超速代价、运动分支学生参考约束、平衡蛇形课程及周期独立验收；教师不加载或更新，长训由用户启动。",
+  "agent": {
+    "max_iterations": 500,
+    "resume": false,
+    "run_name": "student150_ppo_v2",
+    "initial_student_checkpoint": "logs/rsl_rl_universal_student_v2/zbot_universal_snake_leg_omni_student/2026-10-22_13-45-40_universal_teacher_dagger_v2/model_150.pt",
+    "initial_student_sha256": "63946c079786be56835dcb3b0ad046248d145175b00ed4c7cbed84969b4ef022",
+    "algorithm": {
+      "$remove": [
+        "teacher_checkpoint",
+        "teacher_sha256",
+        "dagger_updates",
+        "dagger_epochs",
+        "dagger_batch_size",
+        "teacher_warmup_iterations",
+        "teacher_mix_iterations",
+        "dagger_anchor_fraction",
+        "dagger_anchor_max_samples_per_task",
+        "dagger_max_samples_per_task",
+        "dagger_replay_iterations"
+      ],
+      "learning_rate": 3e-05,
+      "schedule": "fixed",
+      "clip_param": 0.1,
+      "entropy_coef": 0.0,
+      "critic_warmup_iterations": 10,
+      "reference_tasks": [
+        0,
+        2
+      ],
+      "reference_start_coef": 0.05,
+      "reference_floor_coef": 0.005,
+      "reference_decay_iterations": 200,
+      "reference_batch_size": 1024,
+      "reference_learning_rate": 0.001
+    },
+    "actor": {
+      "distribution_cfg": {
+        "init_std": 0.1,
+        "rate_init_std": 0.1,
+        "learn_std": false
+      }
+    },
+    "$remove": [
+      "robust_validation_interval"
+    ],
+    "save_interval": 25,
+    "validation_interval_iterations": 25,
+    "validation_num_envs": 80,
+    "validation_seconds": 8.0
+  },
+  "env": {
+    "play_transition_sync": true,
+    "student_ppo_completion_gate": true,
+    "completion_enter_tolerance": 0.15,
+    "completion_exit_tolerance": 0.2,
+    "student_post_transition_seconds": 3.0,
+    "student_continuation_fraction": 0.5,
+    "commands": {
+      "transform": {
+        "snake_single_axis_iterations": 20,
+        "snake_two_axis_iterations": 20,
+        "snake_command_initial_scale": 0.5,
+        "snake_command_ramp_iterations": 100
+      }
+    }
+  },
+  "rewards": {
+    "$remove": [
+      "descent_ground_impact"
+    ],
+    "base_ascent_velocity": {
+      "params": {
+        "target_speed": 0.1
+      }
+    },
+    "transition_joint_overspeed": {
+      "weight": -1.0,
+      "params": {
+        "ascent_limit": 3.0,
+        "descent_limit": 2.5
+      }
+    },
+    "transition_settle_target": {
+      "weight": -0.5,
+      "params": {
+        "angle_scale": 0.15,
+        "near_ground_height": 0.12,
+        "near_goal_error": 0.35
+      }
+    },
+    "transition_settle_speed": {
+      "weight": -0.1,
+      "params": {
+        "speed_scale": 0.5,
+        "near_ground_height": 0.12,
+        "near_goal_error": 0.35
+      }
+    },
+    "transition_settle_action": {
+      "weight": -0.1,
+      "params": {
+        "near_ground_height": 0.12,
+        "near_goal_error": 0.35
+      }
+    },
+    "transition_descent_speed": {
+      "weight": -0.5,
+      "params": {
+        "max_down_speed": 0.1,
+        "approach_height": 0.15
+      }
+    },
+    "transition_ground_impact": {
+      "weight": -2.0,
+      "params": {
+        "max_body_weights": 2.0
+      }
+    }
+  }
+}

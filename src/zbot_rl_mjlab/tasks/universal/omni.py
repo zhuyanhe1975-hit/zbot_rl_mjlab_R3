@@ -1,5 +1,6 @@
 """Site-frame omnidirectional locomotion, isolated from archived teacher semantics."""
 from dataclasses import dataclass
+from typing import cast
 
 import torch
 from mjlab.utils.lab_api.math import quat_apply, quat_mul
@@ -77,9 +78,57 @@ def packed_frame_step(packed):
     return torch.cat((heading, initial, initialized[:, None].to(packed.dtype)), -1)
 
 
-def site_heading(env):
-    """Site +X (biped) or -Z (snake), projected to the gravity-aligned plane.
+def guided_snake_mask(env):
+    """Only stable snake locomotion uses the head; transformations use BASE."""
+    from .privileged import PrivilegedOmniCommand
 
+    return cast(PrivilegedOmniCommand, mdp.command_term(env)).current_task == 2
+
+
+def guided_reference_state(env):
+    """Selected BASE / foot_0 site orientation and point velocities in world axes."""
+    data, base = transform._base(env)
+    site = motion_site_index(env)
+    snake = guided_snake_mask(env)[:, None]
+    return tuple(torch.where(snake, head, body) for head, body in (
+        (data.site_quat_w[:, site], data.body_link_quat_w[:, base]),
+        (data.site_lin_vel_w[:, site], data.body_link_lin_vel_w[:, base]),
+        (data.site_ang_vel_w[:, site], data.body_link_ang_vel_w[:, base]),
+    ))
+
+
+def packed_guided_frame_step(packed):
+    """Pure N×14 -> N×5 Guided frame kernel, also used by CUDA capture.
+
+    Input: base quaternion4, site quaternion4, snake1, previous heading2,
+    initialized1, initial heading2. BASE forward is gravity × local +Z;
+    the snake forward is site local -Z. Both are horizontal projections.
+    """
+    base_quat, site_quat = packed[:, :4], packed[:, 4:8]
+    snake = packed[:, 8] > 0
+    base_z = quat_apply(base_quat, constant(packed, (0., 0., 1.)).expand(len(packed), -1))
+    base_forward = torch.stack((base_z[:, 1], -base_z[:, 0]), -1)
+    head_forward = -quat_apply(site_quat, constant(packed, (0., 0., 1.)).expand(len(packed), -1))[:, :2]
+    projected = torch.where(snake[:, None], head_forward, base_forward)
+    selected = torch.where(snake[:, None], site_quat, base_quat)
+    alternate = quat_apply(selected, constant(packed, (1., 0., 0.)).expand(len(packed), -1))[:, :2]
+    norm = projected.norm(dim=-1, keepdim=True)
+    alternate_norm = alternate.norm(dim=-1, keepdim=True)
+    valid = torch.isfinite(projected).all(-1) & (norm[:, 0] > .15)
+    initialized = packed[:, 11] > 0
+    fallback = ~initialized & ~valid & torch.isfinite(alternate).all(-1) & (alternate_norm[:, 0] > .15)
+    current = torch.nan_to_num(projected / norm.clamp_min(1e-6))
+    alternate = torch.nan_to_num(alternate / alternate_norm.clamp_min(1e-6))
+    heading = torch.where(valid[:, None], current, torch.where(fallback[:, None], alternate, packed[:, 9:11]))
+    initial = torch.where((~initialized & (valid | fallback))[:, None], heading, packed[:, 12:14])
+    return torch.cat((heading, initial, (initialized | valid | fallback)[:, None].to(packed.dtype)), -1)
+
+
+def site_heading(env):
+    """Horizontal heading, with a scoped BASE/head convention for Guided.
+
+    Legacy experiments use site +X (biped) or -Z (snake). Guided uses BASE
+    gravity × +Z for walking/transformations and site -Z for snake motion.
     Retain the previous heading for a vertical primary axis; first use falls
     back to the other site axis. The optional graph captures only pure math.
     """
@@ -88,7 +137,20 @@ def site_heading(env):
     if backend not in ('eager', 'cuda_graph'):
         raise ValueError("omni_frame_backend must be 'eager' or 'cuda_graph'")
     quat = env.scene['robot'].data.site_quat_w[:, motion_site_index(env)]
-    if backend == 'cuda_graph':
+    if getattr(getattr(env, 'cfg', None), 'guided_local_reference', False):
+        data, base = transform._base(env)
+        packed = torch.cat((data.body_link_quat_w[:, base], quat,
+                            guided_snake_mask(env)[:, None].to(quat.dtype), term.heading,
+                            term.heading_initialized[:, None].to(quat.dtype), term.initial_heading), -1)
+        if backend == 'cuda_graph':
+            from ...cuda_graph import FixedTensorGraph
+            if not hasattr(env, '_guided_frame_graph'):
+                env._guided_frame_graph = FixedTensorGraph(packed_guided_frame_step, packed)
+            result = env._guided_frame_graph(packed)
+        else:
+            result = packed_guided_frame_step(packed)
+        heading, initial, initialized = result[:, :2], result[:, 2:4], result[:, 4] > 0
+    elif backend == 'cuda_graph':
         from ...cuda_graph import FixedTensorGraph
         packed = torch.cat((quat, term.command[:, :1], term.heading,
                             term.heading_initialized[:, None].to(quat.dtype), term.initial_heading), -1)
@@ -110,12 +172,17 @@ def site_heading(env):
 def _project_velocity(env, linear):
     forward = site_heading(env)
     lateral = torch.stack((-forward[:, 1], forward[:, 0]), -1)
-    yaw = env.scene['robot'].data.site_ang_vel_w[:, motion_site_index(env), 2]
+    if getattr(getattr(env, 'cfg', None), 'guided_local_reference', False):
+        yaw = guided_reference_state(env)[2][:, 2]
+    else:
+        yaw = env.scene['robot'].data.site_ang_vel_w[:, motion_site_index(env), 2]
     return torch.stack(((linear[..., :2] * forward).sum(-1), (linear[..., :2] * lateral).sum(-1), yaw), -1)
 
 
 def tracking_velocity(env):
-    """COM translation prevents head-wiggling rewards; yaw is site angular velocity."""
+    """Legacy COM tracking, or selected BASE/head point tracking for Guided."""
+    if getattr(getattr(env, 'cfg', None), 'guided_local_reference', False):
+        return site_velocity(env)
     data = env.scene['robot'].data
     masses = transform.body_masses(env)
     linear = (data.body_com_lin_vel_w * masses[..., None]).sum(-2)
@@ -124,8 +191,10 @@ def tracking_velocity(env):
 
 
 def site_velocity(env):
-    """Actual site velocity for observation/diagnostics, distinct from COM tracking."""
-    return _project_velocity(env, env.scene['robot'].data.site_lin_vel_w[:, motion_site_index(env)])
+    """Legacy site velocity, or selected BASE/head point velocity for Guided."""
+    linear = (guided_reference_state(env)[1] if getattr(getattr(env, 'cfg', None), 'guided_local_reference', False)
+              else env.scene['robot'].data.site_lin_vel_w[:, motion_site_index(env)])
+    return _project_velocity(env, linear)
 
 
 def reset_omni(env, env_ids):

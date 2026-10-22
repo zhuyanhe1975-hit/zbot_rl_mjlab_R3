@@ -145,7 +145,7 @@ class SnakeVelocityCommand(CommandTerm):
         pass
 
     def _debug_vis_impl(self, visualizer):
-        """运动site原点显示平滑后的指令：蓝色平移、橙色偏航（向上为正）。"""
+        """Show commands and optional measured motion at the active reference point."""
         from .mdp import (
             motion_axes,
             motion_site_index,
@@ -157,7 +157,14 @@ class SnakeVelocityCommand(CommandTerm):
             indices = [visualizer.env_idx] if visualizer.env_idx in indices else []
         if not indices:
             return
-        origins = self._env.scene["robot"].data.site_pos_w[:, motion_site_index(self._env)]
+        robot = self._env.scene["robot"]
+        origins = robot.data.site_pos_w[:, motion_site_index(self._env)]
+        if getattr(self._env.cfg, 'guided_local_reference', False):
+            from ..universal.omni import guided_snake_mask
+
+            base = robot.find_bodies('base')[0][0]
+            origins = torch.where(guided_snake_mask(self._env)[:, None], origins,
+                                  robot.data.body_link_pos_w[:, base])
         height = getattr(self._env.cfg, 'command_visual_height', 0.)
         if height:
             origins = origins + origins.new_tensor((0., 0., height))

@@ -21,6 +21,10 @@ from ..task_teacher import (
 )
 from ..tasks.universal import teacher_rewards, teacher_snake_rewards, teacher_transition
 from ..tasks.universal.actions import SnakeCrawlJointTargetRateActionCfg
+from ..tasks.universal.guided_observations import (
+    GuidedTeacherEnvCfg,
+    local_reference_privileged_state,
+)
 from ..tasks.universal.guided_rewards import (
     guided_action_rate,
     guided_joint_energy,
@@ -28,10 +32,9 @@ from ..tasks.universal.guided_rewards import (
 )
 from ..tasks.universal.guided_transitions import (
     GuidedOmniCommandCfg,
-    GuidedTransitionActionCfg,
-    guided_privileged_state,
     guided_transition_failure,
 )
+from ..tasks.universal.native_actions import NativeGuidedTransitionActionCfg
 from ..tasks.universal.omni import reset_omni
 from ..tasks.universal.privileged import (
     PrivilegedOmniCommandCfg,
@@ -98,6 +101,10 @@ def routed_task_teacher_ppo_cfg() -> OmniTeacherRunnerCfg:
 
 def guided_teacher_ppo_cfg() -> GuidedTeacherRunnerCfg:
     baseline = routed_task_teacher_ppo_cfg()
+    baseline.actor.class_name = 'zbot_rl_mjlab.gaussian_action_models:GaussianActionRoutedTaskNormalizedMLP'
+    baseline.actor.distribution_cfg = {'class_name': 'zbot_rl_mjlab.gaussian_action_models:GaussianTaskDistribution',
+                                       'init_std': 1.0, 'std_type': 'scalar', 'rate_init_std': .5}
+    baseline.critic.class_name = 'zbot_rl_mjlab.task_models:LocalFrameTaskNormalizedCritics'
     algorithm = GuidedTaskPpoCfg(**(asdict(baseline.algorithm) | {
         'class_name': 'zbot_rl_mjlab.guided_ppo:GuidedTaskPPO',
     }))
@@ -299,6 +306,9 @@ class SnakeLegOmniGuidedTeacher(SnakeLegOmniTaskRoutedTeacher):
     experiment_name = 'zbot_universal_snake_leg_omni_teacher_guided'
     runner_cls = GuidedTeacherRunner
 
+    def create_env(self, play=False):
+        return universal_env_cfg(play=play, cfg_cls=GuidedTeacherEnvCfg)
+
     def _build_ppo(self):
         cfg = guided_teacher_ppo_cfg()
         cfg.experiment_name = self.experiment_name
@@ -307,6 +317,10 @@ class SnakeLegOmniGuidedTeacher(SnakeLegOmniTaskRoutedTeacher):
         return cfg
 
     def edit(self, cfg, play):
+        cfg.command_visual_actual_velocity = play
+        cfg.play_transition_sync = play
+        # Native transformation archive leaves interior joints at physical limits.
+        cfg.actions['joint_pos'].target_limit = None
         command = cfg.commands['transform']
         assert isinstance(command, PrivilegedOmniCommandCfg)
         # Give both transformations the same frame allocation as locomotion.
@@ -320,7 +334,7 @@ class SnakeLegOmniGuidedTeacher(SnakeLegOmniTaskRoutedTeacher):
         cfg.rewards['action_rate'].func = guided_action_rate
         cfg.rewards['standstill'].func = guided_standstill
         cfg.commands['transform'] = GuidedOmniCommandCfg(**asdict(command))
-        cfg.actions['joint_pos'] = GuidedTransitionActionCfg(**asdict(cfg.actions['joint_pos']))
-        cfg.observations['actor'].terms['privileged'].func = guided_privileged_state
+        cfg.actions['joint_pos'] = NativeGuidedTransitionActionCfg(**asdict(cfg.actions['joint_pos']))
+        cfg.observations['actor'].terms['privileged'].func = local_reference_privileged_state
         if not play:
             cfg.terminations['transition_failure'].func = guided_transition_failure

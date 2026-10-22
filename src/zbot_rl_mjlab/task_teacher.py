@@ -60,11 +60,14 @@ class TaskTeacherRunner(OmniTeacherRunner):
 class RoutedTaskTeacherRunner(TaskTeacherRunner):
     """One task-routed actor with four branches and task-specific input statistics."""
 
+    model_class_pairs = ((RoutedTaskNormalizedMLP, TaskNormalizedCritics),)
+
     def __init__(self, env, train_cfg, log_dir=None, device='cpu'):
-        for key, model in (('actor', RoutedTaskNormalizedMLP), ('critic', TaskNormalizedCritics)):
-            expected_class_name = f'{model.__module__}:{model.__name__}'
-            if train_cfg[key]['class_name'] != expected_class_name or not train_cfg[key].get('obs_normalization'):
-                raise ValueError(f'routed teacher requires its registered {key} model and normalization')
+        configured = tuple(train_cfg[key]['class_name'] for key in ('actor', 'critic'))
+        allowed = tuple(tuple(f'{model.__module__}:{model.__name__}' for model in pair)
+                        for pair in self.model_class_pairs)
+        if configured not in allowed or not all(train_cfg[key].get('obs_normalization') for key in ('actor', 'critic')):
+            raise ValueError('routed teacher requires its registered actor/critic model pair and normalization')
         super().__init__(env, train_cfg, log_dir, device)
 
     @staticmethod

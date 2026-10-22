@@ -56,8 +56,8 @@ def test_guidance_config_keeps_successful_task_ppo_hyperparameters():
     cfg = asdict(guided_teacher_ppo_cfg())
     assert cfg["class_name"] == "zbot_rl_mjlab.guided_teacher:GuidedTeacherRunner"
     assert cfg["algorithm"]["class_name"] == "zbot_rl_mjlab.guided_ppo:GuidedTaskPPO"
-    assert cfg["critic"]["class_name"] == "zbot_rl_mjlab.task_models:TaskNormalizedCritics"
-    assert cfg["actor"]["class_name"] == "zbot_rl_mjlab.task_models:RoutedTaskNormalizedMLP"
+    assert cfg["critic"]["class_name"] == "zbot_rl_mjlab.task_models:LocalFrameTaskNormalizedCritics"
+    assert cfg["actor"]["class_name"] == "zbot_rl_mjlab.gaussian_action_models:GaussianActionRoutedTaskNormalizedMLP"
     for key, value in baseline["algorithm"].items():
         if key != "class_name":
             assert cfg["algorithm"][key] == value
@@ -151,7 +151,8 @@ def test_resume_teacher_sources_mismatch_rejected_before_parent_load(monkeypatch
 def test_teacher_provenance_hashes_exact_archives_and_rejects_old_walking():
     from zbot_rl_mjlab.guided_teacher import guidance_sources
     sources = guidance_sources(None)
-    assert set(sources) == {"transform", "omni"}
+    assert set(sources) == {"transform", "omni", "snake_site"}
+    assert sources["snake_site"]["path"].endswith("snake_site_omni_2026-10-20_iter599/model_599.pt")
     assert all(len(value["sha256"]) == 64 for value in sources.values())
     with pytest.raises(ValueError, match="only accepts"):
         guidance_sources({"walking": "missing.pt"})
@@ -160,6 +161,8 @@ def test_teacher_provenance_hashes_exact_archives_and_rejects_old_walking():
 def legacy_guided_checkpoint(runner):
     from test_guided_ppo import algorithm
 
+    runner.cfg['actor']['class_name'] = 'zbot_rl_mjlab.task_models:RoutedTaskNormalizedMLP'
+    runner.cfg['critic']['class_name'] = 'zbot_rl_mjlab.task_models:TaskNormalizedCritics'
     runner.alg = algorithm(guidance_tasks=(0, 1, 3))
     transform = {'path': 'transform.pt', 'sha256': 'a' * 64}
     runner.guidance_sources = {'transform': transform, 'omni': {'path': 'omni.pt', 'sha256': 'b' * 64}}
@@ -238,3 +241,79 @@ def test_old_two_teacher_checkpoint_still_prepares_for_playback(runner_setup, tm
     command = SimpleNamespace(task_observation_encoding='one_hot')
     GuidedTeacherRunner.prepare_playback_env_cfg(SimpleNamespace(commands={'transform': command}), path)
     assert command.task_observation_encoding == 'scalar'
+
+
+def test_default_schema_records_site_snake_route(runner_setup):
+    runner, _ = runner_setup
+    assert runner._schema()['teacher_routes'] == ('omni', 'transform', 'snake_site_omni', 'transform')
+    GuidedTeacherRunner._validate_metadata({'infos': {'privileged_omni_teacher': runner._schema()}})
+
+
+def test_old_snake_guidance_progress_cannot_transfer_to_site_expert(runner_setup):
+    from test_guided_ppo import algorithm
+
+    runner, _ = runner_setup
+    saved = legacy_guided_checkpoint(runner)
+    runner.alg = algorithm(guidance_tasks=(0, 1, 2, 3))
+    runner.guidance_sources['snake_site'] = {'path': 'site.pt', 'sha256': 'd' * 64}
+    runner.alg.teacher_provenance = runner.guidance_sources
+    with pytest.raises(ValueError, match='different snake expert'):
+        runner._upgrade_legacy_guidance(saved)
+
+
+def test_disabled_site_guidance_does_not_hash_or_require_site_archive():
+    from zbot_rl_mjlab.guided_teacher import guidance_sources
+
+    assert set(guidance_sources(None, include_site_snake=False)) == {'omni', 'transform'}
+    with pytest.raises(ValueError, match='enabled task experts'):
+        guidance_sources({'snake_site': '/missing.pt'}, include_site_snake=False)
+
+
+def test_one_hot_checkpoint_encoding_is_explicit_and_validated(runner_setup):
+    runner, _ = runner_setup
+    schema = runner._schema()
+    assert schema['task_input_encoding'] == 'one_hot_local_gaussian_mirror_v1'
+    assert schema['network_input_dim'] == 61
+    for damage in ({'task_input_encoding': 'unknown'}, {'network_input_dim': 56}, {'network_input_dim': True}):
+        with pytest.raises(ValueError, match='encoding/schema'):
+            runner._validate_metadata({'infos': {'privileged_omni_teacher': schema | damage}})
+
+
+def test_scalar_checkpoint_cannot_load_into_categorical_model(monkeypatch, runner_setup, tmp_path):
+    runner, _ = runner_setup
+    path = tmp_path / 'scalar.pt'
+    save_checkpoint(path, runner, task_input_encoding='scalar_v1', network_input_dim=56)
+    load = Mock()
+    monkeypatch.setattr(MjlabOnPolicyRunner, 'load', load)
+    with pytest.raises(ValueError, match='encoding mismatch'):
+        runner.load(path, load_cfg={'actor': True})
+    load.assert_not_called()
+
+
+def test_playback_selects_scalar_network_for_legacy_checkpoint(runner_setup, tmp_path):
+    runner, _ = runner_setup
+    path = tmp_path / 'old_guided.pt'
+    saved = save_checkpoint(path, runner)
+    metadata = saved['infos']['privileged_omni_teacher']
+    metadata.pop('task_input_encoding')
+    metadata.pop('network_input_dim')
+    torch.save(saved, path)
+    cfg = SimpleNamespace(commands={'transform': SimpleNamespace(task_observation_encoding='one_hot')})
+    runner.prepare_playback_env_cfg(cfg, path)
+    assert cfg._guided_task_input_encoding == 'scalar_v1'
+
+
+def test_local_reference_metadata_is_required_and_legacy_playback_disables_it(runner_setup, tmp_path):
+    runner, _ = runner_setup
+    schema = runner._schema()
+    for key in ('motion_reference', 'angular_velocity_frame', 'heading_encoding', 'observation_noise', 'observation_history_length'):
+        damaged = deepcopy(schema)
+        damaged.pop(key)
+        with pytest.raises(ValueError, match='observation contract'):
+            runner._validate_metadata({'infos': {'privileged_omni_teacher': damaged}})
+    path = tmp_path / 'one_hot_v1.pt'
+    save_checkpoint(path, runner, task_input_encoding='one_hot_v1', network_input_dim=60)
+    cfg = SimpleNamespace(commands={'transform': SimpleNamespace(task_observation_encoding='scalar')}, guided_local_reference=True)
+    runner.prepare_playback_env_cfg(cfg, path)
+    assert not cfg.guided_local_reference
+    assert cfg._guided_task_input_encoding == 'one_hot_v1'

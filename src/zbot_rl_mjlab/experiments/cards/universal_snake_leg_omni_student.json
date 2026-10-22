@@ -1,0 +1,69 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "全能教师蒸馏传感器历史学生",
+  "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student",
+  "inherits": "universal_snake_leg_omni_teacher_guided.json",
+  "description": "R3：全能教师执行预热、逐步交接、固定示范与完整回放训练；归直由执行器负责，监督集中学习正式抬身。学生仍使用base IMU、编码器和5帧历史。无扰动归档：universal_student_clean_2026-10-22_iter150（151次更新）。",
+  "env": {
+    "student_history_length": 5,
+    "student_observation_noise": true
+  },
+  "play": {
+    "env": {
+      "student_observation_noise": false
+    }
+  },
+  "rewards": {
+    "velocity_tracking": {
+      "weight": 1.0,
+      "params": {
+        "snake_std": [0.05, 0.05, 0.15]
+      }
+    },
+    "foot_flat_touchdown": {
+      "weight": -0.2,
+      "params": {
+        "sigma": 0.05,
+        "sensor_name": "feet_ground_contact"
+      }
+    }
+  },
+  "agent": {
+    "max_iterations": 500,
+    "algorithm": {
+      "$remove": [
+        "guidance_enabled",
+        "guidance_tasks",
+        "teacher_checkpoints",
+        "guidance_max_samples_per_task",
+        "guidance_batch_size",
+        "guidance_updates",
+        "guidance_start_coef",
+        "guidance_floor_coef",
+        "guidance_agreement_mse",
+        "guidance_agreement_min_samples",
+        "guidance_agreement_passes",
+        "guidance_decay",
+        "guidance_ema_beta"
+      ],
+      "teacher_checkpoint": "bests/universal_three_teacher_gaussian_mirror_2026-10-22_iter499/model_499.pt",
+      "teacher_sha256": "1cac9ff22f290cc89965353f1231cbad1a5296303ddbf508bc660257b2902875",
+      "learning_rate": 0.0003,
+      "dagger_updates": 0,
+      "dagger_batch_size": 2048,
+      "dagger_max_samples_per_task": 4096,
+      "dagger_replay_iterations": 4,
+      "dagger_epochs": 1,
+      "teacher_warmup_iterations": 20,
+      "teacher_mix_iterations": 100,
+      "dagger_anchor_fraction": 0.25,
+      "dagger_anchor_max_samples_per_task": 4096
+    },
+    "actor": {
+      "distribution_cfg": {
+        "learn_std": false
+      }
+    }
+  }
+}

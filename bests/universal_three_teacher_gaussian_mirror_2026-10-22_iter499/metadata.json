@@ -1,0 +1,77 @@
+{
+  "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided",
+  "source_run": "logs/rsl_rl_guided_three_teacher_gaussian_mirror/zbot_universal_snake_leg_omni_teacher_guided/2026-10-22_12-28-29_three_teacher_gaussian_mirror_v1",
+  "source_checkpoint": "logs/rsl_rl_guided_three_teacher_gaussian_mirror/zbot_universal_snake_leg_omni_teacher_guided/2026-10-22_12-28-29_three_teacher_gaussian_mirror_v1/model_499.pt",
+  "checkpoint_iteration_filename": 499,
+  "checkpoint_iter_field": 499,
+  "completed_ppo_iterations": 500,
+  "selection": "user-approved latest final checkpoint; no performance-ranked selection",
+  "archived_at": "2026-10-22T12:59:14.549624+08:00",
+  "source_sha256": "1cac9ff22f290cc89965353f1231cbad1a5296303ddbf508bc660257b2902875",
+  "git_head": "efcf50a078766c722401666a334681efd1bb3ae9",
+  "recipe": {
+    "role": "privileged_omni_guided_teacher",
+    "schema_version": 3,
+    "actor_obs_dim": 56,
+    "critic_obs_dim": 56,
+    "action_dim": 6,
+    "training_algorithm": "task_guided_ppo_v1",
+    "task_names": [
+      "biped_motion",
+      "descent",
+      "snake_motion",
+      "ascent"
+    ],
+    "actor_branches": [
+      "biped_motion",
+      "descent",
+      "snake_motion",
+      "ascent"
+    ],
+    "actor_normalization": "per_task_v1",
+    "critic_normalization": "per_task_v1",
+    "teacher_routes": [
+      "omni",
+      "transform",
+      "snake_site_omni",
+      "transform"
+    ],
+    "guidance_reward_recipe": "archive_scoped_v1",
+    "transition_rules": "mirror_straighten_v1",
+    "task_input_encoding": "one_hot_local_gaussian_mirror_v1",
+    "network_input_dim": 61,
+    "action_contract": "gaussian_position6_rate6_mirror3_v1",
+    "task_action_dims": [
+      6,
+      3,
+      6,
+      3
+    ],
+    "teacher_sampling_contract": "native_archive_v1",
+    "motion_reference": "base_biped_foot0_snake_v1",
+    "angular_velocity_frame": "reference_local_v1",
+    "heading_encoding": "sin_cos_v1",
+    "observation_noise": false,
+    "observation_history_length": 1,
+    "completed_ppo_iterations": 500,
+    "task_fsm_version": 1
+  },
+  "frozen_teacher_sources": {
+    "transform": {
+      "path": "/home/yhzhu/myWorks_vips/zbot_rl_mjlab_R2/bests/transform_snake_biped_bidirectional_2026-10-17_iter599/model_599.pt",
+      "sha256": "40ad7f465384d0ba64075d8cea5ca40d14d43059063f0c95c3ff23b558a468cd"
+    },
+    "omni": {
+      "path": "/home/yhzhu/myWorks_vips/zbot_rl_mjlab_R2/bests/omni_velocity_energy_2026-10-10_iter499/model_499.pt",
+      "sha256": "3832db9076cdf67c1a5a75a6413aad5ca13f786185d97235ade22077a4600078"
+    },
+    "snake_site": {
+      "path": "/home/yhzhu/myWorks_vips/zbot_rl_mjlab_R2/bests/snake_site_omni_2026-10-20_iter599/model_599.pt",
+      "sha256": "b5e1222947d66e90db89ed5fa5d505813dde350038868195c7ea628241008870"
+    }
+  },
+  "source_snapshot": "archive-time source/resources including uncommitted files and later play-only FSM fixes; not a full training-start workspace; excludes other bests and external environments",
+  "verification_boundary": "strict archive loading, checksums and bounded replay; not full independent all-skill qualification",
+  "source_snapshot_file_count": 357,
+  "source_snapshot_sha256": "209b0283f8415ce6904b8c3f2a011d1db70f5e973d9fbe4fb0e3b31ade3aa945"
+}

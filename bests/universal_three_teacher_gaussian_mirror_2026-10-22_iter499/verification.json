@@ -1,0 +1,11 @@
+{
+  "strict_actor_loading": true,
+  "actual_play_entrypoint": true,
+  "device": "cuda:0",
+  "frame_backend": "cuda_graph",
+  "num_envs": 8,
+  "steps": 32,
+  "finite_observation_action_reward": true,
+  "experts_loaded": false,
+  "performance_qualification": false
+}

@@ -1,0 +1,85 @@
+seed: 42
+num_steps_per_env: 24
+max_iterations: 500
+obs_groups:
+  actor: !!python/tuple
+  - actor
+  critic: !!python/tuple
+  - actor
+save_interval: 50
+experiment_name: zbot_universal_snake_leg_omni_teacher_guided
+run_name: three_teacher_gaussian_mirror_v1
+logger: tensorboard
+wandb_project: mjlab
+wandb_tags: !!python/tuple []
+resume: false
+load_run: .*
+load_checkpoint: model_.*.pt
+clip_actions: null
+upload_model: true
+class_name: zbot_rl_mjlab.guided_teacher:GuidedTeacherRunner
+actor:
+  hidden_dims: !!python/tuple
+  - 256
+  - 128
+  activation: elu
+  obs_normalization: true
+  cnn_cfg: null
+  distribution_cfg:
+    class_name: zbot_rl_mjlab.gaussian_action_models:GaussianTaskDistribution
+    init_std: 1.0
+    std_type: scalar
+    rate_init_std: 0.5
+  rnn_type: null
+  rnn_hidden_dim: 256
+  rnn_num_layers: 1
+  class_name: zbot_rl_mjlab.gaussian_action_models:GaussianActionRoutedTaskNormalizedMLP
+critic:
+  hidden_dims: !!python/tuple
+  - 256
+  - 128
+  activation: elu
+  obs_normalization: true
+  cnn_cfg: null
+  distribution_cfg: null
+  rnn_type: null
+  rnn_hidden_dim: 256
+  rnn_num_layers: 1
+  class_name: zbot_rl_mjlab.task_models:LocalFrameTaskNormalizedCritics
+algorithm:
+  num_learning_epochs: 5
+  num_mini_batches: 4
+  learning_rate: 0.0003
+  schedule: adaptive
+  gamma: 0.99
+  lam: 0.95
+  entropy_coef: 0.005
+  desired_kl: 0.01
+  max_grad_norm: 1.0
+  value_loss_coef: 1.0
+  use_clipped_value_loss: true
+  clip_param: 0.2
+  normalize_advantage_per_mini_batch: false
+  optimizer: adam
+  share_cnn_encoders: false
+  class_name: zbot_rl_mjlab.guided_ppo:GuidedTaskPPO
+  guidance_enabled: true
+  guidance_tasks: !!python/tuple
+  - 0
+  - 1
+  - 2
+  - 3
+  teacher_checkpoints: null
+  guidance_max_samples_per_task: 2048
+  guidance_batch_size: 1024
+  guidance_updates: 4
+  guidance_start_coef: 1.0
+  guidance_floor_coef: 0.05
+  guidance_agreement_mse: 0.02
+  guidance_agreement_min_samples: 32
+  guidance_agreement_passes: 5
+  guidance_decay: 0.98
+  guidance_ema_beta: 0.9
+console_mode: compact
+validation_interval_iterations: 0
+robust_validation_interval: 0

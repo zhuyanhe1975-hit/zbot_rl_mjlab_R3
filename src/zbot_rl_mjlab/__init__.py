@@ -22,6 +22,13 @@ from .experiments.site_snake import (
     SnakeSiteOmniTeacher,
 )
 from .experiments.snake import SnakeOmniTeacher
+from .experiments.student import UniversalOmniStudent
+from .experiments.student_disturbed import UniversalOmniStudentDisturbed
+from .experiments.student_ppo import (
+    UniversalOmniStudentPPO,
+    UniversalOmniStudentPPOV3,
+    UniversalOmniStudentPPOV4,
+)
 from .experiments.transformation import (
     BipedToSnake,
     SnakeToBiped,
@@ -82,6 +89,11 @@ EXPERIMENTS = (
     SnakeLegOmniTaskTeacher,
     SnakeLegOmniTaskRoutedTeacher,
     SnakeLegOmniGuidedTeacher,
+    UniversalOmniStudent,
+    UniversalOmniStudentDisturbed,
+    UniversalOmniStudentPPO,
+    UniversalOmniStudentPPOV3,
+    UniversalOmniStudentPPOV4,
     SnakeOmniTeacher,
     SnakeSiteOmniTeacher,
     SnakeSiteAdaptiveTeacher,

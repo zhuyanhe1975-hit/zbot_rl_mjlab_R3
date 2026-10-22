@@ -32,6 +32,8 @@ def test_guided_recipe_is_isolated_and_retains_walking_weights():
     guided = load_env_cfg(base + '-Guided')
     assert {'mode_posture', 'transition_progress'} <= original.rewards.keys()
     assert not {'mode_posture', 'transition_progress'} & guided.rewards.keys()
+    assert 'foot_flat_touchdown' not in original.rewards
+    assert guided.rewards.keys() == original.rewards.keys() - {'mode_posture', 'transition_progress'}
     for name, term in guided.rewards.items():
         assert term.weight == original.rewards[name].weight
     command = guided.commands['transform']

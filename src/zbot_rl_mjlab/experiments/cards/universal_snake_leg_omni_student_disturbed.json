@@ -1,0 +1,47 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "22.d 全能教师蒸馏学生：外部扰动",
+  "task_id": "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-Disturbed",
+  "inherits": "universal_snake_leg_omni_student.json",
+  "description": "继承22.a纯DAgger流程，冻结原全能教师，加入从首轮生效的基座随机力/力矩。20轮教师预热、100轮交接、30轮学生独立执行，共150轮；独立模型与日志，不加入PPO。归档：universal_student_disturbed_2026-10-22_iter499；该次运行通过命令行覆盖为500轮，卡片默认仍为150轮。",
+  "addons": {
+    "StudentDisturbance": {
+      "force_range": [
+        -5.0,
+        5.0
+      ],
+      "torque_range": [
+        -0.5,
+        0.5
+      ],
+      "duration_s": [
+        0.08,
+        0.2
+      ],
+      "cooldown_s": [
+        0.8,
+        2.0
+      ],
+      "disturbed_fraction": 0.25,
+      "pretraining_scale": 1.0,
+      "ramp_iterations": 150
+    }
+  },
+  "agent": {
+    "max_iterations": 150,
+    "run_name": "universal_teacher_dagger_disturbed_22d",
+    "resume": false
+  },
+  "play": {
+    "env": {
+      "events": {
+        "base_disturbance": {
+          "params": {
+            "disturbed_fraction": 1.0
+          }
+        }
+      }
+    }
+  }
+}

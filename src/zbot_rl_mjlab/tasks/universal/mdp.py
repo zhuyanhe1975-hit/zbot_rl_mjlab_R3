@@ -1,5 +1,5 @@
 """综合任务状态、模式门控奖励与允许低位接地的终止条件。"""
-from typing import cast
+from typing import Any, cast
 
 import torch
 from mjlab.envs import mdp as common_mdp
@@ -118,6 +118,17 @@ def configuration_ready(env, relaxed=False):
         stand &= ~term.transition_mask | close
     snake = (h < (.18 if relaxed else .12)) & (transform.com_state(env)[:, 0] < (.16 if relaxed else .10))
     snake &= (normalized_force(env) > .1) | startup
+    if not relaxed and getattr(env.cfg, 'play_transition_sync', False) and not getattr(env.cfg, 'student_ppo_completion_gate', False):
+        tolerance = getattr(term.cfg, 'transition_joint_tolerance', .15)
+        actual_straight = env.scene['robot'].data.joint_pos.abs().amax(-1) <= tolerance
+        target_straight = env.action_manager.get_term('joint_pos').commanded_target.abs().amax(-1) <= tolerance
+        # Low height alone also describes a collapsed biped. Require completed
+        # straightening during descent, while allowing free waves after handoff.
+        snake &= ~term.transition_mask | (actual_straight & target_straight)
+    if not relaxed and getattr(env.cfg, 'student_ppo_completion_gate', False):
+        from .student_ppo_env import student_descent_ready
+
+        snake = student_descent_ready(env, snake)
     ready = torch.where(term.standing_mode, stand, snake)
     straightening = getattr(term, 'straightening_mask', None)
     return ready if straightening is None else ready & ~straightening
@@ -330,3 +341,153 @@ def mode_motion_error(env, phase: int):
     error = ((tracking_velocity(env) - term.velocity_command) / limits).square().mean(-1).sqrt()
     scale = selected.float().mean().clamp_min(1. / env.num_envs)
     return torch.where(selected, error / scale, 0.)
+
+
+def saturating_progress_score(v, cmd, limits=(.25, .20, .8), w_lat=.3):
+    """饱和线性推进；v/cmd 的末维为 (vx, vy, wz)，stop 指令不计分。
+
+    平移沿指令方向投影，横向成本在低速时以 0.05 m/s 为分母下限。
+    平移与 yaw 按各轴 |cmd| / limit 的权重合并；跟上得 1，超过
+    1.2 倍指令后线性扣分。沿用现有奖励的 0.01 stop 阈值。
+    """
+    limits = constant(cmd, limits)
+    c = cmd[..., :2].norm(dim=-1)
+    safe_c = c.clamp_min(1e-6)
+    direction = cmd[..., :2] / safe_c[..., None]
+    v_par = (v[..., :2] * direction).sum(-1)
+    v_perp = v[..., 0] * direction[..., 1] - v[..., 1] * direction[..., 0]
+    progress = (v_par / safe_c).clamp(-1., 1.)
+    overspeed = torch.relu(v_par - 1.2 * c) / safe_c
+    lateral = (v_perp / c.clamp_min(.05)).square().clamp(max=4.)
+    translation = progress - .5 * overspeed - w_lat * lateral
+
+    yaw_cmd = cmd[..., 2].abs()
+    yaw_speed = v[..., 2] * cmd[..., 2].sign()
+    safe_yaw = yaw_cmd.clamp_min(1e-6)
+    yaw = (yaw_speed / safe_yaw).clamp(-1., 1.)
+    yaw -= .5 * torch.relu(yaw_speed - 1.2 * yaw_cmd) / safe_yaw
+
+    weights = torch.where(cmd.abs() > 1e-6, cmd.abs() / limits, 0.)
+    weights = weights / weights.sum(-1, keepdim=True).clamp_min(1e-6)
+    score = translation * weights[..., :2].sum(-1) + yaw * weights[..., 2]
+    return torch.where(cmd.norm(dim=-1) > .01, score, 0.)
+
+
+@torch.no_grad()
+def smoothed_tracking_velocity(env, time_constant=.75):
+    """按 step_dt 做速度 EMA，同一步只更新一次，逐环境重置为当前速度。
+
+    global_step - episode_length 是每个环境的回合起点；起点变化时
+    丢弃旧 EMA，即使重置前后回合长度相同（如连续单步回合）也有效。
+    首次调用及重置使用当前速度初始化，不改变 command term 的 reset。
+    """
+    import math
+
+    if time_constant <= 0:
+        raise ValueError("time_constant must be positive")
+    term = command_term(env)
+    current = tracking_velocity(env)
+    step = env.common_step_counter
+    episode_start = step - env.episode_length_buf
+    state = getattr(term, '_smoothed_tracking_state', None)
+    if state is None:
+        smoothed = current.clone()
+    else:
+        smoothed, last_step, last_episode_start = state
+        reset = episode_start != last_episode_start
+        alpha = -math.expm1(-env.step_dt / time_constant)
+        updated = smoothed + alpha * (current - smoothed) if step != last_step else smoothed
+        smoothed.copy_(torch.where(reset[..., None], current, updated))
+    setattr(term, '_smoothed_tracking_state', (smoothed, step, episode_start))
+    return smoothed
+
+
+def smoothed_velocity_tracking(env):
+    """平滑速度的饱和推进奖励；可直接替换 velocity_tracking，变形期间为 0。"""
+    term = command_term(env)
+    score = saturating_progress_score(
+        smoothed_tracking_velocity(env), term.velocity_command, term.cfg.velocity_limits,
+    )
+    return torch.where(term.transition_mask, 0., score)
+
+
+@torch.no_grad()
+def smoothed_body_velocity_tracking(env, limits, time_constant=.75, w_lat=.3):
+    """Whole-body COM progress, with world-space velocity and heading EMA.
+
+    ``limits`` is a triple or a mapping with ``biped`` / ``snake`` triples.
+    BASE gravity-cross-Z (biped) / minus-Z (snake) defines body forward,
+    matching the canonical Guided poses without following the articulated head.
+    Commands retain their existing BASE/head-local meaning: rotate them through
+    world axes into the smoothed body frame before comparing with COM velocity.
+    Yaw uses BASE world wz. Episode changes discard both EMAs, and duplicate
+    calls within a control step never advance the filters.
+    """
+    import math
+
+    if not math.isfinite(time_constant) or time_constant <= 0:
+        raise ValueError('time_constant must be finite and positive')
+    term = command_term(env)
+    data, base = transform._base(env)
+    masses = transform.body_masses(env)
+    linear = (data.body_com_lin_vel_w[..., :2] * masses[..., None]).sum(-2)
+    linear = linear / masses.sum(-1, keepdim=True).clamp_min(1e-6)
+    current = torch.cat((linear, data.body_link_ang_vel_w[:, base, 2:3]), -1)
+
+    quat = data.body_link_quat_w[:, base]
+    z = quat_apply(quat, constant(quat, (0., 0., 1.)).expand(len(quat), -1))
+    projected = torch.where(
+        term.standing_mode[:, None], torch.stack((z[:, 1], -z[:, 0]), -1), -z[:, :2],
+    )
+    norm = projected.norm(dim=-1, keepdim=True)
+    valid = torch.isfinite(projected).all(-1, keepdim=True) & (norm > .15)
+    alternate = quat_apply(quat, constant(quat, (1., 0., 0.)).expand(len(quat), -1))[:, :2]
+    alternate_norm = alternate.norm(dim=-1, keepdim=True)
+    fallback = torch.where(
+        torch.isfinite(alternate).all(-1, keepdim=True) & (alternate_norm > .15),
+        alternate / alternate_norm.clamp_min(1e-6), constant(quat, (1., 0.)),
+    )
+    step = env.common_step_counter
+    episode_start = step - env.episode_length_buf
+    state = getattr(term, '_smoothed_body_tracking_state', None)
+    if state is None:
+        current_heading = torch.where(valid, projected / norm.clamp_min(1e-6), fallback)
+        smoothed, heading_ema = current.clone(), current_heading.clone()
+    else:
+        smoothed, heading_ema, last_step, last_episode_start, last_mode = state
+        reset = (episode_start != last_episode_start) | (term.standing_mode != last_mode)
+        previous = heading_ema / heading_ema.norm(dim=-1, keepdim=True).clamp_min(1e-6)
+        fallback = torch.where(reset[:, None], fallback, previous)
+        current_heading = torch.where(valid, projected / norm.clamp_min(1e-6), fallback)
+        alpha = -math.expm1(-env.step_dt / time_constant)
+        updated = smoothed + alpha * (current - smoothed) if step != last_step else smoothed
+        updated_heading = heading_ema + alpha * (current_heading - heading_ema) if step != last_step else heading_ema
+        smoothed.copy_(torch.where(reset[:, None], current, updated))
+        heading_ema.copy_(torch.where(reset[:, None], current_heading, updated_heading))
+    cast(Any, term)._smoothed_body_tracking_state = (
+        smoothed, heading_ema, step, episode_start, term.standing_mode.clone(),
+    )
+    heading_norm = heading_ema.norm(dim=-1, keepdim=True)
+    forward = torch.where(heading_norm > 1e-6, heading_ema / heading_norm.clamp_min(1e-6), current_heading)
+    lateral = torch.stack((-forward[:, 1], forward[:, 0]), -1)
+    measured = torch.stack((
+        (smoothed[:, :2] * forward).sum(-1),
+        (smoothed[:, :2] * lateral).sum(-1), smoothed[:, 2],
+    ), -1)
+    command_forward = heading(env)
+    command_lateral = torch.stack((-command_forward[:, 1], command_forward[:, 0]), -1)
+    command_world = (term.velocity_command[:, :1] * command_forward
+                     + term.velocity_command[:, 1:2] * command_lateral)
+    command = torch.stack((
+        (command_world * forward).sum(-1),
+        (command_world * lateral).sum(-1), term.velocity_command[:, 2],
+    ), -1)
+    if isinstance(limits, dict):
+        score = torch.where(
+            term.standing_mode,
+            saturating_progress_score(measured, command, limits['biped'], w_lat),
+            saturating_progress_score(measured, command, limits['snake'], w_lat),
+        )
+    else:
+        score = saturating_progress_score(measured, command, limits, w_lat)
+    return torch.where(term.transition_mask, 0., score)

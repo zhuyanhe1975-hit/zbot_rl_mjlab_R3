@@ -1,5 +1,6 @@
 """Guided-only mirrored transformations and physically executed stand-up retries."""
 
+import math
 from dataclasses import dataclass
 from typing import cast
 
@@ -18,6 +19,7 @@ from .privileged import (
     privileged_state,
 )
 from .task_fsm import TaskState
+from .teacher_sampling import sample_motion_commands
 from .teacher_transition import (
     ARCHIVE_FAILURE_CFG,
     reset_transition_failure_memory,
@@ -27,6 +29,13 @@ from .teacher_transition import (
 
 @dataclass(kw_only=True)
 class GuidedOmniCommandCfg(PrivilegedOmniCommandCfg):
+    aligned_teacher_sampling: bool = False
+    biped_velocity_ranges: tuple[tuple[float, float], ...] = ((-.3, .5), (-.2, .2), (-.5, .5))
+    snake_velocity_limits: tuple[float, float, float] = (.2, .2, .5)
+    biped_resampling_time_range: tuple[float, float] = (5., 10.)
+    snake_resampling_time_range: tuple[float, float] = (5., 9.)
+    snake_motion_axis_min_fraction: float = .4
+    snake_motion_stop_probability: float = .125
     guided_transition_rules: bool = True
     straightening_joint_tolerance: float = .08
     straightening_hold_s: float = .1
@@ -45,10 +54,26 @@ class GuidedOmniCommand(PrivilegedOmniCommand):
     """
 
     def __init__(self, cfg: GuidedOmniCommandCfg, env):
-        import math
-
         if cfg.task_observation_encoding != 'scalar':
             raise ValueError('guided transition rules require scalar task observations')
+        if len(cfg.biped_velocity_ranges) != 3:
+            raise ValueError('biped_velocity_ranges must contain three low/high pairs')
+        for name, ranges in (
+            ('biped_velocity_ranges', cfg.biped_velocity_ranges),
+            ('biped_resampling_time_range', (cfg.biped_resampling_time_range,)),
+            ('snake_resampling_time_range', (cfg.snake_resampling_time_range,)),
+        ):
+            for pair in ranges:
+                if len(pair) != 2 or not all(math.isfinite(x) for x in pair) or pair[0] > pair[1]:
+                    raise ValueError(f'{name} must contain finite ordered low/high pairs')
+                if name != 'biped_velocity_ranges' and pair[0] <= 0:
+                    raise ValueError(f'{name} must be positive')
+        if len(cfg.snake_velocity_limits) != 3 or not all(math.isfinite(x) and x > 0 for x in cfg.snake_velocity_limits):
+            raise ValueError('snake_velocity_limits must contain three finite positive values')
+        if not math.isfinite(cfg.snake_motion_axis_min_fraction) or not 0 < cfg.snake_motion_axis_min_fraction <= 1:
+            raise ValueError('snake_motion_axis_min_fraction must be in (0, 1]')
+        if not math.isfinite(cfg.snake_motion_stop_probability) or not 0 <= cfg.snake_motion_stop_probability <= 1:
+            raise ValueError('snake_motion_stop_probability must be in [0, 1]')
         for name in ('straightening_joint_tolerance', 'straightening_hold_s', 'retry_motion_threshold'):
             value = getattr(cfg, name)
             if not math.isfinite(value) or value <= 0:
@@ -63,6 +88,77 @@ class GuidedOmniCommand(PrivilegedOmniCommand):
             self._straightening_time = torch.zeros(self.num_envs, device=self.device)
             self._rules_last_step = torch.full_like(self.start_step, -1)
 
+    def _sample_velocity(self, ids):
+        cfg = cast(GuidedOmniCommandCfg, self.cfg)
+        if not cfg.aligned_teacher_sampling:
+            return super()._sample_velocity(ids)
+        ids = ids[~self.manual_control[ids]]
+        biped = ids[self.standing_mode[ids]]
+        snake = ids[~self.standing_mode[ids]]
+        ranges = self.requested_velocity.new_tensor(cfg.biped_velocity_ranges)
+        self.requested_velocity[biped] = ranges[:, 0] + torch.rand(
+            len(biped), 3, device=self.device,
+        ) * (ranges[:, 1] - ranges[:, 0])
+        self.requested_velocity[snake] = sample_motion_commands(
+            torch.zeros(len(snake), dtype=torch.bool, device=self.device),
+            cfg.snake_velocity_limits,
+            axis_min_fraction=cfg.snake_motion_axis_min_fraction,
+            stop_probability=cfg.snake_motion_stop_probability,
+            x_only_probability=None,
+        )
+        self.gait_frequency[ids] = torch.where(
+            self.standing_mode[ids], self._biped_gait_frequency[ids], cfg.snake_gait_frequency,
+        )
+
+    def _resample_command(self, env_ids):
+        super()._resample_command(env_ids)
+        cfg = cast(GuidedOmniCommandCfg, self.cfg)
+        if not cfg.aligned_teacher_sampling:
+            return
+        self.time_left[env_ids[self.manual_control[env_ids]]] = math.inf
+        # CommandTerm sets the shared timer before this callback. Replace only
+        # active automatic timers, retaining manual/play infinite timers and FSM.
+        ids = env_ids[~self.manual_control[env_ids] & torch.isfinite(self.time_left[env_ids])]
+        for standing, interval in (
+            (True, cfg.biped_resampling_time_range), (False, cfg.snake_resampling_time_range),
+        ):
+            selected = ids[self.standing_mode[ids] == standing]
+            self.time_left[selected] = torch.empty(len(selected), device=self.device).uniform_(*interval)
+
+    def set_velocity(self, vx, vy, wz, env_ids=None):
+        cfg = cast(GuidedOmniCommandCfg, self.cfg)
+        if not cfg.aligned_teacher_sampling:
+            return super().set_velocity(vx, vy, wz, env_ids)
+        values = (vx, vy, wz)
+        if not all(math.isfinite(value) for value in values):
+            raise ValueError('速度指令必须为有限值')
+        ids = self._ids(env_ids)
+        ranges = self.requested_velocity.new_tensor(cfg.biped_velocity_ranges)
+        limits = self.requested_velocity.new_tensor(cfg.snake_velocity_limits)
+        # standing_mode is the requested target during a transition, so pending
+        # commands use the destination's bounds while effective velocity stays gated.
+        standing = self.standing_mode[ids, None]
+        low = torch.where(standing, ranges[:, 0], -limits)
+        high = torch.where(standing, ranges[:, 1], limits)
+        self.requested_velocity[ids] = self.requested_velocity.new_tensor(values).clamp(min=low, max=high)
+        self.manual_control[ids] = True
+        self.time_left[ids] = math.inf
+
+    def _update_command(self, env_ids):
+        cfg = cast(GuidedOmniCommandCfg, self.cfg)
+        previous_tasks = self.current_task.clone() if not cfg.training and env_ids is None else None
+        super()._update_command(env_ids)
+        if previous_tasks is not None:
+            # A completed task may change BASE/site axes. Rebase heading once.
+            self.heading_initialized &= self.current_task == previous_tasks
+
+        if not cfg.aligned_teacher_sampling or env_ids is not None:
+            return
+        # Native UniformVelocityCommand is direct; retain the native snake
+        # low-pass filter and the inherited zero target throughout transitions.
+        biped = (self.current_task == TaskState.BIPED_MOTION) & self.standing_mode & ~self.transition_mask
+        self.velocity_command.copy_(torch.where(biped[:, None], self.requested_velocity, self.velocity_command))
+
     def _clear(self, ids):
         super()._clear(ids)
         if hasattr(self, 'retry_attempts'):
@@ -73,6 +169,7 @@ class GuidedOmniCommand(PrivilegedOmniCommand):
 
     def set_target(self, target, env_ids=None):
         ids = self._ids(env_ids)
+        changed = ids[self._command[ids, 0] != (1. if target == 'stand' else -1.)]
         # Only an explicit stand request can recover a fallen walking robot.
         recover = torch.empty(0, dtype=torch.long, device=self.device)
         if target == 'stand':
@@ -88,6 +185,21 @@ class GuidedOmniCommand(PrivilegedOmniCommand):
         # A fallen robot must regain standing confirmation in this new attempt.
         self.standing_achieved[recover] = False
         self._publish_task_state()
+        if not self.cfg.training:
+            selected = torch.unique(torch.cat((changed, recover)))
+            cfg = cast(GuidedOmniCommandCfg, self.cfg)
+            if cfg.aligned_teacher_sampling:
+                ranges = self.requested_velocity.new_tensor(cfg.biped_velocity_ranges)
+                limits = self.requested_velocity.new_tensor(cfg.snake_velocity_limits)
+                standing = self.standing_mode[selected, None]
+                low = torch.where(standing, ranges[:, 0], -limits)
+                high = torch.where(standing, ranges[:, 1], limits)
+                self.requested_velocity[selected] = self.requested_velocity[selected].clamp(min=low, max=high)
+            self.velocity_command[selected] = 0.
+            self.gait_frequency[selected] = torch.where(
+                self.standing_mode[selected], self._biped_gait_frequency[selected], cfg.snake_gait_frequency,
+            )
+            self.heading_initialized[selected] = False
 
     def _reset_attempt(self, ids):
         self._retry_peak[ids] = -torch.inf

@@ -41,7 +41,7 @@
 
 已有 bests 对应卡片的父子差异、归档来源及历史配方边界见[归档实验卡片说明](docs/best-experiment-cards.md)。
 
-`train.sh`、`run.sh` 保留用户原有命令和注释选择方式，本机制没有改动它们。需要显式指定参数时使用：
+`train.sh`、`run.sh` 当前分别显式运行22.d外部扰动蒸馏学生训练与回放；此前实验命令保留为注释。需要显式指定参数时使用：
 
 ```bash
 ./scripts/python.sh train.py <任务ID> --env.scene.num-envs 4096
@@ -97,7 +97,7 @@
 | [固定前进对照A](src/zbot_rl_mjlab/experiments/cards/snake_site_forward_teacher.json) | [_defaults](src/zbot_rl_mjlab/experiments/cards/_defaults.json) | `Mjlab-Zbot-6dof-Snake-Site-Forward-Teacher` |
 | [固定前进放松对照B](src/zbot_rl_mjlab/experiments/cards/snake_site_forward_relaxed_teacher.json) | [snake_site_forward_teacher](src/zbot_rl_mjlab/experiments/cards/snake_site_forward_teacher.json) | `Mjlab-Zbot-6dof-Snake-Site-Forward-Relaxed-Teacher` |
 
-### 综合运动与教师 / 学生（10）
+### 综合运动与教师 / 学生（15）
 
 | 实验卡片 | 继承来源 | 注册任务ID |
 |---|---|---|
@@ -111,6 +111,15 @@
 | [分任务Critic教师](src/zbot_rl_mjlab/experiments/cards/universal_snake_leg_omni_teacher_task_critic.json) | [universal_snake_leg_omni_teacher_multi_critic](src/zbot_rl_mjlab/experiments/cards/universal_snake_leg_omni_teacher_multi_critic.json) | `Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Task-Critic` |
 | [分任务网络教师](src/zbot_rl_mjlab/experiments/cards/universal_snake_leg_omni_teacher_task_routed.json) | [universal_snake_leg_omni_teacher_task_critic](src/zbot_rl_mjlab/experiments/cards/universal_snake_leg_omni_teacher_task_critic.json) | `Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Task-Routed` |
 | [归档指导全能教师](src/zbot_rl_mjlab/experiments/cards/universal_snake_leg_omni_teacher_guided.json) | [universal_snake_leg_omni_teacher_task_routed](src/zbot_rl_mjlab/experiments/cards/universal_snake_leg_omni_teacher_task_routed.json) | `Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided` |
+
+| [全能教师蒸馏学生](src/zbot_rl_mjlab/experiments/cards/universal_snake_leg_omni_student.json) | [universal_snake_leg_omni_teacher_guided](src/zbot_rl_mjlab/experiments/cards/universal_snake_leg_omni_teacher_guided.json) | `Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student` |
+| [22.d外部扰动蒸馏学生](src/zbot_rl_mjlab/experiments/cards/universal_snake_leg_omni_student_disturbed.json) | [universal_snake_leg_omni_student](src/zbot_rl_mjlab/experiments/cards/universal_snake_leg_omni_student.json) | `Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-Disturbed` |
+
+| [监督学习后学生PPO](src/zbot_rl_mjlab/experiments/cards/universal_snake_leg_omni_student_ppo_v2.json) | [universal_snake_leg_omni_student](src/zbot_rl_mjlab/experiments/cards/universal_snake_leg_omni_student.json) | `Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-PPO` |
+
+当前默认22.d继承22.a纯蒸馏并加入从首轮生效的基座外扰，训练150轮，日志为`logs/rsl_rl_universal_student_disturbed/`。保留的PPO v2从150代DAgger学生重开，统一交接判据、补充变形收敛与速度代价、源学生运动参考和蛇形课程，每25次策略更新独立验收；日志为`logs/rsl_rl_universal_student_ppo_v2/`，教师保持冻结且不参与PPO。原DAgger实验及`logs/rsl_rl_universal_student_v2/`保留。阶段切换、初始化校验与续训命令见[实验说明](docs/universal-student.md)。
+
+[学生 PPO v4](src/zbot_rl_mjlab/experiments/cards/universal_snake_leg_omni_student_ppo_v4.json) 注册为 `Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-PPO-V4`，继承 v3 的 150 代学生初始化、300 次迭代、验证和模型选择设置，日志使用 `logs/rsl_rl_universal_student_ppo_v4/`。仅将速度奖励替换为质量加权全机身质心速度：世界系 EMA 后投影到平滑机身航向，避免头部摆动虚增平移速度；蛇形命令上限为 `(0.06, 0.06, 0.5)`，双足仍为原范围。命令保持现有定义（双足以重力方向 × BASE 局部 +Z 确定前向、蛇形头部 site 的 -Z 前向），先转到世界系再投影到同一平滑机身坐标系。验证指标仍沿用 v3 的 site 速度口径，因此应结合质心奖励判断进展；v2/v3 配方保持不变。可直接复制 `train.sh` 的 22.c 命令启动。
 
 ## 职责与源码位置
 

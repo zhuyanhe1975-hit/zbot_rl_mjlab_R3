@@ -26,9 +26,18 @@ from tensordict import TensorDict
 
 import zbot_rl_mjlab  # noqa: F401  （注册任务）
 from zbot_rl_mjlab.archived_site_snake import ArchivedSiteSnakeTeacherRunner
+from zbot_rl_mjlab.gaussian_action_models import (
+    GaussianActionRoutedTaskNormalizedMLP,
+    GaussianTaskDistribution,
+    expand_mirror,
+)
+from zbot_rl_mjlab.guided_teacher import GuidedTeacherRunner
 from zbot_rl_mjlab.robot import ARMATURE, DAMPING, SIM_EFFORT_LIMIT, STIFFNESS
+from zbot_rl_mjlab.student import TEACHER_SHA256
+from zbot_rl_mjlab.student_models import HistoryGaussianStudentMLP
 from zbot_rl_mjlab.tasks.snake.mdp import ACTOR_DIM
 from zbot_rl_mjlab.tasks.transformation.actions import MirroredJointTargetRateActionCfg
+from zbot_rl_mjlab.tasks.universal.student_observations import GuidedStudentEnvCfg
 from zbot_rl_mjlab.tasks.walking.env_cfg import ZbotEnvCfg
 
 BESTS = Path(__file__).resolve().parents[1] / "bests"
@@ -36,6 +45,7 @@ ENTRIES = sorted(p for p in BESTS.iterdir() if p.is_dir())
 
 # 每个策略观测项的维度。
 TERM_DIMS = {
+    "sensors": 56,
     "privileged": 59,
     "snake": ACTOR_DIM,
     "teacher_state": 36,
@@ -188,15 +198,84 @@ def test_archived_model_matches_the_current_task(entry):
     if task == "Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher":
         ArchivedSiteSnakeTeacherRunner._validate_checkpoint(saved_checkpoint)
     state = saved_checkpoint["actor_state_dict"]
-    obs_dim = sum(actor_term_dim(name, saved) for name in saved_terms)
+    saved_group = saved['observations']['actor']
+    saved_history = saved_group.get('history_length') or 1
+    live_history = live.observations['actor'].history_length or 1
+    assert saved_history == live_history, f'{entry.name}: actor history length changed'
+    obs_dim = sum(actor_term_dim(name, saved) for name in saved_terms) * saved_history
     if "obs_normalizer._mean" in state:
         assert state["obs_normalizer._mean"].shape[-1] == obs_dim
-    assert state["mlp.0.weight"].shape[1] == obs_dim
     agent = load_rl_cfg(task)
     assert isinstance(agent, RslRlOnPolicyRunnerCfg)
-    obs = TensorDict({"actor": torch.zeros(2, obs_dim)}, batch_size=[2])
+    guided = task == "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided"
+    student = agent.actor.class_name == 'zbot_rl_mjlab.student_models:HistoryGaussianStudentMLP'
+    if guided:
+        GuidedTeacherRunner._validate_metadata(saved_checkpoint)
+        metadata = saved_checkpoint["infos"]["privileged_omni_teacher"]
+        assert metadata["task_input_encoding"] == "one_hot_local_gaussian_mirror_v1"
+        assert metadata["network_input_dim"] == 61
+        assert metadata["task_action_dims"] == (6, 3, 6, 3)
+        assert obs_dim == 56
+        assert state["obs_normalizer._mean"].shape == (4, 56)
+        assert agent.actor.class_name == (
+            "zbot_rl_mjlab.gaussian_action_models:GaussianActionRoutedTaskNormalizedMLP"
+        )
+    elif student:
+        assert isinstance(live, GuidedStudentEnvCfg)
+        assert saved_terms == ['sensors']
+        assert saved_history == saved['student_history_length'] == live.student_history_length == 5
+        assert saved_group['flatten_history_dim'] is live.observations['actor'].flatten_history_dim is True
+        assert obs_dim == 280
+        assert state['obs_normalizer.frame_normalizer._mean'].shape == (4, 56)
+        expected_schema = {
+            'role': 'universal_sensor_history_student', 'schema_version': 1,
+            'frame_dim': 56, 'history_length': saved_history, 'imu_reference': 'base',
+            'task_routing': 'software_fsm_v1', 'task_encoding': 'one_hot_recovery_v1',
+            'action_contract': 'gaussian_position6_rate6_mirror3_v1',
+            'task_action_dims': (6, 3, 6, 3), 'teacher_sha256': TEACHER_SHA256,
+        }
+        assert saved_checkpoint['infos']['universal_student'] == expected_schema
+        assert saved_checkpoint['infos']['teacher_source']['sha256'] == TEACHER_SHA256
+        dagger = saved_checkpoint['student_dagger']
+        assert dagger['contract']['algorithm'] == 'universal_teacher_dagger_v2'
+        assert dagger['contract']['teacher_sha256'] == TEACHER_SHA256
+        assert dagger['completed_updates'] == saved_checkpoint['iter'] + 1
+        saved_agent = yaml.load((entry / 'agent.yaml').read_text(), Loader=_Loose)
+        assert saved_agent['actor']['class_name'] == agent.actor.class_name
+        for name, value in dagger['contract'].items():
+            if name != 'algorithm':
+                assert saved_agent['algorithm'][name] == value
+        metadata = json.loads((entry / 'metadata.json').read_text())
+        model_path, = entry.glob('model_*.pt')
+        assert metadata['task_id'] == task
+        assert metadata['checkpoint_iter_field'] == saved_checkpoint['iter']
+        assert metadata['checkpoint_iteration_filename'] == int(model_path.stem.removeprefix('model_'))
+        assert metadata['completed_dagger_iterations'] == dagger['completed_updates']
+        assert metadata['recipe'] == json.loads(json.dumps(expected_schema))
+        assert metadata['teacher_source'] == saved_checkpoint['infos']['teacher_source']
+        assert metadata['source_sha256'] == hashlib.sha256(model_path.read_bytes()).hexdigest()
+        source = Path(metadata['source_checkpoint'])
+        assert not source.is_absolute() and '..' not in source.parts
+        assert source.parent == Path(metadata['source_run'])
+        assert source.name == model_path.name
+        manifest = (entry / 'SHA256SUMS').read_text()
+        listed = {line.split(maxsplit=1)[1].removeprefix('*') for line in manifest.splitlines()}
+        assert {model_path.name, 'env.yaml', 'agent.yaml', 'metadata.json'} <= listed
+        assert agent.actor.distribution_cfg is not None
+        assert agent.actor.distribution_cfg['class_name'].endswith(':GaussianTaskDistribution')
+        assert agent.actor.distribution_cfg['learn_std'] is False
+    else:
+        assert state["mlp.0.weight"].shape[1] == obs_dim
+    batch_size = 4 if guided or student else 2
+    raw_obs = torch.zeros(batch_size, obs_dim)
+    if guided:
+        raw_obs[:, 39] = torch.arange(4)
+    if student:
+        raw_obs.reshape(4, saved_history, 56)[:, :, 39] = torch.arange(4)[:, None]
+    obs = TensorDict({"actor": raw_obs}, batch_size=[batch_size])
     action_dim = 3 if isinstance(live.actions["joint_pos"], MirroredJointTargetRateActionCfg) else ACTION_DIM
-    actor = MLPModel(
+    actor_class = HistoryGaussianStudentMLP if student else GaussianActionRoutedTaskNormalizedMLP if guided else MLPModel
+    actor = actor_class(
         obs=obs,
         obs_groups={"actor": ["actor"]},
         obs_set="actor",
@@ -207,10 +286,24 @@ def test_archived_model_matches_the_current_task(entry):
         distribution_cfg=agent.actor.distribution_cfg,
     )
     actor.load_state_dict(state, strict=True)
+    actor.eval()
     with torch.no_grad():
         actions = actor(obs)
-    assert actions.shape == (2, action_dim)
+    assert actions.shape == (batch_size, action_dim)
     assert torch.isfinite(actions).all()
+    if guided or student:
+        assert isinstance(actor, (GaussianActionRoutedTaskNormalizedMLP, HistoryGaussianStudentMLP))
+        assert isinstance(actor.distribution, GaussianTaskDistribution)
+        for head, width in zip(actor.mlp.heads, (6, 3, 6, 3), strict=True):
+            linears = [module for module in head.modules() if isinstance(module, torch.nn.Linear)]
+            assert linears[0].in_features == 61 * saved_history
+            assert linears[-1].out_features == width
+        with torch.no_grad():
+            sampled = actor(obs, stochastic_output=True)
+        assert sampled.shape == (4, 6)
+        assert torch.isfinite(sampled).all()
+        for output in (actions, sampled):
+            assert torch.equal(output[[1, 3]], expand_mirror(output[[1, 3], :3]))
 
     if "frequency" in saved_terms:
         assert isinstance(live, ZbotEnvCfg)

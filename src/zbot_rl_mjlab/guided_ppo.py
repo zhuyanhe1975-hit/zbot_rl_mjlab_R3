@@ -18,14 +18,11 @@ from .task_ppo import TASK_NAMES, TaskPPO, task_mask
 
 @dataclass
 class GuidedTaskPpoCfg(RslRlPpoAlgorithmCfg):
-    """Default teachers cover biped omni (task0) and transforms (tasks1/3).
-
-    Snake task2 remains PPO-only until a qualified heading-frame teacher exists.
-    """
+    """Three frozen experts guide biped, snake motion, and both transforms."""
 
     class_name: str = 'zbot_rl_mjlab.guided_ppo:GuidedTaskPPO'
     guidance_enabled: bool = True
-    guidance_tasks: tuple[int, ...] = (0, 1, 3)
+    guidance_tasks: tuple[int, ...] = (0, 1, 2, 3)
     teacher_checkpoints: dict[str, str] | None = None
     guidance_max_samples_per_task: int = 2048
     guidance_batch_size: int = 1024
@@ -44,7 +41,7 @@ class GuidedTaskPPO(TaskPPO):
 
     def __init__(
         self, actor: Any, critic: Any, storage: Any, *,
-        guidance_enabled: bool = True, guidance_tasks: tuple[int, ...] = (0, 1, 3),
+        guidance_enabled: bool = True, guidance_tasks: tuple[int, ...] = (0, 1, 2, 3),
         teacher_checkpoints: dict[str, str] | None = None,
         guidance_max_samples_per_task: int = 2048, guidance_batch_size: int = 1024,
         guidance_updates: int = 4, guidance_start_coef: float = 1.,
@@ -60,10 +57,10 @@ class GuidedTaskPPO(TaskPPO):
             raise ValueError('guidance_tasks must contain distinct integer task IDs in 0..3')
         if teacher_checkpoints is not None and (
             not isinstance(teacher_checkpoints, dict)
-            or any(key not in ('omni', 'transform', 'snake') or not isinstance(path, str) or not path
+            or any(key not in ('omni', 'transform', 'snake', 'snake_site') or not isinstance(path, str) or not path
                    for key, path in teacher_checkpoints.items())
         ):
-            raise ValueError('teacher_checkpoints only accepts nonempty omni/transform/snake paths')
+            raise ValueError('teacher_checkpoints only accepts nonempty omni/transform/snake/snake_site paths')
         if guidance_enabled and guidance_start_coef <= 0:
             raise ValueError('enabled guidance requires positive start coefficient')
         settings: dict[str, Any] = {
@@ -130,7 +127,13 @@ class GuidedTaskPPO(TaskPPO):
         raw = obs['actor']
         tasks = task_mask(raw).argmax(-1)
         valid = torch.isfinite(actions).all(-1) & torch.isfinite(weights) & (weights > 0)
-        valid &= (actions.abs() <= 1).all(-1)
+        bounded = (actions.abs() <= 1).all(-1)
+        valid &= bounded | ((tasks == 0) & bool(getattr(self._raw_actor, 'native_biped_actions', False))) | bool(getattr(self._raw_actor, 'all_gaussian_actions', False))
+        if getattr(self._raw_actor, 'mirrored_transform_actions', False):
+            from .tasks.transformation.actions import expand_mirror, project_mirror
+
+            mirrored = expand_mirror(project_mirror(actions))
+            valid &= ~((tasks == 1) | (tasks == 3)) | ((actions - mirrored).abs().amax(-1) < 1e-5)
         for key in list(obs.keys()):
             valid &= torch.isfinite(obs[key]).flatten(1).all(-1)
         for task in self.guidance_tasks:
@@ -170,6 +173,14 @@ class GuidedTaskPPO(TaskPPO):
                 if task not in active_tasks:
                     for parameter in head.parameters():
                         parameter.grad = None
+        clear_distribution = getattr(self._raw_actor, 'clear_inactive_distribution_gradients', None)
+        if callable(clear_distribution):
+            clear_distribution(active_tasks)
+        elif 0 not in active_tasks and getattr(self._raw_actor, 'native_biped_actions', False):
+            gaussian = getattr(getattr(self._raw_actor, 'distribution', None), 'gaussian', None)
+            assert isinstance(gaussian, torch.nn.Module)
+            for parameter in gaussian.parameters():
+                parameter.grad = None
 
     def _guidance_update(self) -> dict[str, float]:
         groups: dict[int, tuple[TensorDict, torch.Tensor, torch.Tensor, torch.Tensor]] = {}

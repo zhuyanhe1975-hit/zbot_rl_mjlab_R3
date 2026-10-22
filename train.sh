@@ -171,12 +171,60 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
 #   --env.scene.num-envs 8192 \
 #   --agent.max-iterations 6000
 
-# 特权全能教师：按任务归档指导 + PPO。
+# 21、三个冻结教师（双足全向、双向变形、site蛇形全向）指导一个新的全能教师。
+# 独立日志目录，从头训练；可在命令行覆盖环境数、轮数和run-name。
 # python train.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided \
-#   --log-root logs/rsl_rl_guided \
+#   --log-root logs/rsl_rl_guided_three_teacher_gaussian_mirror \
 #   --env.commands.transform.mode source \
 #   --env.scene.num-envs 8192 \
 #   --env.omni-frame-backend cuda_graph \
-#   --agent.max-iterations 6000 \
-#   --agent.run-name task_guidance_ppo_v2 \
+#   --agent.resume False \
+#   --agent.max-iterations 500 \
+#   --agent.run-name three_teacher_gaussian_mirror_v1 \
+#   "$@"
+
+# 22、全能教师 → 教授学生
+# 22.a 学生继承全能教师 - 150代即可
+# python train.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student \
+#   --log-root logs/rsl_rl_universal_student_v2 \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 500 \
+#   --agent.run-name universal_teacher_dagger_v2 \
+#   --agent.resume False \
+#   "$@"
+
+# 22.b 学生PPO自学微调
+# 独立 v3（保留现有启动配置；先看 baseline/逐方向验证）
+# python train.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-PPO-V3 \
+#   --log-root logs/rsl_rl_universal_student_ppo_v3 \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 100 \
+#   --agent.run-name student150_ppo_v3 \
+#   --agent.resume False \
+#   "$@"
+
+# python train.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-PPO \
+#   --log-root logs/rsl_rl_universal_student_ppo_v2 \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 300 \
+#   --agent.run-name student150_ppo_v2 \
+#   --agent.resume False \
+#   "$@"
+
+# 22.c 独立 v4：质心平移奖励，蛇形上限 (0.06, 0.06, 0.5)，其余继承 v3 卡片
+# python train.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-PPO-V4 \
+#   --log-root logs/rsl_rl_universal_student_ppo_v4 \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 100 \
+#   --agent.run-name student150_ppo_v4 \
+#   --agent.resume False \
+#   "$@"
+
+# 22.d 继承22.a：冻结全能教师，学生在外部随机力/力矩下做DAgger，共150代。
+# python train.py Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-Disturbed \
+#   --log-root logs/rsl_rl_universal_student_disturbed \
+#   --env.scene.num-envs 8192 \
+#   --agent.max-iterations 500 \
+#   --agent.run-name universal_teacher_dagger_disturbed_22d \
+#   --agent.resume False \
 #   "$@"
