@@ -1,0 +1,101 @@
+{
+  "checkpoint_sha256_matches_source": true,
+  "strict_actor_load": "passed",
+  "policy_actions_and_observations_finite": true,
+  "actor_obs_dim": 63,
+  "action_dim": 6,
+  "num_envs": 8,
+  "device": "cuda:0",
+  "control_dt_s": 0.02,
+  "duration_s": 20.0,
+  "steps": 1000,
+  "burn_in_s": 5.0,
+  "policy": "deterministic mean",
+  "protocol": "Fixed speed/heading commands supplied through the task command sampler, including after resets; original model, dynamics and reset pose retained. Not a formal success-rate protocol.",
+  "cases": [
+    {
+      "forward_speed_m_s": 0.0,
+      "heading_rad": 0.0,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.011495311744511127,
+      "mean_abs_lateral_speed_m_s": 0.05337802693247795,
+      "mean_abs_heading_error_rad": 0.04624656215310097,
+      "mean_head_tilt_rad": 0.0749301090836525
+    },
+    {
+      "forward_speed_m_s": 0.05,
+      "heading_rad": 0.0,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.02786564640700817,
+      "mean_abs_lateral_speed_m_s": 0.04211793467402458,
+      "mean_abs_heading_error_rad": 0.03333336487412453,
+      "mean_head_tilt_rad": 0.11953938752412796
+    },
+    {
+      "forward_speed_m_s": 0.1,
+      "heading_rad": 0.0,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.02941734530031681,
+      "mean_abs_lateral_speed_m_s": 0.09752906113862991,
+      "mean_abs_heading_error_rad": 0.0654139369726181,
+      "mean_head_tilt_rad": 0.14706049859523773
+    },
+    {
+      "forward_speed_m_s": 0.2,
+      "heading_rad": 0.0,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.07947973906993866,
+      "mean_abs_lateral_speed_m_s": 0.09944929927587509,
+      "mean_abs_heading_error_rad": 0.08330334722995758,
+      "mean_head_tilt_rad": 0.19035440683364868
+    },
+    {
+      "forward_speed_m_s": 0.1,
+      "heading_rad": 1.5707963267948966,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.04806801304221153,
+      "mean_abs_lateral_speed_m_s": 0.052764493972063065,
+      "mean_abs_heading_error_rad": 0.04300610348582268,
+      "mean_head_tilt_rad": 0.1873820424079895
+    },
+    {
+      "forward_speed_m_s": 0.1,
+      "heading_rad": -1.5707963267948966,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.030626067891716957,
+      "mean_abs_lateral_speed_m_s": 0.08938463032245636,
+      "mean_abs_heading_error_rad": 0.06583176553249359,
+      "mean_head_tilt_rad": 0.12542858719825745
+    },
+    {
+      "forward_speed_m_s": 0.1,
+      "heading_rad": 3.141592653589793,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.045676421374082565,
+      "mean_abs_lateral_speed_m_s": 0.05231010541319847,
+      "mean_abs_heading_error_rad": 0.046162333339452744,
+      "mean_head_tilt_rad": 0.1817825734615326
+    },
+    {
+      "forward_speed_m_s": 0.0,
+      "heading_rad": 1.5707963267948966,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.012498555704951286,
+      "mean_abs_lateral_speed_m_s": 0.0299111045897007,
+      "mean_abs_heading_error_rad": 0.12019083648920059,
+      "mean_head_tilt_rad": 0.16908571124076843
+    }
+  ],
+  "wall_time_s": 13.434253865998471,
+  "performance_acceptance": "not asserted; archival approval is the user visual assessment, with bounded replay diagnostics recorded separately",
+  "archive_compatibility_tests": {
+    "passed": 78,
+    "log": "archive_tests.log",
+    "command": "./scripts/python.sh -m pytest tests/test_best_experiment_cards.py tests/test_bests.py tests/test_release_portability.py -q"
+  },
+  "full_regression": {
+    "passed": 3539,
+    "skipped": 1,
+    "log": "full_tests.log"
+  }
+}

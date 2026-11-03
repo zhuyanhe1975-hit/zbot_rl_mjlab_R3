@@ -1,0 +1,77 @@
+{
+  "task_id": "Mjlab-Zbot-6dof-Snake-RZ270-Teacher",
+  "source_run": "logs/rsl_rl/zbot_snake_rz270_teacher/2026-10-26_10-14-22",
+  "source_checkpoint": "logs/rsl_rl/zbot_snake_rz270_teacher/2026-10-26_10-14-22/model_599.pt",
+  "checkpoint_iteration_filename": 599,
+  "checkpoint_iter_field": 599,
+  "completed_ppo_iterations": 600,
+  "archived_at": "2026-10-26T11:21:12.550222+08:00",
+  "source_sha256": "f816e0c018b45ad65bed1aff97778d1fe78d95f247893f26e286a458d7378059",
+  "selection": "User-approved latest result: final checkpoint of latest completed 600-update run; no best-score search.",
+  "git_head": "85ad4f5ae5c713ad3bcd6aef610f1f592875264e",
+  "checkpoint_metadata": {
+    "role": "privileged_site_snake_rz270_teacher",
+    "schema_version": 6,
+    "actor_obs_dim": 63,
+    "critic_obs_dim": 63,
+    "action_dim": 6,
+    "snake_omni_version": 12,
+    "objective": "head_site_forward_speed_and_sampled_heading",
+    "observation_recipe": "site_head_frame_with_heading_sin_cos_v1",
+    "tracking_point": "foot_0_sole",
+    "reward_recipe": "rz270_head_site_forward_heading_v1",
+    "motion_site": "foot_0_sole",
+    "command_axes": [
+      "site_minus_z_gravity_aligned",
+      "left",
+      "world_plus_z"
+    ],
+    "distribution": "GaussianDistribution",
+    "action_range": [
+      -1.0,
+      1.0
+    ],
+    "action_clipping": "hard_clip_before_target_integration",
+    "action_control": "integrated_joint_target_velocity",
+    "qualification_protocol": "rz270_sampled_heading_v1",
+    "module_clocking_deg": 270,
+    "robot_assembly": "zbot_six_rz270_v1",
+    "velocity_limits": [
+      0.2,
+      0.2,
+      0.5
+    ],
+    "joint_target_limit": 2.0943951023931953,
+    "snake_target_limit": 2.0943951023931953,
+    "max_target_speed": 6.283185307179586,
+    "heading_range": [
+      -3.141592653589793,
+      3.141592653589793
+    ],
+    "forward_speed_cap": 0.2,
+    "completed_ppo_iterations": 600,
+    "task_fsm_version": 1
+  },
+  "source_snapshot": "Archive-time tracked and untracked source, assets, scripts, docs and tests; excludes bests, logs, outputs, .git, caches and external runtime. Not asserted to be a full training-start workspace snapshot.",
+  "reward_formulas": {
+    "head_forward_speed": "clip(1-abs(v-u)/u,-1,1) if u>0; otherwise clip(1-abs(v)/0.05,-1,1), measured at head site",
+    "heading_alignment": "-abs(wrap(target_world_heading-current_head_heading)) in radians",
+    "site_tilt": "gravity-relative head-up tilt angle squared",
+    "head_lateral_speed": "absolute head-site horizontal lateral speed"
+  },
+  "reward_weights": {
+    "alive": 0.2,
+    "action_rate": -0.002,
+    "joint_pose_deviation": -0.02,
+    "site_tilt": -1.0,
+    "joint_pos_limits": -1.0,
+    "joint_target_limits": -1.0,
+    "failure_reset": -5.0,
+    "head_forward_speed": 2.0,
+    "heading_alignment": 1.0,
+    "head_lateral_speed": -2.0
+  },
+  "training_num_envs": 8192,
+  "control_dt_s": 0.02,
+  "verification_boundary": "Strict checkpoint compatibility and bounded deterministic simulated playback; not comprehensive skill acceptance or real-hardware validation."
+}

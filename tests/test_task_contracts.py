@@ -95,6 +95,14 @@ def test_registered_task_ids_are_preserved():
         "Mjlab-Zbot-6dof-Snake-Base-Adaptive-Teacher",
         "Mjlab-Zbot-6dof-Snake-Site-Forward-Teacher",
         "Mjlab-Zbot-6dof-Snake-Site-Forward-Relaxed-Teacher",
+        "Mjlab-Zbot-6dof-Snake-RZ270-Teacher",
+        "Mjlab-Zbot-6dof-Snake-Mixed-270-270-180-90-90-Teacher",
+        "Mjlab-Zbot-6dof-Walking-Mixed-270-270-180-90-90",
+        "Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-Basic",
+        "Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-PBT",
+        "Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-Plan-Guided",
+        "Mjlab-Zbot-6dof-Reconfigure-Disconnect-Torque",
+        "Mjlab-Zbot-6dof-Reconfigure-Mixed-270-270-180-90-90-PPO",
     ]
 
 

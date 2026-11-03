@@ -9,7 +9,7 @@
     "max_iterations": 500,
     "resume": false,
     "run_name": "student150_ppo_v2",
-    "initial_student_checkpoint": "logs/rsl_rl_universal_student_v2/zbot_universal_snake_leg_omni_student/2026-10-22_13-45-40_universal_teacher_dagger_v2/model_150.pt",
+    "initial_student_checkpoint": "bests/universal_student_clean_2026-10-22_iter150/model_150.pt",
     "initial_student_sha256": "63946c079786be56835dcb3b0ad046248d145175b00ed4c7cbed84969b4ef022",
     "algorithm": {
       "$remove": [

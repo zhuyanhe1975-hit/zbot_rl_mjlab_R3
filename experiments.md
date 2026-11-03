@@ -87,7 +87,7 @@
 |---|---|---|
 | [世界X蛇形推进教师](src/zbot_rl_mjlab/experiments/cards/snake_omni_teacher.json) | [_defaults](src/zbot_rl_mjlab/experiments/cards/_defaults.json) | `Mjlab-Zbot-6dof-Snake-Omni-Teacher` |
 
-### Site / Base蛇形与对照（5）
+### Site / Base蛇形与对照（6）
 
 | 实验卡片 | 继承来源 | 注册任务ID |
 |---|---|---|
@@ -96,6 +96,9 @@
 | [base全向两阶段自适应教师](src/zbot_rl_mjlab/experiments/cards/snake_base_adaptive_teacher.json) | [snake_site_adaptive_teacher](src/zbot_rl_mjlab/experiments/cards/snake_site_adaptive_teacher.json) | `Mjlab-Zbot-6dof-Snake-Base-Adaptive-Teacher` |
 | [固定前进对照A](src/zbot_rl_mjlab/experiments/cards/snake_site_forward_teacher.json) | [_defaults](src/zbot_rl_mjlab/experiments/cards/_defaults.json) | `Mjlab-Zbot-6dof-Snake-Site-Forward-Teacher` |
 | [固定前进放松对照B](src/zbot_rl_mjlab/experiments/cards/snake_site_forward_relaxed_teacher.json) | [snake_site_forward_teacher](src/zbot_rl_mjlab/experiments/cards/snake_site_forward_teacher.json) | `Mjlab-Zbot-6dof-Snake-Site-Forward-Relaxed-Teacher` |
+| [RZ270构型蛇形教师](src/zbot_rl_mjlab/experiments/cards/snake_rz270_teacher.json) | [snake_site_adaptive_teacher](src/zbot_rl_mjlab/experiments/cards/snake_site_adaptive_teacher.json) | `Mjlab-Zbot-6dof-Snake-RZ270-Teacher` |
+
+[构型定义、初始姿态与运行说明](docs/rz270-snake.md)。
 
 ### 综合运动与教师 / 学生（15）
 
@@ -131,3 +134,17 @@
 | 训练运行 | PPO、蒸馏、分任务模型、调权控制器及检查点 | 根包的Runner/算法模块 |
 
 卡片通过同一 `Experiment.build_env()` / `build_ppo()` 进入注册配置，没有另一套生成参数文件。完整架构与验证见[任务与实验分级](docs/task-experiment-architecture.md)。
+
+## 重构任务
+
+| 实验卡片 | 父卡片 | Task ID |
+|---|---|---|
+| [实验1：首尾磁吸闭环·基础PPO](src/zbot_rl_mjlab/experiments/cards/reconfiguration_head_tail_docking_basic.json) | [_defaults](src/zbot_rl_mjlab/experiments/cards/_defaults.json) | `Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-Basic` |
+| [实验1：首尾磁吸闭环·PBT](src/zbot_rl_mjlab/experiments/cards/reconfiguration_head_tail_docking_pbt.json) | [_defaults](src/zbot_rl_mjlab/experiments/cards/_defaults.json) | `Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-PBT` |
+| [规划教师模仿·无PPO](src/zbot_rl_mjlab/experiments/cards/reconfiguration_head_tail_docking_plan_guided.json) | 独立配置 | `Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-Plan-Guided` |
+
+PBT版采用8×1024探索，表现分化后4×2048集中训练，总环境数8192。机制、参数和磁吸假设详见[重构任务说明](docs/reconfiguration.md)。
+
+规划教师实验单独说明见[关节规划教师模仿](docs/reconfiguration-plan-guided.md)，不继承Basic的实时奖励调参。
+
+断开力矩实验：[`Mjlab-Zbot-6dof-Reconfigure-Disconnect-Torque`](src/zbot_rl_mjlab/experiments/cards/reconfiguration_disconnect_torque.json)，首版固定首尾面，见[控制与验证边界](docs/reconfiguration-disconnect-torque.md)。

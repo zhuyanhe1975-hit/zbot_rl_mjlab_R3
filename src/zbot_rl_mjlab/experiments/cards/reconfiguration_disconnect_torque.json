@@ -1,0 +1,121 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "task_id": "Mjlab-Zbot-6dof-Reconfigure-Disconnect-Torque",
+  "title": "雅可比力矩加载＋距离雅可比确定性PD拉开",
+  "description": "PPO仅训练加载残差，目标weld解除后距离雅可比生成关节速度、速度积分PD拉开5cm，再安全等待2秒。",
+  "env": {
+    "target_connector": 5,
+    "break_force": 80.0,
+    "minimum_other_margin": 0.2,
+    "separation_distance": 0.05,
+    "post_separation_wait_s": 2.0,
+    "torque_limit": 20.0,
+    "episode_length_s": 4.0,
+    "scene": {
+      "num_envs": 1024
+    },
+    "joint_stiffness": 0.0,
+    "joint_damping": 1.5,
+    "decimation": 4,
+    "sim": {
+      "mujoco": {
+        "timestep": 0.005
+      },
+      "epa_horizon_capacity": 64
+    },
+    "torque_action_scale": 20.0,
+    "loading_reward_cap": 1.2,
+    "connector_radius": 0.05,
+    "continuous_torque_limit": 14.0,
+    "torque_overload_duration_s": 1.0,
+    "safety_penalty_buffer": 0.2,
+    "enable_weld_failure": true,
+    "jacobian_feedforward": true,
+    "jacobian_seed_tilt_force": 50.0,
+    "jacobian_target_tilt_force": 84.0,
+    "jacobian_other_load_limit": 60.0,
+    "jacobian_axis_xy": [
+      -0.7071067811865476,
+      0.7071067811865476
+    ],
+    "separation_velocity_pd": true,
+    "separation_stiffness": 15.0,
+    "separation_damping": 1.5,
+    "separation_max_target_speed": 1.0,
+    "separation_distance_jacobian": true,
+    "separation_cartesian_speed": 0.02,
+    "separation_distance_gain": 2.0,
+    "separation_goal_buffer": 0.001,
+    "separation_jacobian_damping": 0.005,
+    "separation_joint_acceleration": 0.5,
+    "separation_target_error_limit": 0.05
+  },
+  "rewards": {
+    "target_loading": {
+      "weight": 1.0,
+      "params": {}
+    },
+    "penalty_safety_margin": {
+      "weight": -0.2,
+      "params": {}
+    },
+    "penalty_failure": {
+      "weight": -10.0,
+      "params": {}
+    },
+    "penalty_torque": {
+      "weight": -0.01,
+      "params": {}
+    },
+    "target_separation": {
+      "weight": 5.0,
+      "params": {}
+    },
+    "success": {
+      "weight": 10.0,
+      "params": {}
+    },
+    "penalty_separation_regression": {
+      "weight": -5.0,
+      "params": {}
+    }
+  },
+  "agent": {
+    "max_iterations": 500,
+    "num_steps_per_env": 24,
+    "save_interval": 10,
+    "clip_actions": 1.0,
+    "algorithm": {
+      "learning_rate": 1e-06,
+      "schedule": "adaptive",
+      "gamma": 0.995,
+      "lam": 0.95,
+      "entropy_coef": 0.005,
+      "desired_kl": 0.01,
+      "num_learning_epochs": 5,
+      "num_mini_batches": 4,
+      "min_learning_rate": 1e-07,
+      "max_learning_rate": 0.0001
+    },
+    "logger": "tensorboard",
+    "upload_model": false,
+    "actor": {
+      "distribution_cfg": {
+        "init_std": 0.00025,
+        "std_type": "log",
+        "std_range": [
+          0.0002,
+          0.02
+        ]
+      }
+    }
+  },
+  "play": {
+    "env": {
+      "scene": {
+        "num_envs": 1
+      }
+    }
+  }
+}

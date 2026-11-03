@@ -33,6 +33,8 @@ from zbot_rl_mjlab.gaussian_action_models import (
 )
 from zbot_rl_mjlab.guided_teacher import GuidedTeacherRunner
 from zbot_rl_mjlab.robot import ARMATURE, DAMPING, SIM_EFFORT_LIMIT, STIFFNESS
+from zbot_rl_mjlab.rz270_snake_teacher import Rz270SnakeTeacherRunner
+from zbot_rl_mjlab.mixed_clocking_snake_teacher import MixedClockingSnakeTeacherRunner
 from zbot_rl_mjlab.student import TEACHER_SHA256
 from zbot_rl_mjlab.student_models import HistoryGaussianStudentMLP
 from zbot_rl_mjlab.tasks.snake.mdp import ACTOR_DIM
@@ -45,6 +47,9 @@ ENTRIES = sorted(p for p in BESTS.iterdir() if p.is_dir())
 
 # 每个策略观测项的维度。
 TERM_DIMS = {
+    "reconfiguration": 59,
+    "limit_escape": 22,
+    "docking_state": 25,
     "sensors": 56,
     "privileged": 59,
     "snake": ACTOR_DIM,
@@ -135,6 +140,9 @@ def actor_term_dim(name, saved):
     if name == "support_state" and saved.get("support_observations", False):
         return 13
     if name == "privileged":
+        callback = saved.get("observations", {}).get("actor", {}).get("terms", {}).get(name, {}).get("func")
+        if isinstance(callback, str) and callback.removeprefix("name:") == "zbot_rl_mjlab.tasks.snake.rz270_heading.heading_observation":
+            return 63
         encoding = saved["commands"]["transform"].get(
             "task_observation_encoding", "one_hot"
         )
@@ -197,6 +205,10 @@ def test_archived_model_matches_the_current_task(entry):
     saved_checkpoint = checkpoint(entry)
     if task == "Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher":
         ArchivedSiteSnakeTeacherRunner._validate_checkpoint(saved_checkpoint)
+    if task == "Mjlab-Zbot-6dof-Snake-RZ270-Teacher":
+        Rz270SnakeTeacherRunner._validate_checkpoint(saved_checkpoint)
+    if task == "Mjlab-Zbot-6dof-Snake-Mixed-270-270-180-90-90-Teacher":
+        MixedClockingSnakeTeacherRunner._validate_checkpoint(saved_checkpoint)
     state = saved_checkpoint["actor_state_dict"]
     saved_group = saved['observations']['actor']
     saved_history = saved_group.get('history_length') or 1

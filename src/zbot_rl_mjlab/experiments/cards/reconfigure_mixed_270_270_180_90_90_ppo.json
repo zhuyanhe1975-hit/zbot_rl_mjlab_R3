@@ -1,0 +1,25 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "混合角全流程重构PPO",
+  "task_id": "Mjlab-Zbot-6dof-Reconfigure-Mixed-270-270-180-90-90-PPO",
+  "description": "全180闭环依次重构1/2/4/5面；雅可比安全断开，运动学状态机提供关节轨迹引导，PPO修正分离、旋转和接近速度，原生PD执行，状态机重连换面。各环境独立异步状态机，GPU约束雅可比加载和端面碰撞。",
+  "env": {
+    "scene": {
+      "num_envs": 4096
+    },
+    "motion_residual_speed": 2.0
+  },
+  "agent": {
+    "max_iterations": 1000,
+    "num_steps_per_env": 128,
+    "save_interval": 20
+  },
+  "play": {
+    "env": {
+      "scene": {
+        "num_envs": 1
+      }
+    }
+  }
+}

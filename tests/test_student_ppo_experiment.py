@@ -72,7 +72,7 @@ def test_initial_actor_checkpoint_is_the_verified_iteration150_student():
     values = asdict(load_rl_cfg(TASK))
     source = ROOT / values['initial_student_checkpoint']
     assert source.name == 'model_150.pt'
-    assert 'rsl_rl_universal_student_v2' in str(source)
+    assert source.parent == ROOT / 'bests' / 'universal_student_clean_2026-10-22_iter150'
     assert values['initial_student_sha256'] == SOURCE_SHA256
     assert source.is_file()
     assert hashlib.sha256(source.read_bytes()).hexdigest() == SOURCE_SHA256
@@ -138,6 +138,9 @@ def test_train_parser_accepts_actor_source_and_critic_warmup_without_starting_en
 def test_r3_frozen_scripts_preserve_ppo_commands(filename, entrypoint):
     text = (ROOT / filename).read_text()
     active = '\n'.join(line for line in text.splitlines() if not line.lstrip().startswith('#'))
+    # Archived student commands stay frozen; the new reconfiguration task is active.
+    active = '\n'.join(line for line in active.splitlines() if not re.match(
+        rf'^\s*python\S*\s+{re.escape(entrypoint)} Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-(?:Basic|PBT)(?:\s|$)', line))
     assert not re.search(r'^\s*(?:exec\s+)?python\S*\s', active, re.MULTILINE)
     preserved = (UniversalOmniStudent.task_id, UniversalOmniStudent.task_id + '-Disturbed',
                  TASK, TASK + '-V4')

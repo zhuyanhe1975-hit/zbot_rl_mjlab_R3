@@ -1,0 +1,83 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "首尾闭合：关节规划教师模仿（无PPO）",
+  "description": "独立于Basic的纯教师模仿实验。IK和关节空间规划生成真实动力学示范，确定性59维学生仅用监督动作损失训练；周期性无教师回放验证稳定贴合，连续达标后提前停止。不包含PPO、价值网络、回报估计或引导退火。",
+  "task_id": "Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-Plan-Guided",
+  "env": {
+    "magnetic_model_calibrated": false,
+    "magnetic_range": 0.04,
+    "magnetic_force": 8.0,
+    "magnetic_linear_damping": 0.4,
+    "magnetic_angular_stiffness": 0.15,
+    "magnetic_angular_damping": 0.02,
+    "capture_distance": 0.004,
+    "capture_angle": 0.13962634015954636,
+    "capture_speed": 0.1,
+    "capture_angular_speed": 1.0,
+    "capture_hold_s": 0.03,
+    "release_distance": 0.02,
+    "recapture_cooldown_s": 0.15,
+    "break_force": 80.0,
+    "break_torque": 4.0,
+    "allowed_dock_quarters": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "success_hold_s": 0.5,
+    "episode_length_s": 10.0,
+    "scene": {
+      "num_envs": 16
+    },
+    "actions": {
+      "joint_pos": {
+        "max_target_speed": 3.141592653589793,
+        "target_limit": 2.0,
+        "scale": 1.0,
+        "use_default_offset": false
+      }
+    },
+    "sim": {
+      "mujoco": {
+        "timestep": 0.005,
+        "iterations": 30
+      },
+      "njmax": 1000
+    },
+    "decimation": 4
+  },
+  "rewards": {},
+  "agent": {
+    "max_iterations": 3000,
+    "num_steps_per_env": 24,
+    "clip_actions": 1.0,
+    "save_interval": 100,
+    "resume": false,
+    "algorithm": {
+      "plan_branch": 0,
+      "plan_duration_s": 4.0,
+      "demo_hold_s": 2.0,
+      "demo_envs": 16,
+      "demo_action_noise": 0.03,
+      "batch_size": 512,
+      "learning_rate": 0.001,
+      "max_grad_norm": 1.0,
+      "validation_interval": 250,
+      "validation_envs": 4,
+      "validation_duration_s": 9.0,
+      "validation_required_passes": 2
+    },
+    "actor": {
+      "distribution_cfg": null
+    }
+  },
+  "play": {
+    "env": {
+      "scene": {
+        "num_envs": 1
+      }
+    }
+  }
+}

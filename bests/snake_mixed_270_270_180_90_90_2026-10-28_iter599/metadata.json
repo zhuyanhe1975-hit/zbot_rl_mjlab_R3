@@ -1,0 +1,63 @@
+{
+  "task_id": "Mjlab-Zbot-6dof-Snake-Mixed-270-270-180-90-90-Teacher",
+  "source_run": "logs/rsl_rl/zbot_snake_mixed_270_270_180_90_90_teacher/2026-10-28_11-05-14",
+  "source_checkpoint": "logs/rsl_rl/zbot_snake_mixed_270_270_180_90_90_teacher/2026-10-28_11-05-14/model_599.pt",
+  "checkpoint_iteration_filename": 599,
+  "checkpoint_iter_field": 599,
+  "completed_ppo_iterations": 600,
+  "source_sha256": "7fbe7ce16efd51ff092a3aed4d6fc159cde69c3a97209ea59be7c4bb77927776",
+  "archived_at": "2026-10-28T11:14:30.433739+08:00",
+  "selection": "User approved latest completed run and final checkpoint; no best-score search.",
+  "checkpoint_metadata": {
+    "role": "privileged_site_snake_mixed_clocking_teacher",
+    "schema_version": 6,
+    "actor_obs_dim": 63,
+    "critic_obs_dim": 63,
+    "action_dim": 6,
+    "snake_omni_version": 12,
+    "objective": "head_site_forward_speed_and_sampled_heading",
+    "observation_recipe": "site_head_frame_with_heading_sin_cos_v1",
+    "tracking_point": "foot_0_sole",
+    "reward_recipe": "rz270_head_site_forward_heading_v1",
+    "motion_site": "foot_0_sole",
+    "command_axes": [
+      "site_minus_z_gravity_aligned",
+      "left",
+      "world_plus_z"
+    ],
+    "distribution": "GaussianDistribution",
+    "action_range": [
+      -1.0,
+      1.0
+    ],
+    "action_clipping": "hard_clip_before_target_integration",
+    "action_control": "integrated_joint_target_velocity",
+    "qualification_protocol": "rz270_sampled_heading_v1",
+    "module_clocking_deg": [
+      270,
+      270,
+      180,
+      90,
+      90
+    ],
+    "robot_assembly": "zbot_six_270_270_180_90_90_v1",
+    "velocity_limits": [
+      0.2,
+      0.2,
+      0.5
+    ],
+    "joint_target_limit": 2.0943951023931953,
+    "snake_target_limit": 2.0943951023931953,
+    "max_target_speed": 6.283185307179586,
+    "heading_range": [
+      -3.141592653589793,
+      3.141592653589793
+    ],
+    "forward_speed_cap": 0.2,
+    "completed_ppo_iterations": 600,
+    "task_fsm_version": 1
+  },
+  "training_num_envs": 8192,
+  "control_dt_s": 0.02,
+  "verification_boundary": "User visual approval and bounded simulated replay; no comprehensive or hardware validation."
+}

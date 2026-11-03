@@ -12,6 +12,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 if __name__ == "__main__":
+    # Preserve this task's fixed-shape GPU reset environment.
+    if len(sys.argv)>1 and sys.argv[1]=='Mjlab-Zbot-6dof-Reconfigure-Initial-Closure':
+        from scripts.train_refined_gpu_initial_closure import main as closure_main
+        raise SystemExit(closure_main(sys.argv[2:]))
     import zbot_rl_mjlab  # noqa: F401, I001
     from zbot_rl_mjlab.cli import CliError, apply_cli
     from mjlab.scripts.train import main

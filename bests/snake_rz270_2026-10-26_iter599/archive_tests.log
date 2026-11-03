@@ -1,0 +1,9 @@
+........................................................................ [ 92%]
+......                                                                   [100%]
+=============================== warnings summary ===============================
+../../dev-envs/robotics-mjlab-py313/lib/python3.13/site-packages/torch/jit/_script.py:1491
+  /home/yhzhu/dev-envs/robotics-mjlab-py313/lib/python3.13/site-packages/torch/jit/_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+78 passed, 1 warning in 5.00s

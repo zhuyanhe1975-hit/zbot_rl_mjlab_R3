@@ -1,0 +1,361 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "混合连接角蛇形教师",
+  "description": "五处固定连接角依次为270、270、180、90、90度；其余训练配方继承当前RZ270蛇形教师。",
+  "env": {
+    "decimation": 4,
+    "seed": 42,
+    "episode_length_s": 15.0,
+    "recorders": {},
+    "is_finite_horizon": false,
+    "auto_reset": true,
+    "scale_rewards_by_dt": true,
+    "success_hold_s": 2.0,
+    "joint_tolerance": 0.1,
+    "final_max_body_height": 0.1,
+    "joint_speed_tolerance": 0.1,
+    "base_speed_tolerance": 0.02,
+    "max_downward_com_speed": 0.3,
+    "workspace_radius": 15.0,
+    "omni_site_frame": true,
+    "omni_frame_backend": "eager",
+    "motion_site": "foot_0_sole",
+    "snake_teacher_enabled": false,
+    "straighten_before_stand": false,
+    "standing_joint_pos": [
+      0.312,
+      0.837,
+      -2.02,
+      2.02,
+      -0.837,
+      -0.312
+    ],
+    "standing_base_height": 0.264,
+    "joint_standing_error_scale": 0.5,
+    "standing_pose_gravity_scale": 1.0,
+    "sole_alignment_height_std": 0.03,
+    "sole_alignment_angle_std_deg": 10.0,
+    "ascent_reward_stop_height": 0.23,
+    "require_sole_support_for_positive_rewards": false,
+    "curriculum_start_stage": 2,
+    "support_angle_limit_deg": 25.0,
+    "support_height_limit": 0.01,
+    "site_snake_omni": true,
+    "archive_site_checkpoint": false,
+    "command_visual_height": 0.0,
+    "command_visual_actual_velocity": false,
+    "site_up_axis": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "site_tilt_limit": 1.0471975511965976,
+    "head_body": "foot_0",
+    "head_up_axis": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "head_tilt_limit": 1.0471975511965976,
+    "max_contact_bodyweights": 8.0,
+    "scene": {
+      "num_envs": 8192,
+      "env_spacing": 4.0,
+      "entities": {
+        "robot": {
+          "init_state": {
+            "pos": [
+              0.0,
+              0.0,
+              0.0555
+            ],
+            "rot": [
+              0.7071067811865476,
+              0.0,
+              -0.7071067811865476,
+              0.0
+            ],
+            "lin_vel": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "ang_vel": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "joint_pos": {
+              "joint1": 0.0,
+              "joint2": 0.0,
+              "joint3": 0.0,
+              "joint4": 0.0,
+              "joint5": 0.0,
+              "joint6": 0.0
+            },
+            "joint_vel": {
+              ".*": 0.0
+            }
+          }
+        }
+      }
+    },
+    "sim": {
+      "nconmax": null,
+      "njmax": 500,
+      "contact_sensor_maxmatch": 128,
+      "broadphase": null,
+      "broadphase_filter": null,
+      "ls_parallel": null,
+      "mujoco": {
+        "timestep": 0.005,
+        "integrator": "implicitfast",
+        "impratio": 1.0,
+        "cone": "pyramidal",
+        "jacobian": "auto",
+        "solver": "newton",
+        "iterations": 10,
+        "tolerance": 1e-08,
+        "ls_iterations": 20,
+        "ls_tolerance": 0.01,
+        "ccd_iterations": 50,
+        "gravity": [
+          0.0,
+          0.0,
+          -9.81
+        ],
+        "disableflags": [],
+        "enableflags": []
+      },
+      "nan_guard": {
+        "enabled": false,
+        "buffer_size": 100,
+        "output_dir": "/tmp/mjlab/nan_dumps",
+        "max_envs_to_dump": 5
+      }
+    },
+    "actions": {
+      "joint_pos": {
+        "entity_name": "robot",
+        "clip": null,
+        "actuator_names": [
+          ".*"
+        ],
+        "scale": 1.0,
+        "offset": 0.0,
+        "preserve_order": false,
+        "use_default_offset": false,
+        "max_target_speed": 6.283185307179586,
+        "target_limit": 2.0943951023931953,
+        "joint_target_bounds": {},
+        "snake_target_limit": 2.0943951023931953,
+        "biped_residual_scale": null,
+        "transition_end_joint_radius": null
+      }
+    },
+    "commands": {
+      "transform": {
+        "resampling_time_range": [
+          5.0,
+          5.0
+        ],
+        "debug_vis": false,
+        "snake_teacher_enabled": false,
+        "training": true,
+        "mode": "snake",
+        "auto_switch_on_success": false,
+        "velocity_limits": [
+          0.2,
+          0.2,
+          0.5
+        ],
+        "hold_s": 2.0,
+        "smoothing_s": 0.25,
+        "transition_timeout_s": 8.0,
+        "gait_frequency": 0.5,
+        "forward_speed_levels": [
+          0.08,
+          0.1,
+          0.12,
+          0.15,
+          0.2
+        ],
+        "translation_training_fraction": 0.8,
+        "backward_training_speed": 0.05,
+        "lateral_training_speed": 0.05,
+        "direction_speed_multipliers": [
+          1.0,
+          1.5,
+          2.0
+        ],
+        "debug_vis_selected_only": true,
+        "task_observation_encoding": "scalar",
+        "motion_axis_min_fraction": 0.4,
+        "motion_stop_probability": 0.01,
+        "training_task_fractions": [
+          0.4,
+          0.4,
+          0.1,
+          0.1
+        ],
+        "randomize_play_modes": true,
+        "play_random_velocity": false,
+        "play_velocity": [
+          0.05,
+          0.0,
+          0.0
+        ],
+        "initialize_matched_motion": true,
+        "biped_gait_frequency_range": [
+          0.25,
+          1.0
+        ],
+        "snake_gait_frequency": 0.7,
+        "standing_ready_height": 0.24,
+        "transition_joint_tolerance": 0.15,
+        "motion_startup_s": 0.1,
+        "train_auto_recovery": false,
+        "play_auto_recovery": false,
+        "heading_range": [
+          -3.141592653589793,
+          3.141592653589793
+        ],
+        "forward_speed_cap": 0.2,
+        "play_heading": null,
+        "forward_speed_range": [
+          0.0,
+          0.2
+        ],
+        "forward_stop_probability": 0.1,
+        "play_forward_speed": null
+      }
+    },
+    "metrics": {}
+  },
+  "rewards": {
+    "alive": {
+      "weight": 0.2,
+      "params": {}
+    },
+    "action_rate": {
+      "weight": -0.002,
+      "params": {}
+    },
+    "joint_pose_deviation": {
+      "weight": -0.02,
+      "params": {}
+    },
+    "site_tilt": {
+      "weight": -1.0,
+      "params": {}
+    },
+    "joint_pos_limits": {
+      "weight": -1.0,
+      "params": {
+        "soft_limit_factor": 0.9
+      }
+    },
+    "joint_target_limits": {
+      "weight": -1.0,
+      "params": {
+        "soft_limit_factor": 0.9,
+        "use_target": true
+      }
+    },
+    "failure_reset": {
+      "weight": -5.0,
+      "params": {}
+    },
+    "head_forward_speed": {
+      "weight": 2.0,
+      "params": {
+        "stop_speed_scale": 0.05
+      }
+    },
+    "heading_alignment": {
+      "weight": 1.0,
+      "params": {}
+    },
+    "head_lateral_speed": {
+      "weight": -2.0,
+      "params": {}
+    }
+  },
+  "agent": {
+    "seed": 42,
+    "num_steps_per_env": 24,
+    "max_iterations": 6000,
+    "save_interval": 50,
+    "logger": "tensorboard",
+    "wandb_project": "mjlab",
+    "wandb_tags": [],
+    "clip_actions": 1.0,
+    "upload_model": true,
+    "actor": {
+      "hidden_dims": [
+        256,
+        128
+      ],
+      "activation": "elu",
+      "obs_normalization": true,
+      "cnn_cfg": null,
+      "distribution_cfg": {
+        "init_std": 1.0,
+        "std_type": "scalar"
+      },
+      "rnn_type": null,
+      "rnn_hidden_dim": 256,
+      "rnn_num_layers": 1
+    },
+    "critic": {
+      "hidden_dims": [
+        256,
+        128
+      ],
+      "activation": "elu",
+      "obs_normalization": true,
+      "cnn_cfg": null,
+      "distribution_cfg": null,
+      "rnn_type": null,
+      "rnn_hidden_dim": 256,
+      "rnn_num_layers": 1
+    },
+    "algorithm": {
+      "num_learning_epochs": 5,
+      "num_mini_batches": 4,
+      "learning_rate": 0.001,
+      "schedule": "adaptive",
+      "gamma": 0.99,
+      "lam": 0.95,
+      "entropy_coef": 0.01,
+      "desired_kl": 0.01,
+      "max_grad_norm": 1.0,
+      "value_loss_coef": 1.0,
+      "use_clipped_value_loss": true,
+      "clip_param": 0.2,
+      "normalize_advantage_per_mini_batch": false,
+      "optimizer": "adam",
+      "share_cnn_encoders": false
+    },
+    "console_mode": "full",
+    "validation_interval_iterations": 0,
+    "robust_validation_interval": 0
+  },
+  "addons": {},
+  "task_id": "Mjlab-Zbot-6dof-Snake-Mixed-270-270-180-90-90-Teacher",
+  "play": {
+    "env": {
+      "scene": {
+        "num_envs": 1
+      },
+      "commands": {
+        "transform": {
+          "debug_vis": true,
+          "training": false,
+          "play_random_velocity": true
+        }
+      }
+    }
+  }
+}

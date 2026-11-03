@@ -1,0 +1,91 @@
+{
+  "checkpoint_sha256_matches_source": true,
+  "strict_actor_load": "passed",
+  "policy_actions_and_observations_finite": true,
+  "actor_obs_dim": 63,
+  "action_dim": 6,
+  "num_envs": 8,
+  "device": "cuda:0",
+  "control_dt_s": 0.02,
+  "duration_s": 20.0,
+  "steps": 1000,
+  "burn_in_s": 5.0,
+  "policy": "deterministic mean",
+  "protocol": "Fixed speed/heading commands supplied through the task command sampler, including after resets; original model, dynamics and reset pose retained. Not a formal success-rate protocol.",
+  "cases": [
+    {
+      "forward_speed_m_s": 0.0,
+      "heading_rad": 0.0,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.005582318641245365,
+      "mean_abs_lateral_speed_m_s": 0.04581918194890022,
+      "mean_abs_heading_error_rad": 0.04207399860024452,
+      "mean_head_tilt_rad": 0.07406124472618103
+    },
+    {
+      "forward_speed_m_s": 0.05,
+      "heading_rad": 0.0,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.019324569031596184,
+      "mean_abs_lateral_speed_m_s": 0.07405667752027512,
+      "mean_abs_heading_error_rad": 0.08199983835220337,
+      "mean_head_tilt_rad": 0.08597017079591751
+    },
+    {
+      "forward_speed_m_s": 0.1,
+      "heading_rad": 0.0,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.030790098011493683,
+      "mean_abs_lateral_speed_m_s": 0.07905660569667816,
+      "mean_abs_heading_error_rad": 0.08253718167543411,
+      "mean_head_tilt_rad": 0.1345682293176651
+    },
+    {
+      "forward_speed_m_s": 0.2,
+      "heading_rad": 0.0,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.056648287922143936,
+      "mean_abs_lateral_speed_m_s": 0.10977724194526672,
+      "mean_abs_heading_error_rad": 0.18581047654151917,
+      "mean_head_tilt_rad": 0.21554645895957947
+    },
+    {
+      "forward_speed_m_s": 0.1,
+      "heading_rad": 1.5707963267948966,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.029018908739089966,
+      "mean_abs_lateral_speed_m_s": 0.08702870458364487,
+      "mean_abs_heading_error_rad": 0.06566844880580902,
+      "mean_head_tilt_rad": 0.13489273190498352
+    },
+    {
+      "forward_speed_m_s": 0.1,
+      "heading_rad": -1.5707963267948966,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.029217660427093506,
+      "mean_abs_lateral_speed_m_s": 0.06599083542823792,
+      "mean_abs_heading_error_rad": 0.10431983321905136,
+      "mean_head_tilt_rad": 0.19380775094032288
+    },
+    {
+      "forward_speed_m_s": 0.1,
+      "heading_rad": 3.141592653589793,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.031015334650874138,
+      "mean_abs_lateral_speed_m_s": 0.07685035467147827,
+      "mean_abs_heading_error_rad": 0.08446969836950302,
+      "mean_head_tilt_rad": 0.16509947180747986
+    },
+    {
+      "forward_speed_m_s": 0.0,
+      "heading_rad": 1.5707963267948966,
+      "resets": 0,
+      "mean_abs_forward_error_m_s": 0.014896026812493801,
+      "mean_abs_lateral_speed_m_s": 0.030331578105688095,
+      "mean_abs_heading_error_rad": 0.050633832812309265,
+      "mean_head_tilt_rad": 0.13038218021392822
+    }
+  ],
+  "wall_time_s": 13.377337588986848,
+  "performance_acceptance": "not asserted; archival approval is the user visual assessment, with bounded replay diagnostics recorded separately"
+}

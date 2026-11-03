@@ -1,4 +1,5 @@
-source /home/yhzhu/AI/mjlab/.venv/bin/activate
+#!/usr/bin/env bash
+source "$(dirname -- "${BASH_SOURCE[0]}")/scripts/activate.sh" || exit 1
 
 # 0、按照指定频率原地踏步实验（使用本任务独立日志目录中的模型）
 # python play.py Mjlab-Zbot-6dof-Periodic-Stepping \
@@ -109,3 +110,105 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
 #   --env.scene.num-envs 1 \
 #   --checkpoint-file bests/universal_student_disturbed_2026-10-22_iter499/model_499.pt \
 # #   "$@"
+
+
+# 23、RZ270独立蛇形：趴地重置，蛇头朝世界+X，关节零位不变。
+# ./scripts/python.sh play.py Mjlab-Zbot-6dof-Snake-RZ270-Teacher \
+#     --env.scene.num-envs 1 \
+#     --checkpoint-file bests/snake_rz270_2026-10-26_iter599/model_599.pt
+
+# 24.a、初始Basic：13:11配方，59维、速度积分、原物理；使用独立日志根目录重新开始。
+# python play.py Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-Basic \
+#     --log-root logs/rsl_rl_reconfiguration_initial \
+#     --env.scene.num-envs 1
+
+# 24.b、PBT重构回放：默认优先加载PBT独立日志目录中的best.pt。
+# 切换实验时只启用一组命令；指定模型可加 --checkpoint-file /path/to/model.pt。
+# python play.py Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-PBT \
+#     --env.scene.num-envs 1 \
+#     --env.commands.dock.target-yaw-deg 180
+
+# 24.c、规划教师模仿学生：回放只执行学生，默认优先选best.pt。
+# python play.py Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-Plan-Guided \
+#     --log-root logs/rsl_rl_reconfiguration_plan_imitation \
+#     --env.scene.num-envs 1
+
+# 24.d、历史断开PPO回放（暂停学习，当前使用独立状态机）。
+# python play.py Mjlab-Zbot-6dof-Reconfigure-Disconnect-Torque \
+#     --log-root logs/rsl_rl_disconnect_torque \
+#     --env.scene.num-envs 1 \
+#     "$@"
+
+# 25、独立重构状态机：加载→断开→拉开5cm→端面相对旋转90°→接近贴合→重建weld。
+# 默认MJLab原生窗口；bash run.sh --headless 可无窗口执行并保存JSON。
+# python scripts/reconfigure_state_machine.py --viewer "$@"
+
+
+# 26、独立运动学重构：初始闭环→首尾辅助边重构→五处内部180°到270°→最后开首尾并展开。
+# 不使用力矩/动力学；忽略关节限位。始终一条连通链，IK失败停止，不移动独立模块凑终态。
+# python scripts/reconfigure_to_rz270_kinematic.py --viewer "$@"
+
+
+# 27、独立连通闭环运动学：全180→[270,270,180,90,90]，处理第1、2、4、5连接。
+# 首尾辅助连接及第3连接保持180；忽略限位/力矩/动力学，每次只断开一处。
+# python scripts/reconfigure_mixed_closed_kinematic.py --viewer "$@"
+
+# 28、闭环混合角动力学状态机：真实载荷断开、原生PD运动、碰撞穿透保护。
+# 尚未跑通全程；运行时实时显示阶段和保护触发。
+# # # # ./scripts/python.sh scripts/reconfigure_mixed_closed_dynamic.py --viewer "$@"
+
+# 29、回放混合连接角蛇形教师；先执行 train.sh 生成独立检查点。
+# ./scripts/python.sh play.py Mjlab-Zbot-6dof-Snake-Mixed-270-270-180-90-90-Teacher \
+#     --env.scene.num-envs 1 \
+#     --checkpoint-file logs/rsl_rl/zbot_snake_mixed_270_270_180_90_90_teacher/2026-10-28_11-05-14/model_599.pt \
+#     "$@"
+
+# 30、混合连接角双足行走回放；先执行 train.sh 生成检查点。
+# ./scripts/python.sh play.py Mjlab-Zbot-6dof-Walking-Mixed-270-270-180-90-90 \
+#     --log-root logs/rsl_rl_walking_mixed_mirror_025 \
+#     --env.scene.num-envs 1 \
+#     "$@"
+
+# 31、回到混合角重构动力学基线；当前为确定性状态机，尚未接入全流程PPO。
+# # ./scripts/python.sh scripts/reconfigure_mixed_closed_dynamic.py --viewer "$@"
+
+# 32、回放运动学引导的混合角重构PPO；先运行train.sh生成该任务的检查点。
+# ./scripts/python.sh play.py Mjlab-Zbot-6dof-Reconfigure-Mixed-270-270-180-90-90-PPO \
+#     --log-root logs/rsl_rl_reconfigure_mixed_guided_batched_v4 \
+#     --env.scene.num-envs 1 \
+#     "$@"
+
+# 33、六模块重构v3：雅可比加载断开；七模块路径策略 + 固定原生PD动力学执行。
+# 1ms物理步长；故障/完成自动暂停。bash run.sh --headless 可无窗口执行。
+# ./scripts/python.sh scripts/reconfigure_mixed_closed_reference.py --viewer "$@"
+
+# 34、CPU完整重构：1ms、100N，一次性优化与预演，断开后稳定并重连。
+# ./scripts/python.sh scripts/reconfigure_mixed_full_cpu.py --viewer "$@"
+# ./scripts/python.sh scripts/view_headtail_search.py "$@"
+# ./scripts/python.sh scripts/view_headtail_bidirectional.py
+# ./scripts/python.sh scripts/view_headtail_mjbatch_refined.py
+# ./scripts/python.sh scripts/view_headtail_mjbatch_2ms.py
+
+# 35、CPU 全流程教师轨迹引导的 PPO 学生；默认回放当前训练的最新检查点。
+# 完成或失败后保持窗口；--headless 可无窗口运行，其他参数传给评估脚本。
+# ./scripts/python.sh scripts/eval_full_cpu_student.py \
+#     logs/full_cpu_reference_student/latest.pt --viewer "$@"
+
+# 36、GPU 全流程重构学生：使用当前训练最新检查点与状态机教师，确定性策略回放。
+# 成功或失败后保持窗口；bash run.sh --headless 可无窗口运行。
+# ./scripts/python.sh scripts/eval_full_gpu_student.py \
+#     --logs/full_gpu_reference_student/latest.pt \
+#     --viewer "$@"
+
+# 37、静态闭环内力优化评估：各连接面独立加载，达到断开条件即停止，不执行后续分离。
+# ./scripts/python.sh scripts/eval_static_loading.py "$@"
+
+# 38、GPU 精修正向参考可视化：单环境、1ms 物理步长；Enter 重置，空格暂停。
+# 当前为零策略修正参考回放，尚不是训练好的 RL 策略。
+# ./scripts/python.sh scripts/view_headtail_gpu_refined.py "$@"
+
+# 39、实时关节空间雅可比规划v11：单 GPU 环境、2ms；优先验证best。
+# Enter 重置、空格暂停；传 --checkpoint-file 可指定检查点。
+# python play.py Mjlab-Zbot-6dof-Reconfigure-Initial-Closure \
+#     --env.scene.num-envs 1 \
+#     "$@"

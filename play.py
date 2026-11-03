@@ -8,6 +8,10 @@ from typing import cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
+if __name__=='__main__' and len(sys.argv)>1 and sys.argv[1]=='Mjlab-Zbot-6dof-Reconfigure-Initial-Closure':
+    from scripts.view_initial_closure_rsl import main as closure_main
+    raise SystemExit(closure_main(sys.argv[2:]))
+
 import mjlab
 import tyro
 from mjlab.envs import ManagerBasedRlEnv, ManagerBasedRlEnvCfg
@@ -19,6 +23,7 @@ from mjlab.viewer import ViserPlayViewer
 import zbot_rl_mjlab  # noqa: F401
 from zbot_rl_mjlab.cli import CliError, apply_cli, latest_checkpoint
 from zbot_rl_mjlab.tasks.snake.env_cfg import SnakeEnvCfg
+from zbot_rl_mjlab.tasks.snake.rz270_heading import HeadingSnakeCommandCfg
 from zbot_rl_mjlab.tasks.transformation.commanded import TransformCommandCfg
 from zbot_rl_mjlab.tasks.transformation.env_cfg import TransformationEnvCfg
 from zbot_rl_mjlab.tasks.universal.env_cfg import UniversalEnvCfg
@@ -76,8 +81,9 @@ def main():
         raise ValueError('follow-smoothing-time must be finite and nonnegative')
     cfg.env.viewer.enable_shadows = True
     cfg.env.viewer.enable_reflections = True
-    if cfg.stochastic and "motion" not in cfg.env.commands:
-        raise ValueError("随机采样回放当前仅支持独立蛇形教师任务。")
+    if (cfg.stochastic and "motion" not in cfg.env.commands
+            and not getattr(cfg.env, 'head_tail_docking', False)):
+        raise ValueError("随机采样回放当前支持独立蛇形教师及首尾对接重构任务。")
     if cfg.frequency is not None:
         if not isinstance(cfg.env, ZbotEnvCfg):
             raise ValueError("frequency requires a periodic walking task")
@@ -102,7 +108,14 @@ def main():
         if cfg.checkpoint_file
         else latest_checkpoint(agent.experiment_name, cfg.log_root)
     )
+    if (not cfg.checkpoint_file and (getattr(getattr(agent, 'pbt', None), 'enabled', False)
+            or task == 'Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-Plan-Guided')
+            and checkpoint.with_name('best.pt').exists()):
+        checkpoint = checkpoint.with_name('best.pt')
     print(f"Checkpoint: {checkpoint}")
+    if task == 'Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-Basic':
+        from zbot_rl_mjlab.tasks.reconfiguration.basic import validate_checkpoint
+        validate_checkpoint(checkpoint)
     if periodic is not None:
         print(
             f"Frequency: {periodic.step_frequency_min}–{periodic.step_frequency_max} Hz"
@@ -156,7 +169,28 @@ def main():
         if roll_offsets is not None:
             angles = [round(angle * 180 / math.pi, 2) for angle in roll_offsets[:8].tolist()]
             print(f"Initial snake roll offsets (degrees, first {len(angles)} envs): {angles}")
-        if "motion" in cfg.env.commands and getattr(env.cfg, "observation_reference", "command") == "world_x":
+        if getattr(env.cfg, 'mixed_reconfiguration_ppo', False):
+            print('混合角全流程重构：雅可比安全加载，运动学状态机轨迹引导，PPO修正关节速度，MJLab原生PD执行。')
+            print('目标[270,270,180,90,90]；依次处理1/2/4/5，首尾及第3面保持；各环境独立阶段，GPU雅可比加载及真实碰撞/载荷保护。')
+        elif getattr(env.cfg, 'disconnect_torque', False):
+            print(f'断开力矩实验：固定目标连接面{env.cfg.target_connector}（5为首尾），6维关节前馈力矩动作，P=0，保留速度阻尼。')
+            print(f'力矩={env.cfg.torque_action_scale:g}×action−{env.cfg.joint_damping:g}×dq，P=0，合力矩限幅±{env.cfg.torque_limit:g} Nm。')
+            print(f'剥离等效力=max(Fz,0)+norm(Mxy)/{env.cfg.connector_radius:g} m，超过{env.cfg.break_force:g} N被动断开；其余五面须安全。')
+        elif getattr(env.cfg, 'head_tail_docking', False):
+            limit = cfg.env.actions['joint_pos'].target_limit
+            print("回放模式：随机采样探索（不代表已学会能力）。" if cfg.stochastic else "回放模式：确定性均值，不展示训练探索噪声。")
+            if hasattr(cfg.env, 'pose_hold_s'):
+                print(f'规划教师模仿版：59维观测，速度积分目标±{limit:g} rad；当前由学生策略独立执行。')
+                print('贴合按原点距离、法线角差与稳定保持判定；回放无需规划器或教师。')
+            elif 'dock' not in cfg.env.commands:
+                print(f'初始Basic：59维观测，六关节速度积分目标±{limit:g} rad，5ms物理步长、4子步。')
+                print('自动选择最近合法注册角，被动磁吸并激活weld；不使用方位指令。')
+            else:
+                print(f'重构PBT：六关节高斯位置动作，目标范围±{limit:g} rad。')
+                print('对接目标由 --env.commands.dock.target-yaw-deg 指定（0/90/180/270）；[ / ] 切换当前机器人目标。')
+                print('连接状态、端面距离/角差和载荷显示于状态栏。')
+            print('磁力参数为未标定仿真假设。Enter复位，空格暂停。')
+        elif "motion" in cfg.env.commands and getattr(env.cfg, "observation_reference", "command") == "world_x":
             print("蛇形前向推进：奖励前向质心速度，惩罚左右/上下速度绝对值与关节构型偏差。")
             print("本任务不使用目标速度指令；蓝色箭头表示蛇形前向，绿色箭头表示实际质心速度。")
             print("Enter 复位，空格暂停，R 切换可视化，\\ 跟随相机。")
@@ -170,6 +204,15 @@ def main():
             print("速度控制只作用于当前选中的机器人；逗号/句号切换选择。按键不重置姿态。Enter 复位，空格暂停，\\ 跟随相机。")
             if cfg.viewer == "viser":
                 print("蛇形键盘控制仅支持原生查看器，请使用 --viewer native。")
+        elif isinstance(cfg.env.commands.get('transform'), HeadingSnakeCommandCfg):
+            print('蛇头site前行速度 + 世界目标航向：W/S 每次增减0.025m/s（不倒退），A/D 或 Q/E 每次调整航向 ±10°。')
+            print('方向键：↑/↓增减前行速度，←/→每次调整目标航向±10°；↓不倒退。')
+            print('小键盘：8/2增减前行速度，4/6或7/9调整航向，5或0清零前行速度。')
+            print('X 只清零前行速度，保留航向目标；速度与航向独立控制，无侧移和角速度指令。橙箭头方向=目标航向、长度=前行速度指令，速度为0时隐藏；绿箭头=蛇头朝向。')
+            print('实际蛇头site：青色箭头=水平线速度，紫色竖直箭头=偏航角速度wz（向上为正）；长度随测量值变化。')
+            print('键盘只接管所选机器人并暂停其自动采样；逗号/句号切换选择，Enter复位后恢复采样。按键不重置姿态。')
+            if cfg.viewer == 'viser':
+                print('本任务键盘控制使用 --viewer native。')
         elif getattr(cfg.env, 'site_snake_omni', False):
             print('独立蛇形全向：foot_0_sole −Z投影为前方，vy向左，wz绕世界向上为正。')
             print('每6～12秒独立随机采样速度；W/S前后、A/D侧移、Q/E转向、X停车，键盘只接管所选机器人。')

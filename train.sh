@@ -1,4 +1,5 @@
-source /home/yhzhu/AI/mjlab/.venv/bin/activate
+#!/usr/bin/env bash
+source "$(dirname -- "${BASH_SOURCE[0]}")/scripts/activate.sh" || exit 1
 
 # 0、按照指定频率原地踏步实验
 # python train.py Mjlab-Zbot-6dof-Periodic-Stepping \
@@ -228,3 +229,84 @@ source /home/yhzhu/AI/mjlab/.venv/bin/activate
 #   --agent.run-name universal_teacher_dagger_disturbed_22d \
 #   --agent.resume False \
 #   "$@"
+
+
+# 23、RZ270独立蛇形：趴地重置，蛇头朝世界+X，关节零位不变。
+# ./scripts/python.sh train.py Mjlab-Zbot-6dof-Snake-RZ270-Teacher \
+#     --env.scene.num-envs 8192 \
+#     --agent.max-iterations 600
+
+# 24.a、初始Basic：13:11配方，59维、速度积分、原物理；使用独立日志根目录重新开始。
+# python train.py Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-Basic \
+#     --log-root logs/rsl_rl_reconfiguration_initial \
+#     --env.scene.num-envs 8192 \
+#     --agent.max-iterations 500
+
+# 24.b、PBT重构：总8192环境；8×1024探索，有效分化后4×2048集中训练。
+# 切换实验时只启用一组命令，避免连续启动两个训练。
+# python train.py Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-PBT \
+#     --env.scene.num-envs 8192 \
+#     --agent.max-iterations 500
+
+# 24.c、独立规划教师模仿：只做监督学习，无PPO；验证稳定贴合后提前停止。
+# python train.py Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-Plan-Guided \
+#     --log-root logs/rsl_rl_reconfiguration_plan_imitation \
+#     --agent.max-iterations 100 \
+#     "$@"
+
+# 24.d、雅可比力矩加载＋距离雅可比自动拉开：MJLab内置PD，PPO仅训练加载残差。
+# python train.py Mjlab-Zbot-6dof-Reconfigure-Disconnect-Torque \
+#     --log-root logs/rsl_rl_disconnect_torque \
+#     --env.scene.num-envs 4096 \
+#     "$@"
+
+# 29、混合连接角蛇形教师：从头训练，奖励与当前RZ270教师一致。
+# ./scripts/python.sh train.py Mjlab-Zbot-6dof-Snake-Mixed-270-270-180-90-90-Teacher \
+#     --env.scene.num-envs 8192 \
+#     --agent.max-iterations 600 \
+#     "$@"
+
+
+# 30、混合连接角双足行走：独立任务和站立初态，训练配方继承Walking。
+# ./scripts/python.sh train.py Mjlab-Zbot-6dof-Walking-Mixed-270-270-180-90-90 \
+#     --log-root logs/rsl_rl_walking_mixed_mirror_025 \
+#     --env.scene.num-envs 8192 \
+#     --agent.max-iterations 600 \
+#     "$@"
+
+# 当前工作：混合角重构学习；原单面Disconnect-Torque PPO并非全流程任务。
+# 统一PPO训练入口见下方第31项。
+
+# 31、运动学状态机引导的混合角统一重构PPO；4096个独立异步环境，GPU雅可比加载。
+# ./scripts/python.sh train.py Mjlab-Zbot-6dof-Reconfigure-Mixed-270-270-180-90-90-PPO \
+#     --log-root logs/rsl_rl_reconfigure_mixed_guided_batched_v4 \
+#     --env.scene.num-envs 4096 \
+#     "$@"
+
+# 35、全流程状态机速度参考 + 力矩/速度残差 PPO（4096 GPU环境，实验验证中）。
+# ./scripts/python.sh scripts/collect_full_cpu_reference.py
+# ./scripts/python.sh scripts/train_full_student.py \
+#   --env.scene.num-envs 4096 \
+#   --iterations 500 \
+#   --log-dir logs/full_gpu_reference_student \
+#   "$@"
+
+
+# 旧实验保留原入口；它尚未接入下面的精修控制器。
+# ./scripts/python.sh scripts/train_full_student.py \
+#   --env.scene.num-envs 4096 \
+#   --iterations 500 \
+#   --log-dir logs/full_gpu_reference_student_refined90
+
+# 36、精修正向参考上的小范围 PPO：4096 GPU 环境、1ms 物理。
+# 只在 CURL 施加限幅残差；首次失败即停止，不覆盖旧实验。
+# ./scripts/python.sh scripts/train_refined_gpu_incremental.py "$@"
+
+# 37、起始首尾闭环独立训练：闭合并稳定后立即结束该回合。
+# 8192 GPU 环境、2ms 物理；失败环境重置并继续，使用独立日志与检查点。
+# 默认从头训练；已有日志自动改名保留，续训需显式传 --resume 或 --auto-resume。
+# 实时关节空间、碰撞及对齐雅可比规划v11；每50轮及最终独立验证best.pt。
+python train.py Mjlab-Zbot-6dof-Reconfigure-Initial-Closure \
+    --env.scene.num-envs 8192 \
+    --agent.max-iterations 200 \
+    "$@"

@@ -126,6 +126,9 @@ def test_v2_recipe_uses_full_replay_epoch_teacher_handoff_and_demonstration_anch
 def test_r3_scripts_are_frozen_with_student_commands_preserved(filename, entrypoint):
     text = (ROOT / filename).read_text()
     active = '\n'.join(line for line in text.splitlines() if not line.lstrip().startswith('#'))
+    # Archived student commands stay frozen; the new reconfiguration task is active.
+    active = '\n'.join(line for line in active.splitlines() if not re.match(
+        rf'^\s*python\S*\s+{re.escape(entrypoint)} Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-(?:Basic|PBT)(?:\s|$)', line))
     assert not re.search(r'^\s*(?:exec\s+)?python\S*\s', active, re.MULTILINE)
     for task in (TASK, TASK + '-Disturbed'):
         assert re.search(rf'^#\s*python {re.escape(entrypoint)} {re.escape(task)}\s*\\', text, re.MULTILINE)

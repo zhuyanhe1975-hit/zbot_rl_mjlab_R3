@@ -16,7 +16,7 @@ from zbot_rl_mjlab.tasks.universal.student_rewards import student_velocity_track
 def test_v3_recipe_is_independent_and_preserves_original_v2_card():
     root = Path(__file__).resolve().parents[1]
     card = root / 'src/zbot_rl_mjlab/experiments/cards/universal_snake_leg_omni_student_ppo_v2.json'
-    assert hashlib.sha256(card.read_bytes()).hexdigest() == '9e09e93adbb4eab2fee0524bcb80a9b3f0096a81be9bebeb5424105cce70808a'
+    assert hashlib.sha256(card.read_bytes()).hexdigest() == '54adf4f446baf365fcd182fea4d8fba95fa7ce0a47e58545b62afc14e12d31ca'
     v2 = 'Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Student-PPO'
     v3 = UniversalOmniStudentPPOV3.task_id
     before = asdict(load_rl_cfg(v2))

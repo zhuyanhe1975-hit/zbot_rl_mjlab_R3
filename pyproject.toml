@@ -16,3 +16,7 @@ where = ["src"]
 
 [tool.pyright]
 include = ["src/zbot_rl_mjlab", "scripts", "tests", "train.py", "play.py"]
+
+[tool.pytest.ini_options]
+# Saved experiments under outputs/ can contain historical copies of test modules.
+testpaths = ["tests"]

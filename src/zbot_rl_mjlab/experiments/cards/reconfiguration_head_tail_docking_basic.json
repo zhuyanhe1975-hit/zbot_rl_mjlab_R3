@@ -1,0 +1,119 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "重构实验1：首尾磁吸闭环（初版Basic，0到1法线奖励）",
+  "description": "基于2026-10-26 13:11独立Basic：59维观测、速度积分目标±2rad、最大目标速度πrad/s、5ms物理步长和4子步。end_alignment为无距离衰减的0到1面对面法线分数；移除body_height，新增0.3rad缓冲的持续限位接近代价，非负代价使用负权重。奖励权重以本卡实时设置为准。 速度项按首尾原点沿连线的相对接近速度(m/s)及相对姿态轴角误差减小速率(rad/s)计算；两个速度项直接返回带符号速率：接近/对齐为正，分离/偏离为负，不拆regression项。",
+  "task_id": "Mjlab-Zbot-6dof-Reconfigure-Head-Tail-Docking-Basic",
+  "inherits": "_defaults.json",
+  "env": {
+    "magnetic_model_calibrated": false,
+    "magnetic_range": 0.04,
+    "magnetic_force": 8.0,
+    "magnetic_linear_damping": 0.4,
+    "magnetic_angular_stiffness": 0.15,
+    "magnetic_angular_damping": 0.02,
+    "capture_distance": 0.004,
+    "capture_angle": 0.13962634015954636,
+    "capture_speed": 0.1,
+    "capture_angular_speed": 1.0,
+    "capture_hold_s": 0.03,
+    "release_distance": 0.02,
+    "recapture_cooldown_s": 0.15,
+    "break_force": 80.0,
+    "break_torque": 4.0,
+    "allowed_dock_quarters": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "success_hold_s": 0.5,
+    "episode_length_s": 10.0,
+    "scene": {
+      "num_envs": 8192
+    },
+    "actions": {
+      "joint_pos": {
+        "max_target_speed": 3.141592653589793,
+        "target_limit": 2.0,
+        "scale": 1.0,
+        "use_default_offset": false
+      }
+    },
+    "sim": {
+      "mujoco": {
+        "timestep": 0.005,
+        "iterations": 30
+      },
+      "njmax": 1000
+    },
+    "decimation": 4
+  },
+  "rewards": {
+    "end_distance": {
+      "weight": 0.5,
+      "params": {}
+    },
+    "end_alignment": {
+      "weight": 0.5,
+      "params": {}
+    },
+    "end_distance_velocity": {
+      "weight": 0.0,
+      "params": {}
+    },
+    "end_alignment_velocity": {
+      "weight": 0.0,
+      "params": {}
+    },
+    "approach_velocity": {
+      "weight": -0.0,
+      "params": {}
+    },
+    "connected": {
+      "weight": 0.0,
+      "params": {}
+    },
+    "success": {
+      "weight": 0.0,
+      "params": {}
+    },
+    "action_rate": {
+      "weight": -0.002,
+      "params": {}
+    },
+    "joint_velocity": {
+      "weight": -0.0,
+      "params": {}
+    },
+    "limit_proximity": {
+      "weight": -0.0,
+      "params": {
+        "margin": 0.3
+      }
+    }
+  },
+  "agent": {
+    "max_iterations": 500,
+    "num_steps_per_env": 24,
+    "clip_actions": 1.0,
+    "save_interval": 50,
+    "resume": false,
+    "algorithm": {
+      "gamma": 0.99,
+      "schedule": "adaptive"
+    },
+    "actor": {
+      "distribution_cfg": {
+        "init_std": 1.0
+      }
+    }
+  },
+  "play": {
+    "env": {
+      "scene": {
+        "num_envs": 1
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "混合连接角双足平地行走",
+  "description": "镜像关节，foot_1在foot_0世界+Y约0.25米，base X水平投影朝世界+X、base Y为0；其余配方继承Walking。",
+  "task_id": "Mjlab-Zbot-6dof-Walking-Mixed-270-270-180-90-90",
+  "inherits": "walking.json",
+  "env": {
+    "scene": {
+      "entities": {
+        "robot": {
+          "init_state": {
+            "joint_pos": {
+              "joint1": -0.27980356,
+              "joint2": 0.9891207,
+              "joint3": 1.39846985,
+              "joint4": -1.39846985,
+              "joint5": -0.9891207,
+              "joint6": 0.27980356
+            },
+            "rot": [
+              0.8243741391266559,
+              0.0,
+              0.0,
+              -0.5660452974269683
+            ],
+            "pos": [
+              0.0,
+              -0.1251436063813934,
+              0.0
+            ]
+          }
+        }
+      }
+    }
+  }
+}

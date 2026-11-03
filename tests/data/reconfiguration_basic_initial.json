@@ -1,0 +1,173 @@
+{
+  "source": "logs/rsl_rl/zbot_reconfiguration_head_tail_docking_basic/2026-10-26_13-11-06/params",
+  "env_sha256": "07bd93e1f248a8cad794850027fa0a59c4f840e76b12bd289363cde7edb5a3df",
+  "sim": {
+    "nconmax": null,
+    "njmax": 1000,
+    "contact_sensor_maxmatch": 64,
+    "broadphase": null,
+    "broadphase_filter": null,
+    "ls_parallel": null,
+    "mujoco": {
+      "timestep": 0.005,
+      "integrator": "implicitfast",
+      "impratio": 1.0,
+      "cone": "pyramidal",
+      "jacobian": "auto",
+      "solver": "newton",
+      "iterations": 30,
+      "tolerance": 1e-08,
+      "ls_iterations": 20,
+      "ls_tolerance": 0.01,
+      "ccd_iterations": 50,
+      "gravity": [
+        0.0,
+        0.0,
+        -9.81
+      ],
+      "disableflags": [],
+      "enableflags": []
+    },
+    "nan_guard": {
+      "enabled": false,
+      "buffer_size": 100,
+      "output_dir": "/tmp/mjlab/nan_dumps",
+      "max_envs_to_dump": 5
+    }
+  },
+  "decimation": 4,
+  "magnet": {
+    "episode_length_s": 25.0,
+    "success_hold_s": 0.5,
+    "workspace_radius": 3.0,
+    "magnetic_model_calibrated": false,
+    "magnetic_range": 0.04,
+    "magnetic_force": 8.0,
+    "magnetic_linear_damping": 0.4,
+    "magnetic_angular_stiffness": 0.15,
+    "magnetic_angular_damping": 0.02,
+    "capture_distance": 0.004,
+    "capture_angle": 0.13962634015954636,
+    "capture_speed": 0.1,
+    "capture_angular_speed": 1.0,
+    "capture_hold_s": 0.03,
+    "release_distance": 0.02,
+    "recapture_cooldown_s": 0.15,
+    "break_force": 80.0,
+    "break_torque": 4.0,
+    "allowed_dock_quarters": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "actions": {
+    "entity_name": "robot",
+    "clip": null,
+    "transmission_type": "joint",
+    "actuator_names": [
+      ".*"
+    ],
+    "scale": 1.0,
+    "offset": 0.0,
+    "preserve_order": false,
+    "use_default_offset": false,
+    "max_target_speed": 3.141592653589793,
+    "target_limit": 2.0,
+    "joint_target_bounds": {}
+  },
+  "actuators": {
+    "actuators": [
+      {
+        "target_names_expr": [
+          "joint1",
+          "joint2",
+          "joint3",
+          "joint4",
+          "joint5",
+          "joint6"
+        ],
+        "transmission_type": "joint",
+        "armature": 0.001,
+        "frictionloss": null,
+        "viscous_damping": null,
+        "delay_min_lag": 0,
+        "delay_max_lag": 0,
+        "delay_hold_prob": 0.0,
+        "delay_update_period": 0,
+        "delay_per_env_phase": true,
+        "stiffness": 15.0,
+        "damping": 1.5,
+        "effort_limit": 20.0
+      }
+    ],
+    "soft_joint_pos_limit_factor": 1.0
+  },
+  "robot_initial_state": {
+    "pos": [
+      0.0,
+      0.0,
+      0.0555
+    ],
+    "rot": [
+      0.7071067811865476,
+      0.0,
+      -0.7071067811865476,
+      0.0
+    ],
+    "lin_vel": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "ang_vel": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "joint_pos": {
+      "joint1": 0.0,
+      "joint2": 0.0,
+      "joint3": 0.0,
+      "joint4": 0.0,
+      "joint5": 0.0,
+      "joint6": 0.0
+    },
+    "joint_vel": {
+      ".*": 0.0
+    }
+  },
+  "terrain_geoms": [
+    {
+      "geom_names_expr": [
+        "terrain$"
+      ],
+      "group": null,
+      "contype": null,
+      "conaffinity": null,
+      "condim": null,
+      "priority": null,
+      "friction": [
+        0.6,
+        0.005,
+        0.0001
+      ],
+      "solref": null,
+      "solimp": null,
+      "margin": null,
+      "gap": null,
+      "solmix": null
+    }
+  ],
+  "rewards": {
+    "end_distance": 1.0,
+    "end_alignment": 1.0,
+    "approach_velocity": -0.1,
+    "connected": 2.0,
+    "success": 5.0,
+    "action_rate": -0.002,
+    "joint_velocity": -0.001,
+    "body_height": -0.2
+  }
+}

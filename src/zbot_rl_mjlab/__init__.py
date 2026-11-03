@@ -14,6 +14,11 @@ from .experiments.omni_teacher import (
     SnakeLegOmniTeacher,
     SnakeLegOmniWideBipedTeacher,
 )
+from .experiments.reconfiguration import HeadTailDockingBasic, HeadTailDockingPBT, HeadTailDockingPlanGuided, DisconnectTorque
+from .experiments.rz270_snake import SnakeRz270Teacher
+from .experiments.mixed_clocking_snake import SnakeMixedClockingTeacher
+from .experiments.mixed_clocking_walking import MixedClockingWalking
+from .experiments.mixed_reconfiguration import MixedReconfigurationPPO
 from .experiments.site_snake import (
     SnakeBaseAdaptiveTeacher,
     SnakeSiteAdaptiveTeacher,
@@ -100,6 +105,14 @@ EXPERIMENTS = (
     SnakeBaseAdaptiveTeacher,
     SnakeSiteForwardTeacher,
     SnakeSiteForwardRelaxedTeacher,
+    SnakeRz270Teacher,
+    SnakeMixedClockingTeacher,
+    MixedClockingWalking,
+    HeadTailDockingBasic,
+    HeadTailDockingPBT,
+    HeadTailDockingPlanGuided,
+    DisconnectTorque,
+    MixedReconfigurationPPO,
 )
 
 for experiment in EXPERIMENTS:

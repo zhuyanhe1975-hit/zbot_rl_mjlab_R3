@@ -1,0 +1,152 @@
+{
+  "$schema": "./schema.json",
+  "schema_version": 1,
+  "title": "RZ270构型独立蛇形教师",
+  "description": "RZ270蛇形：每次趴地朝世界+X开始；奖励为蛇头foot_0_sole site前向速度相对指令的线性符合度（反向负分、超速衰减，值域[-1,1]）与采样世界航向绝对偏差惩罚-|误差|（弧度，对齐0分，零点附近线性敏感）。角度rad，速度m/s；其余动作与稳定性奖励保持。 site_tilt为蛇头相对重力竖直方向的倾斜角平方，head_lateral_speed为蛇头site横向速度绝对值，均通过负权重惩罚。 用户认可归档：snake_rz270_2026-10-26_iter599，源运行训练600轮；本卡片默认轮数保留，train.sh通过命令行覆盖为600。",
+  "task_id": "Mjlab-Zbot-6dof-Snake-RZ270-Teacher",
+  "inherits": "snake_site_adaptive_teacher.json",
+  "env": {
+    "scene": {
+      "entities": {
+        "robot": {
+          "init_state": {
+            "pos": [
+              0.0,
+              0.0,
+              0.0555
+            ],
+            "rot": [
+              0.7071067811865476,
+              0.0,
+              -0.7071067811865476,
+              0.0
+            ],
+            "joint_pos": {
+              "joint1": 0.0,
+              "joint2": 0.0,
+              "joint3": 0.0,
+              "joint4": 0.0,
+              "joint5": 0.0,
+              "joint6": 0.0
+            }
+          }
+        }
+      }
+    },
+    "actions": {
+      "joint_pos": {
+        "entity_name": "robot",
+        "clip": null,
+        "actuator_names": [
+          ".*"
+        ],
+        "scale": 1.0,
+        "offset": 0.0,
+        "preserve_order": false,
+        "use_default_offset": false,
+        "max_target_speed": 6.283185307179586,
+        "target_limit": 2.0943951023931953,
+        "joint_target_bounds": {},
+        "snake_target_limit": 2.0943951023931953,
+        "biped_residual_scale": null,
+        "transition_end_joint_radius": null
+      }
+    },
+    "commands": {
+      "transform": {
+        "velocity_limits": [
+          0.2,
+          0.2,
+          0.5
+        ],
+        "resampling_time_range": [
+          5.0,
+          5.0
+        ],
+        "smoothing_s": 0.25,
+        "heading_range": [
+          -3.141592653589793,
+          3.141592653589793
+        ],
+        "forward_speed_cap": 0.2,
+        "play_heading": null,
+        "forward_speed_range": [
+          0.0,
+          0.2
+        ],
+        "forward_stop_probability": 0.1,
+        "play_forward_speed": null
+      }
+    },
+    "metrics": {
+      "$remove": [
+        "velocity_error_vx",
+        "velocity_error_vy",
+        "velocity_error_wz",
+        "command_vx_positive_fraction",
+        "command_vx_negative_fraction",
+        "command_vy_positive_fraction",
+        "command_vy_negative_fraction",
+        "command_wz_positive_fraction",
+        "command_wz_negative_fraction"
+      ]
+    }
+  },
+  "rewards": {
+    "alive": {
+      "weight": 0.2,
+      "params": {}
+    },
+    "action_rate": {
+      "weight": -0.002,
+      "params": {}
+    },
+    "joint_pose_deviation": {
+      "weight": -0.02,
+      "params": {}
+    },
+    "site_tilt": {
+      "weight": -1.0,
+      "params": {}
+    },
+    "joint_pos_limits": {
+      "weight": -1.0,
+      "params": {
+        "soft_limit_factor": 0.9
+      }
+    },
+    "joint_target_limits": {
+      "weight": -1.0,
+      "params": {
+        "soft_limit_factor": 0.9,
+        "use_target": true
+      }
+    },
+    "failure_reset": {
+      "weight": -5.0,
+      "params": {}
+    },
+    "$remove": [
+      "track_forward_velocity",
+      "track_lateral_velocity",
+      "track_angular_velocity"
+    ],
+    "head_forward_speed": {
+      "weight": 2.0,
+      "params": {
+        "stop_speed_scale": 0.05
+      }
+    },
+    "heading_alignment": {
+      "weight": 1.0,
+      "params": {}
+    },
+    "head_lateral_speed": {
+      "weight": -2.0,
+      "params": {}
+    }
+  },
+  "agent": {
+    "max_iterations": 6000
+  }
+}

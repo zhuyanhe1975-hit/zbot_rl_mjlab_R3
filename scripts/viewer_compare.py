@@ -22,7 +22,7 @@ from mjlab.tasks.registry import list_tasks, load_env_cfg, load_rl_cfg
 import zbot_rl_mjlab  # noqa: F401
 from zbot_rl_mjlab.cli import latest_checkpoint
 from zbot_rl_mjlab.robot import DEFAULT_JOINT_POS, robot_cfg
-from zbot_rl_mjlab.viewer import FollowCameraViewer
+from zbot_rl_mjlab.viewer import FollowCameraViewer, _AsyncOverlayHandle
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -318,6 +318,7 @@ class CompareViewer(FollowCameraViewer):
             show_left_ui=False,
             show_right_ui=False,
         )
+        self.viewer = _AsyncOverlayHandle(self.viewer)
         v = self.viewer
         # 用户场景中的标签几何体固定在世界坐标系内，用于区分控制器。
         v.user_scn.ngeom = 2

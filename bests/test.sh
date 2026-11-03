@@ -14,6 +14,8 @@ task_of() {
     universal_three_teacher_gaussian_mirror_*) echo "Mjlab-Zbot-6dof-Universal-Snake-Leg-Omni-Teacher-Guided" ;;
     velocity_frequency_tracking_*) echo "Mjlab-Zbot-6dof-Velocity-Frequency-Tracking-Walking" ;;
     periodic_stepping_*) echo "Mjlab-Zbot-6dof-Periodic-Stepping" ;;
+    snake_mixed_270_270_180_90_90_*) echo "Mjlab-Zbot-6dof-Snake-Mixed-270-270-180-90-90-Teacher" ;;
+    snake_rz270_*) echo "Mjlab-Zbot-6dof-Snake-RZ270-Teacher" ;;
     snake_site_omni_*) echo "Mjlab-Zbot-6dof-Snake-Site-Omni-Teacher" ;;
     snake_world_x_*) echo "Mjlab-Zbot-6dof-Snake-Omni-Teacher" ;;
     transform_snake_biped_bidirectional_*) echo "Mjlab-Zbot-6dof-Transform-Snake-Biped-Bidirectional" ;;
