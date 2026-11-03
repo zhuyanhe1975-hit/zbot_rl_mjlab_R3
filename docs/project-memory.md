@@ -1,5 +1,7 @@
 # Zbot R3 永久记忆簿
 
+- `scripts/view_headtail_mjbatch_refined.py` 正反向初始化依赖5个历史输出文件：`outputs/reconfiguration/mjbatch_refinement/unfold_best_1024.npz`、`reverse_stability/selected.json`、`reverse_fast/unfold_best_1024.npz`（后三者均在mjbatch_refinement下）、`outputs/reconfiguration/headtail_reverse_2026_10_29/start.npz`、`outputs/reconfiguration/headtail_order_feedback_2026_10_29/verification_90_3_1245.json`。用户要求一并上传；仅强制跟踪这5项，不改变其他输出忽略规则。使用 `./scripts/python.sh` 正向和反向均成功初始化；未验证完整运动。
+
 ## 第4面释放后的局部对齐（2026-11-03）
 
 - 第4面对齐改动的完整直链试跑 `diagnostics/face4_align_full.json` 达到DONE（298.300s），但178.770s第4面最大接触重叠20.228mm，高于旧轨迹15.293mm；说明该改动虽完成状态机，接触物理可信度变差，不能称为已验证的轨迹改善。该运行仍采用原载荷有限差分释放逻辑。

@@ -1,0 +1,4029 @@
+{
+  "experiment": "Zbot-Straight-Closed-Mixed-Straight-CPU-v1",
+  "backend": "native_mujoco_cpu",
+  "torch_cuda_initialized": false,
+  "success": true,
+  "configuration": {
+    "dt": 0.001,
+    "control_dt": 0.02,
+    "speed_deg_s": 105.0,
+    "acceleration_deg_s2": 980.0,
+    "curl_speed_multiplier": 2.0,
+    "curl_acceleration_deg_s2": null,
+    "outer_speed_deg_s": 30.0,
+    "outer_acceleration_deg_s2": 90.0,
+    "stiffness": 400.0,
+    "damping": 4.0,
+    "outer_stiffness": 80.0,
+    "outer_damping": 4.0,
+    "break_load": 100.0,
+    "other_stop_load": 100.0,
+    "one_shot_loading": true,
+    "loading_ramp_s": 0.5,
+    "post_break_hold_s": 0.0,
+    "headtail_break_hold_s": 0.5,
+    "loading_model_headroom": 10.0,
+    "headtail_model_horizon_s": 0.06,
+    "headtail_model_headroom": 6.0,
+    "loading_other_prediction_limit": 100.0,
+    "loading_goal_margin": 0.0,
+    "continuous_torque": 14.0,
+    "peak_torque": 20.0,
+    "overload_seconds": 1.0,
+    "workspace_radius": 3.0,
+    "headtail_plan_load": 100.0,
+    "headtail_prediction_limit": 100.0,
+    "headtail_increment": 0.05,
+    "headtail_load_step": 1.0,
+    "headtail_one_step_prediction_limit": 100.0,
+    "headtail_one_step_validation_limit": 100.0,
+    "headtail_validation_margin": 0.0,
+    "unfold_prediction_limit": 100.0,
+    "unfold_target_step": 0.008,
+    "unfold_target_step_max": 0.024,
+    "unfold_accel_delay_s": 2.0,
+    "unfold_accel_duration_s": 8.0,
+    "unfold_timeout_s": 120.0,
+    "settle_seconds": 0.25,
+    "initial_hold_seconds": 0.25,
+    "motion_wait_seconds": 10.0,
+    "capture_position_tolerance": 0.001,
+    "docking_stiffness": 0.0,
+    "approach_feedback": true,
+    "capture_angle_tolerance_deg": 2.0,
+    "capture_linear_speed": 0.1,
+    "capture_angular_speed": 0.6,
+    "separation_gap": 0.021,
+    "overlap_rotation": true,
+    "headtail_parallel_gap": 0.0,
+    "closest_unfold": true,
+    "closest_unfold_gain": 9.0,
+    "closest_unfold_max_speed": 7.2,
+    "closest_unfold_ramp_s": 2.0,
+    "direct_unfold": false,
+    "staged_unfold": false,
+    "staged_unfold_gap": 0.1,
+    "unfold_speed_deg_s": 150.0,
+    "unfold_acceleration_deg_s2": 600.0
+  },
+  "initial_straight_qpos": [
+    -0.33730757236480713,
+    0.1642833948135376,
+    0.05220009842641359,
+    -1.16780403689417e-15,
+    0.7071067858780308,
+    6.92650152093002e-17,
+    0.7071067764950645,
+    0.0,
+    -0.22730757502123583,
+    0.16428339481353676,
+    0.05220010426500154,
+    0.7071067764950643,
+    -2.6809736109311557e-17,
+    0.7071067858780311,
+    1.144233668968547e-15,
+    0.0,
+    -0.11730757767766467,
+    0.164283394813538,
+    0.0522000955071196,
+    -1.0948383904136555e-15,
+    0.7071067858780308,
+    5.628481643034664e-17,
+    0.7071067764950646,
+    0.0,
+    -0.007307580334093344,
+    0.16428339481353718,
+    0.05220010134570756,
+    0.7071067764950641,
+    -5.4732271560057343e-17,
+    0.7071067858780312,
+    1.2194153139673115e-15,
+    0.0,
+    0.1026924170094779,
+    0.1642833948135384,
+    0.05220009258782563,
+    -1.2240343023661462e-15,
+    0.7071067858780308,
+    8.587990727024726e-17,
+    0.7071067764950649,
+    0.0,
+    0.2126924143530493,
+    0.1642833948135376,
+    0.05220009842641359,
+    0.7071067764950641,
+    -2.0018988099765347e-17,
+    0.7071067858780312,
+    1.1801630022397876e-15,
+    0.0
+  ],
+  "terminal": {
+    "time_s": 20.40000000000195,
+    "phase": "DONE",
+    "connection": 6,
+    "q_rad": [
+      -0.0011743035991038048,
+      -0.011394590388571277,
+      -8.930445960645756e-05,
+      0.0009056050395603897,
+      0.017089152350356646,
+      0.0016484206910789545
+    ],
+    "dq_rad_s": [
+      0.0005488041056180892,
+      0.0033293484009423143,
+      0.0008225883277134021,
+      0.0004416122892329596,
+      -0.004044912079671135,
+      -0.000536137136357495
+    ],
+    "connected": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ],
+    "registrations": [
+      true,
+      true,
+      false,
+      true,
+      true
+    ],
+    "loads_N": [
+      2.8920036175269987,
+      1.3712771877865921,
+      1.503950650237937,
+      2.7927306591579977,
+      2.6305685240263115,
+      0.0
+    ],
+    "peak_loads_N": [
+      101.45456068234827,
+      101.24109469066376,
+      85.12930507049776,
+      101.25946027231822,
+      100.6709115553316,
+      102.36294399198249
+    ],
+    "interface_gap_m": [
+      0.0003481762401001786,
+      0.0003480663392481213,
+      2.7830575894713904e-08,
+      0.000347999572896468,
+      0.0003481881088956786,
+      0.6599875548585011
+    ],
+    "peak_other_load_N": 85.12930507049776,
+    "peak_actual_torque_Nm": 8.374764577130236,
+    "max_module_penetration_m": 0.00045456389793186147,
+    "max_ground_penetration_m": 0.0007036248989854624,
+    "worst_module_pair": [
+      "module_1/b2_geom",
+      "module_2/a3_geom"
+    ],
+    "worst_ground_pair": [
+      "terrain",
+      "module_4/a5_geom"
+    ],
+    "root_collinearity_error_m": 0.0005949214712378305,
+    "failure": ""
+  },
+  "events": [
+    {
+      "time_s": 0.0,
+      "to": "INITIAL_STRAIGHT_HOLD",
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "time_s": 0.2600000000000002,
+      "from": "INITIAL_STRAIGHT_HOLD",
+      "to": "CURL",
+      "elapsed_s": 0.2600000000000002,
+      "connection": 6,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "time_s": 5.440000000000151,
+      "from": "CURL",
+      "to": "CAPTURE_HEADTAIL",
+      "elapsed_s": 5.180000000000152,
+      "connection": 6,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "time_s": 5.6200000000002115,
+      "from": "CAPTURE_HEADTAIL",
+      "to": "SETTLE_HEADTAIL",
+      "elapsed_s": 0.1800000000000601,
+      "connection": 6,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "capture_gap_m": 0.000902302340286466,
+      "capture_angle_deg": 0.45858032189565257,
+      "capture_linear_speed_m_s": 0.0033135899398196384,
+      "capture_angular_speed_rad_s": 0.026159841631379552
+    },
+    {
+      "time_s": 5.880000000000298,
+      "from": "SETTLE_HEADTAIL",
+      "to": "LOAD",
+      "elapsed_s": 0.26000000000008683,
+      "connection": 1,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "time_s": 6.341000000000452,
+      "event": "passive_break",
+      "faces": [
+        1
+      ],
+      "loads_N": [
+        101.45456068234827,
+        37.88666285548038,
+        34.314337522236684,
+        19.848470427016657,
+        36.11248219588975,
+        32.76143202360374
+      ]
+    },
+    {
+      "time_s": 6.360000000000459,
+      "from": "LOAD",
+      "to": "SEPARATE",
+      "elapsed_s": 0.4800000000001603,
+      "connection": 1,
+      "connected": [
+        false,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "time_s": 8.120000000000939,
+      "from": "SEPARATE",
+      "to": "APPROACH",
+      "elapsed_s": 1.7600000000004803,
+      "connection": 1,
+      "connected": [
+        false,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "time_s": 8.380000000000795,
+      "from": "APPROACH",
+      "to": "SETTLE",
+      "elapsed_s": 0.2599999999998559,
+      "connection": 1,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "capture_gap_m": 0.0008484905959114557,
+      "capture_angle_deg": 0.22562134375312543,
+      "capture_linear_speed_m_s": 0.0013332113405120783,
+      "capture_angular_speed_rad_s": 0.013034665526601066
+    },
+    {
+      "time_s": 8.64000000000065,
+      "from": "SETTLE",
+      "to": "LOAD",
+      "elapsed_s": 0.2599999999998559,
+      "connection": 2,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "time_s": 9.101000000000395,
+      "event": "passive_break",
+      "faces": [
+        2
+      ],
+      "loads_N": [
+        13.928367933859636,
+        101.24109469066376,
+        9.906220930175325,
+        12.915485474404475,
+        13.499360349964396,
+        14.581132798043024
+      ]
+    },
+    {
+      "time_s": 9.120000000000385,
+      "from": "LOAD",
+      "to": "SEPARATE",
+      "elapsed_s": 0.479999999999734,
+      "connection": 2,
+      "connected": [
+        true,
+        false,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "time_s": 10.159999999999808,
+      "from": "SEPARATE",
+      "to": "APPROACH",
+      "elapsed_s": 1.0399999999994236,
+      "connection": 2,
+      "connected": [
+        true,
+        false,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "time_s": 10.459999999999642,
+      "from": "APPROACH",
+      "to": "SETTLE",
+      "elapsed_s": 0.29999999999983373,
+      "connection": 2,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "capture_gap_m": 0.00020561587874036859,
+      "capture_angle_deg": 0.29196165250575773,
+      "capture_linear_speed_m_s": 0.002680320887045864,
+      "capture_angular_speed_rad_s": 0.01861136212624192
+    },
+    {
+      "time_s": 10.719999999999498,
+      "from": "SETTLE",
+      "to": "LOAD",
+      "elapsed_s": 0.2599999999998559,
+      "connection": 4,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "time_s": 11.180999999999242,
+      "event": "passive_break",
+      "faces": [
+        4
+      ],
+      "loads_N": [
+        47.91933829252234,
+        48.50366245831831,
+        48.24980012027324,
+        101.25946027231822,
+        46.921713330466616,
+        33.05363050625263
+      ]
+    },
+    {
+      "time_s": 11.199999999999232,
+      "from": "LOAD",
+      "to": "SEPARATE",
+      "elapsed_s": 0.479999999999734,
+      "connection": 4,
+      "connected": [
+        true,
+        true,
+        true,
+        false,
+        true,
+        true
+      ]
+    },
+    {
+      "time_s": 12.359999999998589,
+      "from": "SEPARATE",
+      "to": "APPROACH",
+      "elapsed_s": 1.159999999999357,
+      "connection": 4,
+      "connected": [
+        true,
+        true,
+        true,
+        false,
+        true,
+        true
+      ]
+    },
+    {
+      "time_s": 12.6999999999984,
+      "from": "APPROACH",
+      "to": "SETTLE",
+      "elapsed_s": 0.33999999999981156,
+      "connection": 4,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "capture_gap_m": 0.0009048820680114413,
+      "capture_angle_deg": 0.2274387479085305,
+      "capture_linear_speed_m_s": 0.0016194742866515457,
+      "capture_angular_speed_rad_s": 0.009058026062745151
+    },
+    {
+      "time_s": 12.959999999998256,
+      "from": "SETTLE",
+      "to": "LOAD",
+      "elapsed_s": 0.2599999999998559,
+      "connection": 5,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "time_s": 13.420999999998001,
+      "event": "passive_break",
+      "faces": [
+        5
+      ],
+      "loads_N": [
+        27.72615253567917,
+        29.948068973221293,
+        29.582280992561493,
+        29.23093716591585,
+        100.6709115553316,
+        29.17069807244406
+      ]
+    },
+    {
+      "time_s": 13.43999999999799,
+      "from": "LOAD",
+      "to": "SEPARATE",
+      "elapsed_s": 0.479999999999734,
+      "connection": 5,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        false,
+        true
+      ]
+    },
+    {
+      "time_s": 14.719999999997281,
+      "from": "SEPARATE",
+      "to": "APPROACH",
+      "elapsed_s": 1.2799999999992906,
+      "connection": 5,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        false,
+        true
+      ]
+    },
+    {
+      "time_s": 15.019999999997115,
+      "from": "APPROACH",
+      "to": "SETTLE",
+      "elapsed_s": 0.29999999999983373,
+      "connection": 5,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "capture_gap_m": 0.0002064059691269065,
+      "capture_angle_deg": 0.25865018355841296,
+      "capture_linear_speed_m_s": 0.001354399217358869,
+      "capture_angular_speed_rad_s": 0.015528779671012105
+    },
+    {
+      "time_s": 15.27999999999697,
+      "from": "SETTLE",
+      "to": "LOAD_HEADTAIL",
+      "elapsed_s": 0.2599999999998559,
+      "connection": 6,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "time_s": 15.680999999996748,
+      "event": "passive_break",
+      "faces": [
+        6
+      ],
+      "loads_N": [
+        48.38060705771406,
+        63.04455697951133,
+        36.03375677073869,
+        10.145919464198034,
+        13.387255560183906,
+        102.36294399198249
+      ]
+    },
+    {
+      "time_s": 15.699999999996738,
+      "from": "LOAD_HEADTAIL",
+      "to": "HEADTAIL_BREAK_HOLD",
+      "elapsed_s": 0.4199999999997672,
+      "connection": 6,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "time_s": 16.199999999996816,
+      "from": "HEADTAIL_BREAK_HOLD",
+      "to": "UNFOLD",
+      "elapsed_s": 0.5000000000000782,
+      "connection": 6,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "time_s": 20.14000000000163,
+      "from": "UNFOLD",
+      "to": "FINAL_STRAIGHT_HOLD",
+      "elapsed_s": 3.940000000004815,
+      "connection": 6,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "time_s": 20.40000000000195,
+      "from": "FINAL_STRAIGHT_HOLD",
+      "to": "DONE",
+      "elapsed_s": 0.26000000000031775,
+      "connection": 6,
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ]
+    }
+  ],
+  "completed_connections": [
+    {
+      "connection": 1,
+      "time_s": 8.64000000000065
+    },
+    {
+      "connection": 2,
+      "time_s": 10.719999999999498
+    },
+    {
+      "connection": 4,
+      "time_s": 12.959999999998256
+    },
+    {
+      "connection": 5,
+      "time_s": 15.27999999999697
+    }
+  ],
+  "loading": [
+    {
+      "time_s": 5.880000000000298,
+      "face": 1,
+      "wall_ms": 311.14782503573224,
+      "method": "one_shot_highs_milp",
+      "feasible": true,
+      "solver_status": 0,
+      "solver_message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "torque_Nm": [
+        -1.1165016618677654,
+        4.310625164112135,
+        4.258094058187981,
+        1.5847802329969303,
+        0.13144795088277475,
+        1.3207204112035469
+      ],
+      "predicted_N": [
+        110.20145035851857,
+        37.31451936866475,
+        37.46243731427098,
+        21.179545522038918,
+        37.4624373142711,
+        37.36809121562402
+      ],
+      "ramp_validation": {
+        "success": true,
+        "target_N": 100.05073156627537,
+        "other_peak_N": 37.4752373534925,
+        "elapsed_s": 0.453
+      }
+    },
+    {
+      "time_s": 8.64000000000065,
+      "face": 2,
+      "wall_ms": 254.16340003721416,
+      "method": "one_shot_highs_milp",
+      "feasible": true,
+      "solver_status": 0,
+      "solver_message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "torque_Nm": [
+        -3.3173371954796242,
+        -0.2574984303876501,
+        -4.2050122075994185,
+        -4.214366342487129,
+        -3.6625064485868277,
+        -3.127282376780731
+      ],
+      "predicted_N": [
+        14.816817541776905,
+        110.07101129205189,
+        9.587762050827237,
+        14.8168175417768,
+        12.953306595114418,
+        14.754624415151548
+      ],
+      "ramp_validation": {
+        "success": true,
+        "target_N": 100.03483903567653,
+        "other_peak_N": 20.490770652425024,
+        "elapsed_s": 0.454
+      }
+    },
+    {
+      "time_s": 10.719999999999498,
+      "face": 4,
+      "wall_ms": 255.63769601285458,
+      "method": "one_shot_highs_milp",
+      "feasible": true,
+      "solver_status": 0,
+      "solver_message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "torque_Nm": [
+        -2.7122413395448888,
+        -3.470653760147308,
+        -4.579893114823142,
+        -5.451857459401733,
+        0.23294216844949628,
+        -1.4886912917254285
+      ],
+      "predicted_N": [
+        52.09387617667957,
+        51.845651929742424,
+        52.09387617668048,
+        110.03499275748517,
+        52.04798137280551,
+        36.000374326371926
+      ],
+      "ramp_validation": {
+        "success": true,
+        "target_N": 100.20128558125545,
+        "other_peak_N": 48.377056204251275,
+        "elapsed_s": 0.456
+      }
+    },
+    {
+      "time_s": 12.959999999998256,
+      "face": 5,
+      "wall_ms": 239.37491502147168,
+      "method": "one_shot_highs_milp",
+      "feasible": true,
+      "solver_status": 0,
+      "solver_message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "torque_Nm": [
+        5.76428885292334,
+        2.4093824335072522,
+        4.972362316234431,
+        3.3264626780818136,
+        6.340524497320795,
+        1.549324197756801
+      ],
+      "predicted_N": [
+        30.320966818122052,
+        32.05142451570394,
+        31.978184812024157,
+        32.051424515703985,
+        110.00008805130763,
+        31.933705004731298
+      ],
+      "ramp_validation": {
+        "success": true,
+        "target_N": 100.11074373546863,
+        "other_peak_N": 29.814570026868303,
+        "elapsed_s": 0.456
+      }
+    },
+    {
+      "time_s": 15.27999999999697,
+      "face": 6,
+      "wall_ms": 229.97070802375674,
+      "method": "one_shot_highs_milp",
+      "feasible": true,
+      "solver_status": 0,
+      "solver_message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "torque_Nm": [
+        -12.454896362223442,
+        -4.299349109299812,
+        -8.90107250113473,
+        -6.271401695936095,
+        -6.210503622826046,
+        -5.78720215767
+      ],
+      "predicted_N": [
+        31.69875633195062,
+        31.63964286155534,
+        31.698756331950925,
+        10.018638596595787,
+        31.619915720221655,
+        106.2186126470617
+      ],
+      "ramp_validation": {
+        "success": true,
+        "target_N": 100.07356631489534,
+        "other_peak_N": 61.78475914133149,
+        "elapsed_s": 0.392
+      }
+    }
+  ],
+  "planning": [
+    {
+      "connection": 1,
+      "segments": [
+        {
+          "phase": "SEPARATE",
+          "waypoints": 21,
+          "max_joint_step_deg": 5.766069263621471,
+          "max_nonmating_penetration_m": 0.0,
+          "min_rotating_pair_clearance_m": null,
+          "side_adjustment_samples": 0
+        },
+        {
+          "phase": "APPROACH",
+          "waypoints": 21,
+          "max_joint_step_deg": 0.45393128991054305,
+          "max_nonmating_penetration_m": 0.0,
+          "min_rotating_pair_clearance_m": null,
+          "side_adjustment_samples": 0
+        }
+      ],
+      "durations_s": {
+        "SEPARATE": 1.7510000000000001,
+        "APPROACH": 0.232
+      }
+    },
+    {
+      "connection": 2,
+      "segments": [
+        {
+          "phase": "SEPARATE",
+          "waypoints": 21,
+          "max_joint_step_deg": 4.286947884160413,
+          "max_nonmating_penetration_m": 0.0,
+          "min_rotating_pair_clearance_m": null,
+          "side_adjustment_samples": 0
+        },
+        {
+          "phase": "APPROACH",
+          "waypoints": 21,
+          "max_joint_step_deg": 0.5950373113762091,
+          "max_nonmating_penetration_m": 0.0,
+          "min_rotating_pair_clearance_m": null,
+          "side_adjustment_samples": 0
+        }
+      ],
+      "durations_s": {
+        "SEPARATE": 1.037,
+        "APPROACH": 0.264
+      }
+    },
+    {
+      "connection": 4,
+      "segments": [
+        {
+          "phase": "SEPARATE",
+          "waypoints": 21,
+          "max_joint_step_deg": 3.7486186734784863,
+          "max_nonmating_penetration_m": 0.0,
+          "min_rotating_pair_clearance_m": null,
+          "side_adjustment_samples": 0
+        },
+        {
+          "phase": "APPROACH",
+          "waypoints": 21,
+          "max_joint_step_deg": 0.612932436703914,
+          "max_nonmating_penetration_m": 0.0,
+          "min_rotating_pair_clearance_m": null,
+          "side_adjustment_samples": 0
+        }
+      ],
+      "durations_s": {
+        "SEPARATE": 1.153,
+        "APPROACH": 0.274
+      }
+    },
+    {
+      "connection": 5,
+      "segments": [
+        {
+          "phase": "SEPARATE",
+          "waypoints": 21,
+          "max_joint_step_deg": 4.712887885427751,
+          "max_nonmating_penetration_m": 0.0,
+          "min_rotating_pair_clearance_m": null,
+          "side_adjustment_samples": 0
+        },
+        {
+          "phase": "APPROACH",
+          "waypoints": 21,
+          "max_joint_step_deg": 0.6161370835439144,
+          "max_nonmating_penetration_m": 0.0,
+          "min_rotating_pair_clearance_m": null,
+          "side_adjustment_samples": 0
+        }
+      ],
+      "durations_s": {
+        "SEPARATE": 1.2630000000000001,
+        "APPROACH": 0.272
+      }
+    },
+    {
+      "phase": "HEADTAIL_LOADING",
+      "closure_singular_values": [
+        2.7516409669214763,
+        2.429973231428347,
+        1.452645170504491,
+        0.9294810211185276,
+        0.5198847949247806,
+        0.3951205082574963
+      ],
+      "weak_motion_directions": []
+    }
+  ],
+  "trace": [
+    {
+      "time_s": 0.001,
+      "phase": "INITIAL_STRAIGHT_HOLD",
+      "connection": 6,
+      "q_rad": [
+        1.5888671069657897e-08,
+        5.309182867939955e-09,
+        4.800526730062309e-09,
+        5.029487447367438e-09,
+        4.599511238109921e-09,
+        3.323852688500566e-08
+      ],
+      "dq_rad_s": [
+        1.5888671069657896e-05,
+        5.3091828679399556e-06,
+        4.800526730062309e-06,
+        5.0294874473674376e-06,
+        4.599511238109921e-06,
+        3.323852688500566e-05
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        0.2717221998989346,
+        0.09493423036281083,
+        0.02682557403079735,
+        0.21180809606475975,
+        0.48493321310032056,
+        0.0
+      ],
+      "peak_loads_N": [
+        0.2717221998989346,
+        0.09493423036281083,
+        0.02682557403079735,
+        0.21180809606475975,
+        0.48493321310032056,
+        0.0
+      ],
+      "interface_gap_m": [
+        3.469446951953614e-17,
+        4.443059973708341e-17,
+        5.857100574038117e-17,
+        1.0591761858187545e-16,
+        8.121767085755589e-17,
+        0.6600001150868569
+      ],
+      "peak_other_load_N": 0.48493321310032056,
+      "peak_actual_torque_Nm": 0.0,
+      "max_module_penetration_m": 0.0,
+      "max_ground_penetration_m": 0.0003000000000000086,
+      "worst_module_pair": null,
+      "worst_ground_pair": [
+        "terrain",
+        "module_5/b6_geom"
+      ],
+      "root_collinearity_error_m": 4.587461970612947e-09,
+      "failure": ""
+    },
+    {
+      "time_s": 0.5010000000000003,
+      "phase": "CURL",
+      "connection": 6,
+      "q_rad": [
+        -0.0006768041923413194,
+        0.0026939000587827664,
+        0.0020461915785611965,
+        -0.00047124432123945854,
+        0.0012453144062686257,
+        -0.0026778891893544164
+      ],
+      "dq_rad_s": [
+        -0.008191221896465529,
+        0.032724030944060546,
+        0.024667864211772746,
+        -0.006458571791247957,
+        0.015840800627882144,
+        -0.03240089880780878
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        0.7743979581316438,
+        0.7704581568937637,
+        1.535387982315767,
+        2.146114073023025,
+        1.2881063896438714,
+        0.0
+      ],
+      "peak_loads_N": [
+        0.7839320103738446,
+        0.7704581568937637,
+        1.535387982315767,
+        2.146114073023025,
+        1.2881063896438714,
+        0.0
+      ],
+      "interface_gap_m": [
+        2.2233244554360505e-07,
+        5.329551283485467e-07,
+        2.5590086654175145e-07,
+        1.360719908105325e-07,
+        1.6517657437871437e-07,
+        0.6599993605350735
+      ],
+      "peak_other_load_N": 2.146114073023025,
+      "peak_actual_torque_Nm": 0.06993829736975202,
+      "max_module_penetration_m": 0.0,
+      "max_ground_penetration_m": 0.0003000000000000086,
+      "worst_module_pair": null,
+      "worst_ground_pair": [
+        "terrain",
+        "module_5/b6_geom"
+      ],
+      "root_collinearity_error_m": 6.003439293700813e-05,
+      "failure": ""
+    },
+    {
+      "time_s": 1.0010000000000006,
+      "phase": "CURL",
+      "connection": 6,
+      "q_rad": [
+        -0.016800926165290705,
+        0.06431750696262327,
+        0.052938814113065974,
+        -0.02167609253482903,
+        0.040763090630227435,
+        -0.06655971823683762
+      ],
+      "dq_rad_s": [
+        -0.06256239989206631,
+        0.22592111613827706,
+        0.20926127176558967,
+        -0.10048799901048318,
+        0.17078653173657987,
+        -0.2476531981772046
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        7.673424417399407,
+        19.19396206862632,
+        21.15449100403785,
+        18.72424425039772,
+        7.640362047083935,
+        0.0
+      ],
+      "peak_loads_N": [
+        7.686563139753168,
+        19.19396206862632,
+        21.15449100403785,
+        18.72424425039772,
+        7.640362047083935,
+        0.0
+      ],
+      "interface_gap_m": [
+        7.05879339895482e-07,
+        1.1285019992013669e-06,
+        6.459791580684063e-07,
+        3.66320846316122e-07,
+        5.836105747992914e-07,
+        0.6596217485865542
+      ],
+      "peak_other_load_N": 21.15449100403785,
+      "peak_actual_torque_Nm": 0.43041539622748104,
+      "max_module_penetration_m": 0.0,
+      "max_ground_penetration_m": 0.0003000000000000086,
+      "worst_module_pair": null,
+      "worst_ground_pair": [
+        "terrain",
+        "module_5/b6_geom"
+      ],
+      "root_collinearity_error_m": 0.0021051445696232103,
+      "failure": ""
+    },
+    {
+      "time_s": 1.5019999999999454,
+      "phase": "CURL",
+      "connection": 6,
+      "q_rad": [
+        -0.06669879940125772,
+        0.2469039504648215,
+        0.2184768802534812,
+        -0.0977736169856564,
+        0.17364966110160493,
+        -0.26418368336027753
+      ],
+      "dq_rad_s": [
+        -0.1379269751273579,
+        0.5113372712701384,
+        0.45290826218832375,
+        -0.21066719750920904,
+        0.36827505189125115,
+        -0.546429555933988
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        7.749946431227865,
+        30.385601700717416,
+        10.691876188348909,
+        10.901548705432754,
+        8.382297810968371,
+        0.0
+      ],
+      "peak_loads_N": [
+        8.322020874814159,
+        31.39537891834014,
+        28.141071713512407,
+        29.87395187738858,
+        15.779191706647664,
+        0.0
+      ],
+      "interface_gap_m": [
+        7.619987379349416e-07,
+        1.3295912923130194e-06,
+        7.480167850567123e-07,
+        7.802990187637816e-07,
+        1.622984185781463e-07,
+        0.6533901331291575
+      ],
+      "peak_other_load_N": 31.39537891834014,
+      "peak_actual_torque_Nm": 0.5404660185107133,
+      "max_module_penetration_m": 0.0,
+      "max_ground_penetration_m": 0.0003000000000000086,
+      "worst_module_pair": null,
+      "worst_ground_pair": [
+        "terrain",
+        "module_5/b6_geom"
+      ],
+      "root_collinearity_error_m": 0.00946609483162566,
+      "failure": ""
+    },
+    {
+      "time_s": 2.0029999999998904,
+      "phase": "CURL",
+      "connection": 6,
+      "q_rad": [
+        -0.15385018646815257,
+        0.5696524327298822,
+        0.5031728038823984,
+        -0.23357803154891565,
+        0.4072154570359569,
+        -0.6097268189516859
+      ],
+      "dq_rad_s": [
+        -0.20698100112931092,
+        0.7652699107324521,
+        0.6716257292592839,
+        -0.32180939525954533,
+        0.54918499197194,
+        -0.8224588290994594
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        7.686759820503884,
+        29.610631636553954,
+        11.268921501695093,
+        15.895980536321115,
+        6.908914527497311,
+        0.0
+      ],
+      "peak_loads_N": [
+        8.322020874814159,
+        31.786593294474244,
+        28.141071713512407,
+        29.87395187738858,
+        15.779191706647664,
+        0.0
+      ],
+      "interface_gap_m": [
+        8.114004663291668e-07,
+        5.894341996469676e-07,
+        9.27690951752476e-07,
+        7.862647515487806e-07,
+        8.769778654393395e-07,
+        0.6232536574683138
+      ],
+      "peak_other_load_N": 31.786593294474244,
+      "peak_actual_torque_Nm": 0.5404660185107133,
+      "max_module_penetration_m": 0.0,
+      "max_ground_penetration_m": 0.00036801913309083417,
+      "worst_module_pair": null,
+      "worst_ground_pair": [
+        "terrain",
+        "module_1/b2_geom"
+      ],
+      "root_collinearity_error_m": 0.023335708999198245,
+      "failure": ""
+    },
+    {
+      "time_s": 2.5039999999998352,
+      "phase": "CURL",
+      "connection": 6,
+      "q_rad": [
+        -0.269775474335146,
+        1.000000030640848,
+        0.88349950681947,
+        -0.4084981068556139,
+        0.7148772706389911,
+        -1.0685469301256156
+      ],
+      "dq_rad_s": [
+        -0.24997677980341532,
+        0.9312497363617365,
+        0.8147825603940055,
+        -0.37671167272333117,
+        0.6626458261687878,
+        -0.9855612850122973
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        7.172944462098242,
+        29.07051258940953,
+        13.11491075703604,
+        18.663494991258425,
+        6.3407006414505,
+        0.0
+      ],
+      "peak_loads_N": [
+        8.322020874814159,
+        31.786593294474244,
+        28.141071713512407,
+        29.87395187738858,
+        15.779191706647664,
+        0.0
+      ],
+      "interface_gap_m": [
+        1.055915842059372e-06,
+        2.0716145650857584e-07,
+        1.3649044514669362e-06,
+        9.520510581075594e-07,
+        4.685726133749009e-07,
+        0.543077114305446
+      ],
+      "peak_other_load_N": 31.786593294474244,
+      "peak_actual_torque_Nm": 0.5642573258186729,
+      "max_module_penetration_m": 0.0,
+      "max_ground_penetration_m": 0.0004466820006493663,
+      "worst_module_pair": null,
+      "worst_ground_pair": [
+        "terrain",
+        "module_1/b2_geom"
+      ],
+      "root_collinearity_error_m": 0.044532805248428294,
+      "failure": ""
+    },
+    {
+      "time_s": 3.00499999999978,
+      "phase": "CURL",
+      "connection": 6,
+      "q_rad": [
+        -0.39867784232189146,
+        1.4805792452002446,
+        1.295943820074474,
+        -0.6113951449749693,
+        1.0551108740911075,
+        -1.5790425191809394
+      ],
+      "dq_rad_s": [
+        -0.2586010081839887,
+        0.9671982021412544,
+        0.8427163804240255,
+        -0.3766610129466746,
+        0.6751485466107167,
+        -1.0183267963883034
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        5.017586199410273,
+        18.13788800982841,
+        21.052570987463447,
+        23.67350019982519,
+        6.374191417803093,
+        0.0
+      ],
+      "peak_loads_N": [
+        9.48901429113534,
+        31.786593294474244,
+        28.141071713512407,
+        29.87395187738858,
+        15.779191706647664,
+        0.0
+      ],
+      "interface_gap_m": [
+        1.8006993576159616e-06,
+        1.6549317080311616e-06,
+        8.815580347584764e-07,
+        9.079665989896822e-07,
+        1.866451236598977e-06,
+        0.4050403984614279
+      ],
+      "peak_other_load_N": 31.786593294474244,
+      "peak_actual_torque_Nm": 0.9178675748914458,
+      "max_module_penetration_m": 0.0,
+      "max_ground_penetration_m": 0.0004466820006493663,
+      "worst_module_pair": null,
+      "worst_ground_pair": [
+        "terrain",
+        "module_1/b2_geom"
+      ],
+      "root_collinearity_error_m": 0.06796342360835204,
+      "failure": ""
+    },
+    {
+      "time_s": 3.505999999999725,
+      "phase": "CURL",
+      "connection": 6,
+      "q_rad": [
+        -0.5215948903868858,
+        1.940510512443799,
+        1.7033202381527428,
+        -0.796417871404296,
+        1.3806872045465743,
+        -2.0648887304269916
+      ],
+      "dq_rad_s": [
+        -0.22760200392345725,
+        0.8525285546932821,
+        0.7313941131498224,
+        -0.3726024467871198,
+        0.6005701962213359,
+        -0.8961120644800807
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        3.8844086497052954,
+        11.064732518372068,
+        20.938456975927632,
+        11.529921430857783,
+        5.4999533811223476,
+        0.0
+      ],
+      "peak_loads_N": [
+        9.48901429113534,
+        31.786593294474244,
+        28.141071713512407,
+        29.87395187738858,
+        15.779191706647664,
+        0.0
+      ],
+      "interface_gap_m": [
+        1.829406484524667e-06,
+        2.9443504025021855e-06,
+        1.6239692337770982e-06,
+        8.784615663129598e-07,
+        7.404768485083531e-07,
+        0.24498171803380295
+      ],
+      "peak_other_load_N": 31.786593294474244,
+      "peak_actual_torque_Nm": 0.9178675748914458,
+      "max_module_penetration_m": 0.0,
+      "max_ground_penetration_m": 0.0004466820006493663,
+      "worst_module_pair": null,
+      "worst_ground_pair": [
+        "terrain",
+        "module_1/b2_geom"
+      ],
+      "root_collinearity_error_m": 0.08214021411376085,
+      "failure": ""
+    },
+    {
+      "time_s": 4.006999999999673,
+      "phase": "CURL",
+      "connection": 6,
+      "q_rad": [
+        -0.620884048502074,
+        2.312073520651582,
+        2.032748790047865,
+        -0.9518358735870506,
+        1.643304436754275,
+        -2.457312882337207
+      ],
+      "dq_rad_s": [
+        -0.16526862860436972,
+        0.6064551547211163,
+        0.5475520326754366,
+        -0.26349694116271527,
+        0.43823097406415795,
+        -0.6539702723387216
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        5.633718759492737,
+        4.839711785495281,
+        16.559807653494058,
+        4.735898226861121,
+        6.397382185377309,
+        0.0
+      ],
+      "peak_loads_N": [
+        9.48901429113534,
+        31.786593294474244,
+        30.95417034912154,
+        29.87395187738858,
+        15.779191706647664,
+        0.0
+      ],
+      "interface_gap_m": [
+        1.4378509740031944e-06,
+        2.8691606687380436e-06,
+        1.1051936192088464e-06,
+        1.0649291646709893e-06,
+        7.029959809919479e-07,
+        0.11458859739995701
+      ],
+      "peak_other_load_N": 31.786593294474244,
+      "peak_actual_torque_Nm": 0.9178675748914458,
+      "max_module_penetration_m": 0.0,
+      "max_ground_penetration_m": 0.0004466820006493663,
+      "worst_module_pair": null,
+      "worst_ground_pair": [
+        "terrain",
+        "module_1/b2_geom"
+      ],
+      "root_collinearity_error_m": 0.10597641076260837,
+      "failure": ""
+    },
+    {
+      "time_s": 4.50699999999984,
+      "phase": "CURL",
+      "connection": 6,
+      "q_rad": [
+        -0.6847016296528639,
+        2.5513216941489927,
+        2.2454261776293665,
+        -1.0507053336820564,
+        1.8126919431720527,
+        -2.7096287752108634
+      ],
+      "dq_rad_s": [
+        -0.08936692514573805,
+        0.33292052203807443,
+        0.2965904758645337,
+        -0.13808019128620863,
+        0.23746019563674398,
+        -0.3534087245887766
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        6.826684451337304,
+        4.340455040377836,
+        15.429861965359585,
+        3.9186776835648267,
+        5.951708873317895,
+        0.0
+      ],
+      "peak_loads_N": [
+        9.48901429113534,
+        31.786593294474244,
+        30.95417034912154,
+        29.87395187738858,
+        15.779191706647664,
+        0.0
+      ],
+      "interface_gap_m": [
+        7.433436084605465e-07,
+        1.462034934868769e-06,
+        2.6748927892967906e-07,
+        8.417472917973265e-07,
+        6.554241603037598e-07,
+        0.035397191341209444
+      ],
+      "peak_other_load_N": 31.786593294474244,
+      "peak_actual_torque_Nm": 0.9178675748914458,
+      "max_module_penetration_m": 0.0,
+      "max_ground_penetration_m": 0.0004466820006493663,
+      "worst_module_pair": null,
+      "worst_ground_pair": [
+        "terrain",
+        "module_1/b2_geom"
+      ],
+      "root_collinearity_error_m": 0.08397946340751329,
+      "failure": ""
+    },
+    {
+      "time_s": 5.007000000000007,
+      "phase": "CURL",
+      "connection": 6,
+      "q_rad": [
+        -0.7118262027806784,
+        2.654935784268656,
+        2.3353333820567816,
+        -1.0921200641307458,
+        1.8848060189041886,
+        -2.8169279515192787
+      ],
+      "dq_rad_s": [
+        -0.02369304932246956,
+        0.09387779234726586,
+        0.07899281203983424,
+        -0.035809009692733956,
+        0.06295363002104822,
+        -0.0936860969614455
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        7.170686603896927,
+        6.837672475714262,
+        18.540013355844735,
+        5.697191731849712,
+        5.786363761665491,
+        0.0
+      ],
+      "peak_loads_N": [
+        9.48901429113534,
+        31.786593294474244,
+        30.95417034912154,
+        29.87395187738858,
+        15.779191706647664,
+        0.0
+      ],
+      "interface_gap_m": [
+        6.086956436632429e-07,
+        1.4843876012820467e-06,
+        2.888179971917489e-07,
+        8.52087370982096e-07,
+        6.875353363027172e-07,
+        0.0033001889798218048
+      ],
+      "peak_other_load_N": 31.786593294474244,
+      "peak_actual_torque_Nm": 0.9178675748914458,
+      "max_module_penetration_m": 0.0,
+      "max_ground_penetration_m": 0.0004466820006493663,
+      "worst_module_pair": null,
+      "worst_ground_pair": [
+        "terrain",
+        "module_1/b2_geom"
+      ],
+      "root_collinearity_error_m": 0.07101589926246225,
+      "failure": ""
+    },
+    {
+      "time_s": 5.507000000000174,
+      "phase": "CAPTURE_HEADTAIL",
+      "connection": 6,
+      "q_rad": [
+        -0.7152702408144027,
+        2.668455147763948,
+        2.3460479728714105,
+        -1.0967525505614597,
+        1.8944891984357608,
+        -2.8303478598443506
+      ],
+      "dq_rad_s": [
+        -0.00021699941394423075,
+        -0.011488127414657634,
+        -0.012731424510383327,
+        0.010521580382205,
+        0.013371986905270623,
+        0.003926674987023582
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        7.1790998316044545,
+        7.920632869720242,
+        19.795861572021572,
+        5.980684821778369,
+        5.757372284923967,
+        0.0
+      ],
+      "peak_loads_N": [
+        9.48901429113534,
+        31.786593294474244,
+        30.95417034912154,
+        29.87395187738858,
+        15.779191706647664,
+        0.0
+      ],
+      "interface_gap_m": [
+        6.455846125754072e-07,
+        8.536581627086037e-07,
+        7.497452271993263e-08,
+        8.896818809922234e-07,
+        5.003510646321431e-07,
+        0.0014114220281453416
+      ],
+      "peak_other_load_N": 31.786593294474244,
+      "peak_actual_torque_Nm": 0.9178675748914458,
+      "max_module_penetration_m": 0.0,
+      "max_ground_penetration_m": 0.0004466820006493663,
+      "worst_module_pair": null,
+      "worst_ground_pair": [
+        "terrain",
+        "module_1/b2_geom"
+      ],
+      "root_collinearity_error_m": 0.07039239435632381,
+      "failure": ""
+    },
+    {
+      "time_s": 6.007000000000341,
+      "phase": "LOAD",
+      "connection": 1,
+      "q_rad": [
+        -0.715890717435446,
+        2.6623790198670507,
+        2.343298490480648,
+        -1.0939883375564878,
+        1.8982424226336678,
+        -2.828347541195147
+      ],
+      "dq_rad_s": [
+        -0.0026794557243687484,
+        0.0062832677830650715,
+        0.0024463998713822013,
+        0.0019553820544668523,
+        0.0003571150681375605,
+        0.0005433548588500743
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        30.135861896369484,
+        30.12469356209045,
+        21.109734821296065,
+        9.34753172283517,
+        17.907606344001223,
+        2.7565041886441275
+      ],
+      "peak_loads_N": [
+        30.147269137675053,
+        31.786593294474244,
+        30.95417034912154,
+        29.87395187738858,
+        17.957122236348283,
+        4.859111293452115
+      ],
+      "interface_gap_m": [
+        1.059162651279771e-06,
+        1.470187007980722e-06,
+        1.1199183415983045e-06,
+        1.1123032423151056e-06,
+        1.695363469475361e-06,
+        0.00034837451166190646
+      ],
+      "peak_other_load_N": 31.786593294474244,
+      "peak_actual_torque_Nm": 1.029378170422277,
+      "max_module_penetration_m": 0.0,
+      "max_ground_penetration_m": 0.0004466820006493663,
+      "worst_module_pair": null,
+      "worst_ground_pair": [
+        "terrain",
+        "module_1/b2_geom"
+      ],
+      "root_collinearity_error_m": 0.07058538781105837,
+      "failure": ""
+    },
+    {
+      "time_s": 6.507000000000508,
+      "phase": "SEPARATE",
+      "connection": 1,
+      "q_rad": [
+        -0.7221239722183225,
+        2.655257497369537,
+        2.346000255299709,
+        -1.0960636124713377,
+        1.8876656776181693,
+        -2.8264908813296086
+      ],
+      "dq_rad_s": [
+        -0.12418370332013234,
+        -0.18141128737946852,
+        0.10254370478840945,
+        -0.02038966172444144,
+        -0.08886156938330975,
+        0.07162279442053204
+      ],
+      "connected": [
+        false,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        0.0,
+        15.566584715977582,
+        35.37194867409299,
+        26.183154731562816,
+        17.103471720121952,
+        6.9772207771313175
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        37.88666285548038,
+        35.37194867409299,
+        29.87395187738858,
+        36.11248219588975,
+        32.76143202360374
+      ],
+      "interface_gap_m": [
+        0.0017280147703997927,
+        3.5710381651246435e-06,
+        1.9034977737176475e-06,
+        1.7800276180276297e-06,
+        2.215104995735632e-06,
+        0.00034830144011263603
+      ],
+      "peak_other_load_N": 37.88666285548038,
+      "peak_actual_torque_Nm": 3.9623586273100213,
+      "max_module_penetration_m": 0.0003293099360857748,
+      "max_ground_penetration_m": 0.0004466820006493663,
+      "worst_module_pair": [
+        "module_0/b1_geom",
+        "module_1/a2_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_1/b2_geom"
+      ],
+      "root_collinearity_error_m": 0.07085536517275806,
+      "failure": ""
+    },
+    {
+      "time_s": 7.007000000000675,
+      "phase": "SEPARATE",
+      "connection": 1,
+      "q_rad": [
+        -1.0508288915683417,
+        2.2064949346208347,
+        2.587753046981603,
+        -1.1912394648273683,
+        1.6522492703031533,
+        -2.5876762603887853
+      ],
+      "dq_rad_s": [
+        -1.2282957441205775,
+        -1.5016963306921844,
+        0.7370380422447022,
+        -0.47183731353337544,
+        -0.8763539426398135,
+        0.9538054160275226
+      ],
+      "connected": [
+        false,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        0.0,
+        18.753598373366938,
+        52.50735737468954,
+        27.830506876399753,
+        14.184653759350212,
+        7.212295383225935
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        37.88666285548038,
+        55.31854719956167,
+        30.82587112326129,
+        36.11248219588975,
+        32.76143202360374
+      ],
+      "interface_gap_m": [
+        0.005338048352303663,
+        3.4607199916830333e-06,
+        1.8487618382874521e-06,
+        4.7364846756782395e-06,
+        3.838990470064202e-06,
+        0.00034867668394160964
+      ],
+      "peak_other_load_N": 55.31854719956167,
+      "peak_actual_torque_Nm": 3.9623586273100213,
+      "max_module_penetration_m": 0.0003293099360857748,
+      "max_ground_penetration_m": 0.0004466820006493663,
+      "worst_module_pair": [
+        "module_0/b1_geom",
+        "module_1/a2_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_1/b2_geom"
+      ],
+      "root_collinearity_error_m": 0.07653540372105194,
+      "failure": ""
+    },
+    {
+      "time_s": 7.507000000000842,
+      "phase": "SEPARATE",
+      "connection": 1,
+      "q_rad": [
+        -1.8630836770873171,
+        1.5069574093781386,
+        2.824831201211285,
+        -1.50893801273324,
+        1.281283815939819,
+        -1.9890252859048752
+      ],
+      "dq_rad_s": [
+        -1.7222300329988531,
+        -0.8927059522900692,
+        0.10686241390471751,
+        -0.4621729418310234,
+        -0.30743042309752744,
+        1.1789198016478086
+      ],
+      "connected": [
+        false,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        0.0,
+        24.779407702751666,
+        39.294328742318896,
+        22.406151176453072,
+        17.27480927290254,
+        6.609441646783614
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        40.28617458716045,
+        74.4282968057264,
+        49.75444053896632,
+        36.11248219588975,
+        32.76143202360374
+      ],
+      "interface_gap_m": [
+        0.014499948598809922,
+        3.2817495584493047e-06,
+        1.0808002627500868e-06,
+        8.589181554909805e-06,
+        6.1093866848655e-06,
+        0.00034674631122649866
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 3.9623586273100213,
+      "max_module_penetration_m": 0.0003293099360857748,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_0/b1_geom",
+        "module_1/a2_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.08243231116932015,
+      "failure": ""
+    },
+    {
+      "time_s": 8.007000000001002,
+      "phase": "SEPARATE",
+      "connection": 1,
+      "q_rad": [
+        -2.3465242546505625,
+        1.3659563428324013,
+        2.787010683266461,
+        -1.5891900858218448,
+        1.2614837471328364,
+        -1.684612764269756
+      ],
+      "dq_rad_s": [
+        -0.12124611066505442,
+        -0.008990289916674051,
+        -0.025847734347650215,
+        -0.010872443453688796,
+        0.014124245459384491,
+        0.06914177574265987
+      ],
+      "connected": [
+        false,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "registrations": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        0.0,
+        6.331687344107031,
+        21.147573796123844,
+        6.348414316564484,
+        19.461573223756034,
+        6.727306906556043
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        40.28617458716045,
+        74.4282968057264,
+        49.75444053896632,
+        36.11248219588975,
+        32.76143202360374
+      ],
+      "interface_gap_m": [
+        0.020827264066850332,
+        7.411094416307454e-07,
+        8.514439655572121e-07,
+        3.8974395769297497e-07,
+        2.5377343111900263e-06,
+        0.0003461495624329133
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 3.9623586273100213,
+      "max_module_penetration_m": 0.0003293099360857748,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_0/b1_geom",
+        "module_1/a2_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.0803088613928888,
+      "failure": ""
+    },
+    {
+      "time_s": 8.508000000000724,
+      "phase": "SETTLE",
+      "connection": 1,
+      "q_rad": [
+        -2.2093309022114065,
+        1.2193650192921117,
+        2.782076019986329,
+        -1.6679621642439169,
+        1.3223540718523679,
+        -1.7693269692048452
+      ],
+      "dq_rad_s": [
+        0.0010707520883274054,
+        0.00047111822887394266,
+        0.0016154311871147014,
+        0.002226766753736612,
+        0.003023825195698068,
+        0.002358472954993571
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "registrations": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        1.2703104142849844,
+        5.77152876388176,
+        9.862610444916672,
+        3.8503845280859554,
+        14.26719035523946,
+        2.885763530215707
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        40.28617458716045,
+        74.4282968057264,
+        49.75444053896632,
+        36.11248219588975,
+        32.76143202360374
+      ],
+      "interface_gap_m": [
+        0.00035889501059204067,
+        7.39699814427031e-07,
+        4.009741260100778e-07,
+        6.721795895128381e-07,
+        6.452078292480369e-07,
+        0.0003478186335901404
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 3.9623586273100213,
+      "max_module_penetration_m": 0.0003293099360857748,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_0/b1_geom",
+        "module_1/a2_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.075883475273044,
+      "failure": ""
+    },
+    {
+      "time_s": 9.009000000000446,
+      "phase": "LOAD",
+      "connection": 2,
+      "q_rad": [
+        -2.2107420866942853,
+        1.219114876605369,
+        2.78150131378259,
+        -1.669481830926105,
+        1.3213094934110703,
+        -1.7687805235328689
+      ],
+      "dq_rad_s": [
+        -0.003051556052249466,
+        0.001552227466595496,
+        -0.002898399381353748,
+        -0.0027934933989159343,
+        -0.0022489173537078243,
+        -0.0002558340201292799
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "registrations": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        11.92780849260259,
+        79.80277169101821,
+        11.010361105798179,
+        8.256828481684124,
+        14.98784014470929,
+        14.424230068795573
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        79.80277169101821,
+        74.4282968057264,
+        49.75444053896632,
+        36.11248219588975,
+        32.76143202360374
+      ],
+      "interface_gap_m": [
+        0.0003499085221266865,
+        1.9753699103358385e-06,
+        2.3673575150751447e-06,
+        3.0908383489474202e-06,
+        2.2048728785200324e-06,
+        0.0003498058074949625
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 3.9623586273100213,
+      "max_module_penetration_m": 0.0003293099360857748,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_0/b1_geom",
+        "module_1/a2_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.0758317820886011,
+      "failure": ""
+    },
+    {
+      "time_s": 9.510000000000169,
+      "phase": "SEPARATE",
+      "connection": 2,
+      "q_rad": [
+        -2.3799089371447835,
+        1.0075591215590325,
+        2.5119886988662774,
+        -1.643970580010354,
+        1.313241058808475,
+        -1.5705643681012598
+      ],
+      "dq_rad_s": [
+        -1.2982901713955977,
+        -0.9221929675039654,
+        -1.4274801732737226,
+        -0.014226081998738066,
+        0.11770327856890017,
+        1.2170828648517344
+      ],
+      "connected": [
+        true,
+        false,
+        true,
+        true,
+        true,
+        true
+      ],
+      "registrations": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        6.40347854933891,
+        0.0,
+        8.861398033567994,
+        23.41487836543062,
+        19.22244942483684,
+        18.07879110896796
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        49.75444053896632,
+        36.11248219588975,
+        32.76143202360374
+      ],
+      "interface_gap_m": [
+        0.00035139871838320275,
+        0.006533519042914562,
+        3.175090153334255e-06,
+        4.117383047785165e-06,
+        6.0424434617328605e-06,
+        0.0003464787373479154
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 3.9623586273100213,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.07530703279646894,
+      "failure": ""
+    },
+    {
+      "time_s": 10.01099999999989,
+      "phase": "SEPARATE",
+      "connection": 2,
+      "q_rad": [
+        -3.0619558449611417,
+        1.00847040094828,
+        1.960248788610624,
+        -1.7019763194993356,
+        1.5257756222309538,
+        -0.9987897237217296
+      ],
+      "dq_rad_s": [
+        -0.4181951307063782,
+        0.21070096853278458,
+        -0.31248438879538676,
+        -0.04633192666283554,
+        0.20199969224319372,
+        0.289740315436121
+      ],
+      "connected": [
+        true,
+        false,
+        true,
+        true,
+        true,
+        true
+      ],
+      "registrations": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        31.167810312456798,
+        0.0,
+        4.932641980323665,
+        18.778575281293993,
+        28.950049689539934,
+        6.343423338289008
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        49.75444053896632,
+        37.1333774820708,
+        32.76143202360374
+      ],
+      "interface_gap_m": [
+        0.0003474028389327505,
+        0.020700668029852366,
+        6.637179789806545e-06,
+        1.9899934519015705e-06,
+        7.2151332385822405e-06,
+        0.00034565288911711305
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 3.9623586273100213,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.08378011538198483,
+      "failure": ""
+    },
+    {
+      "time_s": 10.511999999999613,
+      "phase": "SETTLE",
+      "connection": 2,
+      "q_rad": [
+        -2.8911690626710107,
+        0.8339408109514838,
+        1.9544681895366016,
+        -1.706580975652049,
+        1.561352634411869,
+        -1.1657610553811308
+      ],
+      "dq_rad_s": [
+        -0.019123119864566582,
+        -0.009222448428302495,
+        0.008676407380596541,
+        0.015611499408851764,
+        0.007461764018362913,
+        -0.012676543946788455
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        5.224040085024411,
+        8.781029639578467,
+        5.492436065502664,
+        2.110688963079684,
+        19.531415644300427,
+        3.284681052087023
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        49.75444053896632,
+        37.1333774820708,
+        32.76143202360374
+      ],
+      "interface_gap_m": [
+        0.0003480987455217941,
+        0.0004386359582804608,
+        4.749887471218658e-07,
+        2.4494048363118505e-07,
+        5.514035649713322e-07,
+        0.00034828365302983405
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 3.9623586273100213,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.08450259635224659,
+      "failure": ""
+    },
+    {
+      "time_s": 11.012999999999336,
+      "phase": "LOAD",
+      "connection": 4,
+      "q_rad": [
+        -2.892644180026095,
+        0.8331696130375624,
+        1.9541692286366368,
+        -1.7075062529866902,
+        1.5622154673492252,
+        -1.1658000074844266
+      ],
+      "dq_rad_s": [
+        -0.002299415580754599,
+        -8.014854362537366e-05,
+        -0.0022760546453808586,
+        -0.003835739514973564,
+        0.0020036106632092487,
+        0.0008290233180514781
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        31.372216049881345,
+        34.634206656553815,
+        30.418731138686397,
+        62.30211187006289,
+        27.906927988330118,
+        20.931055375960373
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        62.55114759452105,
+        37.1333774820708,
+        32.76143202360374
+      ],
+      "interface_gap_m": [
+        0.00034805815021854154,
+        0.0003474466771089973,
+        1.6855670793798245e-06,
+        2.218631552846774e-06,
+        2.7331452093985927e-06,
+        0.0003502016610091486
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 3.9623586273100213,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.08449643259132285,
+      "failure": ""
+    },
+    {
+      "time_s": 11.513999999999058,
+      "phase": "SEPARATE",
+      "connection": 4,
+      "q_rad": [
+        -2.947768662839996,
+        0.7942053012508774,
+        2.0158015648619214,
+        -1.6309171313094901,
+        1.6908183016913765,
+        -1.1068884881943382
+      ],
+      "dq_rad_s": [
+        -0.40075315521722427,
+        -0.2818637912360789,
+        0.552474910298324,
+        0.5820149871616319,
+        1.0325813414195395,
+        0.462539821601505
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        11.15426488367652,
+        15.663504151727384,
+        8.441173838348956,
+        0.0,
+        7.00019737762043,
+        10.487473362920518
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        101.25946027231822,
+        46.921713330466616,
+        33.05363050625263
+      ],
+      "interface_gap_m": [
+        0.0003515253768834635,
+        0.00034666476810771074,
+        6.249585974985259e-06,
+        0.0031478689414884834,
+        8.482078141860947e-06,
+        0.00034912418278666474
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 5.015784019008402,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.08550022542822996,
+      "failure": ""
+    },
+    {
+      "time_s": 12.01499999999878,
+      "phase": "SEPARATE",
+      "connection": 4,
+      "q_rad": [
+        -3.323318634915777,
+        0.6682058680310922,
+        2.4507599007824723,
+        -1.3980949869555637,
+        2.4779838647287167,
+        -0.9657682539493945
+      ],
+      "dq_rad_s": [
+        -0.5991571460183969,
+        -0.06636804640586659,
+        0.6591362001099176,
+        0.062284630765407155,
+        1.3295512433259251,
+        -0.11533184073058997
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        28.534474331064764,
+        38.768919064728664,
+        11.91167385689271,
+        0.0,
+        7.807267276974623,
+        31.620088350975195
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        101.25946027231822,
+        46.921713330466616,
+        41.39261187598395
+      ],
+      "interface_gap_m": [
+        0.00034852610034048455,
+        0.00035275382386371507,
+        7.355591268293827e-06,
+        0.017586311751619222,
+        6.645733834364739e-06,
+        0.0003490877135433268
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 5.015784019008402,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.08901259978031646,
+      "failure": ""
+    },
+    {
+      "time_s": 12.515999999998503,
+      "phase": "APPROACH",
+      "connection": 4,
+      "q_rad": [
+        -3.417310854382761,
+        0.792618939545104,
+        2.4610610330542753,
+        -1.281931802775409,
+        2.6259335603001395,
+        -0.9759413249145071
+      ],
+      "dq_rad_s": [
+        -0.07009969010563508,
+        1.3944073307696512,
+        -0.8379422320571452,
+        1.2468507471706662,
+        -0.3673269847022256,
+        0.21433894935333003
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "loads_N": [
+        32.860425585817566,
+        40.7641913351722,
+        10.771900929473263,
+        0.0,
+        7.4239427228533525,
+        31.228709970998867
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        101.25946027231822,
+        46.921713330466616,
+        41.39261187598395
+      ],
+      "interface_gap_m": [
+        0.00034703507068746997,
+        0.0003493793466618619,
+        3.1537195265589226e-06,
+        0.007716673246732552,
+        5.632468031261716e-06,
+        0.00035451844700787127
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 5.015784019008402,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.08787131415973397,
+      "failure": ""
+    },
+    {
+      "time_s": 13.016999999998225,
+      "phase": "LOAD",
+      "connection": 5,
+      "q_rad": [
+        -3.428920277194395,
+        0.8718275830246193,
+        2.414453996380291,
+        -1.2112183069492444,
+        2.606210535872299,
+        -0.9692710299548802
+      ],
+      "dq_rad_s": [
+        0.0052678602000429155,
+        -0.0027628893626219196,
+        0.0036598338287800263,
+        -0.0006078419436499375,
+        0.0034759462086868696,
+        -0.002245715880824885
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "loads_N": [
+        5.77621162884954,
+        7.275139732648192,
+        10.396352013899333,
+        4.79260900335414,
+        7.699687118028056,
+        16.803945395433757
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        101.25946027231822,
+        46.921713330466616,
+        41.39261187598395
+      ],
+      "interface_gap_m": [
+        0.00034840366000555884,
+        0.0003481850314144789,
+        6.664540215359537e-07,
+        0.00034773178043753593,
+        2.1319794238040504e-07,
+        0.00034797024864555506
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 5.015784019008402,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.09007410292460424,
+      "failure": ""
+    },
+    {
+      "time_s": 13.517999999997947,
+      "phase": "SEPARATE",
+      "connection": 5,
+      "q_rad": [
+        -3.428108696792714,
+        0.8697514603341976,
+        2.4109666501080076,
+        -1.2104815086078067,
+        2.6091452313735695,
+        -0.9682214126538305
+      ],
+      "dq_rad_s": [
+        0.019731506028753062,
+        0.021304179019061124,
+        -0.04950755748556285,
+        0.038627491758980496,
+        0.07117738294364184,
+        0.0620791462919286
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        false,
+        true
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "loads_N": [
+        8.822248938785226,
+        10.285681081949507,
+        19.934145536430965,
+        6.419823546412334,
+        0.0,
+        7.300139230551919
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        101.25946027231822,
+        100.6709115553316,
+        41.39261187598395
+      ],
+      "interface_gap_m": [
+        0.00034723854830834684,
+        0.0003484316583735757,
+        4.566290964416517e-07,
+        0.0003497125721826126,
+        0.0008250054953111736,
+        0.00035031633270914554
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 5.834082276023604,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.09003334634905058,
+      "failure": ""
+    },
+    {
+      "time_s": 14.01899999999767,
+      "phase": "SEPARATE",
+      "connection": 5,
+      "q_rad": [
+        -3.328608363426238,
+        1.0031944784775062,
+        2.096370711789502,
+        -1.0950259174491237,
+        3.0497325164307734,
+        -0.7326076820579254
+      ],
+      "dq_rad_s": [
+        0.40337379190169986,
+        0.499631211936433,
+        -1.1455864876488562,
+        -0.027322970444227844,
+        1.712257816858164,
+        0.44798726622003104
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        false,
+        true
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "loads_N": [
+        14.650634279707516,
+        17.46368136351635,
+        20.086035733234986,
+        4.7877202600998725,
+        0.0,
+        7.971004293071152
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        101.25946027231822,
+        100.6709115553316,
+        41.39261187598395
+      ],
+      "interface_gap_m": [
+        0.0003469470185868475,
+        0.00034743821050882526,
+        1.999352835253086e-06,
+        0.0003443897109725608,
+        0.009914376811847977,
+        0.0003459880225787175
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 5.834082276023604,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.08594513653267008,
+      "failure": ""
+    },
+    {
+      "time_s": 14.519999999997392,
+      "phase": "SEPARATE",
+      "connection": 5,
+      "q_rad": [
+        -3.129090691696568,
+        1.086538615329054,
+        1.7458350611122266,
+        -1.2767228192477438,
+        3.7267554446862823,
+        -0.7685945580482874
+      ],
+      "dq_rad_s": [
+        0.17839741528174993,
+        -0.028900634421457478,
+        -0.13581766105074608,
+        -0.19683991119855276,
+        0.44254294565084945,
+        -0.15031964169241438
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        false,
+        true
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "loads_N": [
+        11.86889965508227,
+        29.270746014849767,
+        4.921535122513997,
+        14.340249176701553,
+        0.0,
+        15.739857273791195
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        101.25946027231822,
+        100.6709115553316,
+        41.39261187598395
+      ],
+      "interface_gap_m": [
+        0.00034862234394383303,
+        0.00034790934912961555,
+        3.589936558468296e-06,
+        0.0003491824624746761,
+        0.020731059682201413,
+        0.00034923161694266826
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 5.834082276023604,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.08548903567493377,
+      "failure": ""
+    },
+    {
+      "time_s": 15.020999999997114,
+      "phase": "SETTLE",
+      "connection": 5,
+      "q_rad": [
+        -3.3016519148484655,
+        1.2219752931573953,
+        1.7743178899121814,
+        -1.3289561972209991,
+        3.748323084587551,
+        -0.5733500594085961
+      ],
+      "dq_rad_s": [
+        -0.0030414782555948598,
+        0.002781344024408868,
+        0.0033783332306145946,
+        -9.80466814573522e-06,
+        -0.0017893957157869766,
+        -0.0034479515492632303
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "loads_N": [
+        6.632338365574025,
+        23.36678768320149,
+        3.714803340362347,
+        5.019652514655304,
+        2.1686389374267687,
+        10.345722742991207
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        101.25946027231822,
+        100.6709115553316,
+        41.39261187598395
+      ],
+      "interface_gap_m": [
+        0.00034844745094983617,
+        0.0003494053400319896,
+        3.6159122761475073e-07,
+        0.00034906191034837997,
+        0.0005291286658326532,
+        0.00034824712230719404
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 5.834082276023604,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.08064015195103093,
+      "failure": ""
+    },
+    {
+      "time_s": 15.521999999996837,
+      "phase": "LOAD_HEADTAIL",
+      "connection": 6,
+      "q_rad": [
+        -3.30311249349916,
+        1.2247924843567393,
+        1.7716621403081854,
+        -1.3311938541873953,
+        3.748548727336003,
+        -0.573474773712536
+      ],
+      "dq_rad_s": [
+        -0.007680393551045614,
+        0.007017723102526152,
+        -0.006766996643470608,
+        -0.003720436123487465,
+        0.0033941133786860637,
+        -0.0016009617441707863
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "loads_N": [
+        17.9599328760064,
+        26.13840019323716,
+        19.57578666582335,
+        1.1945629379416096,
+        5.3535493757884245,
+        53.335452514573106
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        101.25946027231822,
+        100.6709115553316,
+        53.335452514573106
+      ],
+      "interface_gap_m": [
+        0.0003466964516185379,
+        0.000346276294199788,
+        2.7445164148828313e-06,
+        0.0003503922902024489,
+        0.000351023060745949,
+        0.0003489258145698674
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 5.834082276023604,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.08056863186408954,
+      "failure": ""
+    },
+    {
+      "time_s": 16.0229999999966,
+      "phase": "HEADTAIL_BREAK_HOLD",
+      "connection": 6,
+      "q_rad": [
+        -3.302770443614712,
+        1.226156283612483,
+        1.774033655722638,
+        -1.3266553844786884,
+        3.7489684174473954,
+        -0.5736654650463612
+      ],
+      "dq_rad_s": [
+        -9.697636435362144e-05,
+        0.001035797436290221,
+        0.0005149187933334687,
+        0.0011360233369594732,
+        0.0003337030576593126,
+        0.0004910849257263202
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "loads_N": [
+        6.701144735047853,
+        14.931911967934958,
+        11.431502449600021,
+        6.647748259487235,
+        9.412612749409075,
+        0.0
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        101.25946027231822,
+        100.6709115553316,
+        102.36294399198249
+      ],
+      "interface_gap_m": [
+        0.0003479762204969999,
+        0.00034893475426242304,
+        2.3281911869918368e-07,
+        0.00034851761898737515,
+        0.00034856397292925824,
+        0.0006973012153142864
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 8.374764577130236,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.08041606324531013,
+      "failure": ""
+    },
+    {
+      "time_s": 16.52299999999721,
+      "phase": "UNFOLD",
+      "connection": 6,
+      "q_rad": [
+        -3.124128697385103,
+        1.0565004169616863,
+        1.6475622151925768,
+        -1.1445597816789594,
+        3.6122278096398297,
+        -0.4595811909985307
+      ],
+      "dq_rad_s": [
+        0.8422899204260541,
+        -0.7556405927767504,
+        -0.5195023048058023,
+        0.7199362578829184,
+        -0.5534655588053125,
+        0.4755176797520833
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "loads_N": [
+        7.244589097986755,
+        31.153190727383024,
+        36.324936762269104,
+        33.34187559552357,
+        13.862702920595414,
+        0.0
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        101.25946027231822,
+        100.6709115553316,
+        102.36294399198249
+      ],
+      "interface_gap_m": [
+        0.00034720501556611064,
+        0.00034984054213762887,
+        6.484998867440112e-06,
+        0.00034275961541064,
+        0.0003514914111542925,
+        0.04612063666357948
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 8.374764577130236,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.07800677909047159,
+      "failure": ""
+    },
+    {
+      "time_s": 17.022999999997822,
+      "phase": "UNFOLD",
+      "connection": 6,
+      "q_rad": [
+        -2.644885302839492,
+        0.5976495715572696,
+        1.2410912480897542,
+        -0.6631538579746181,
+        3.2415253971010882,
+        -0.25000809152634423
+      ],
+      "dq_rad_s": [
+        1.4181447494291182,
+        -0.9985295716713708,
+        -0.9548437142561539,
+        1.0512558240242031,
+        -0.9868458372563329,
+        0.45870954665841235
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "loads_N": [
+        8.659990890182856,
+        40.67951818076109,
+        52.3754454574185,
+        45.07712811363622,
+        38.541904495361095,
+        0.0
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        101.25946027231822,
+        100.6709115553316,
+        102.36294399198249
+      ],
+      "interface_gap_m": [
+        0.00034219104140783256,
+        0.00034282141882016685,
+        4.987138202149462e-06,
+        0.00033630756052105925,
+        0.0003446844293069296,
+        0.20003420132038915
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 8.374764577130236,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.0743627502590695,
+      "failure": ""
+    },
+    {
+      "time_s": 17.522999999998433,
+      "phase": "UNFOLD",
+      "connection": 6,
+      "q_rad": [
+        -1.9194430870940475,
+        0.20869005768055046,
+        0.5814214398826861,
+        -0.24657038214769142,
+        2.6244116407406493,
+        -0.09224818803670813
+      ],
+      "dq_rad_s": [
+        1.9915348304235823,
+        -0.6069892200508722,
+        -1.1824043292749746,
+        0.5984677711173542,
+        -1.5040673316916389,
+        0.30074301145065857
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "loads_N": [
+        8.128936882293877,
+        34.80041385527849,
+        51.99396807796728,
+        38.45782024096405,
+        31.974247686911056,
+        0.0
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        74.4282968057264,
+        101.25946027231822,
+        100.6709115553316,
+        102.36294399198249
+      ],
+      "interface_gap_m": [
+        0.0003453608084567746,
+        0.0003401367459183807,
+        8.37913273389201e-06,
+        0.0003493202054149325,
+        0.0003622403674227535,
+        0.4035681212344526
+      ],
+      "peak_other_load_N": 74.4282968057264,
+      "peak_actual_torque_Nm": 8.374764577130236,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.056592426152736776,
+      "failure": ""
+    },
+    {
+      "time_s": 18.022999999999044,
+      "phase": "UNFOLD",
+      "connection": 6,
+      "q_rad": [
+        -0.9471036383859738,
+        0.03216574422043006,
+        0.13722924017702115,
+        -0.05362479792422043,
+        1.7046691054580037,
+        -0.01881402735304071
+      ],
+      "dq_rad_s": [
+        2.5732799689994814,
+        -0.2555419192608216,
+        -0.45892358555791923,
+        0.26934669175803955,
+        -2.0086759824127296,
+        0.17855727535116664
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "loads_N": [
+        12.31904408424602,
+        41.13494858191949,
+        63.8785306940302,
+        45.92312271055095,
+        33.09577622253234,
+        0.0
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        78.39571409487401,
+        101.25946027231822,
+        100.6709115553316,
+        102.36294399198249
+      ],
+      "interface_gap_m": [
+        0.0003460375263236059,
+        0.00034722803802576303,
+        6.783316591093123e-06,
+        0.00036350830404994545,
+        0.00038168718448996456,
+        0.5626164833487294
+      ],
+      "peak_other_load_N": 78.39571409487401,
+      "peak_actual_torque_Nm": 8.374764577130236,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.03299893585070448,
+      "failure": ""
+    },
+    {
+      "time_s": 18.522999999999655,
+      "phase": "UNFOLD",
+      "connection": 6,
+      "q_rad": [
+        -0.21267741488530947,
+        -0.005517197544749022,
+        0.0011482928215974738,
+        0.002003521324114587,
+        0.5899036252387229,
+        3.290135135924396e-05
+      ],
+      "dq_rad_s": [
+        0.7541519676135433,
+        -0.05524582463913463,
+        0.005687410012128148,
+        0.001833815897428646,
+        -1.7618026681928014,
+        -0.012358836273742601
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "loads_N": [
+        15.864209154791446,
+        14.105074130686278,
+        27.412547322771243,
+        30.934675408484697,
+        12.771516072135729,
+        0.0
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        85.12930507049776,
+        101.25946027231822,
+        100.6709115553316,
+        102.36294399198249
+      ],
+      "interface_gap_m": [
+        0.00034773682387332624,
+        0.00034829621722792505,
+        2.1002803408608378e-06,
+        0.00035943813872236797,
+        0.0003719962982406751,
+        0.6486983274254261
+      ],
+      "peak_other_load_N": 85.12930507049776,
+      "peak_actual_torque_Nm": 8.374764577130236,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.011147280238135217,
+      "failure": ""
+    },
+    {
+      "time_s": 19.023000000000266,
+      "phase": "UNFOLD",
+      "connection": 6,
+      "q_rad": [
+        -0.04625372116327163,
+        -0.01712135725032593,
+        0.0009574633814891355,
+        -4.3308235197080825e-05,
+        0.14764296699160592,
+        0.0024913062328223282
+      ],
+      "dq_rad_s": [
+        0.1325333597577629,
+        -0.02817749165193889,
+        -0.006442158308914554,
+        -0.007747627623573738,
+        -0.3611912639845455,
+        -0.011353160698960536
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "loads_N": [
+        5.049991312357424,
+        12.479440789047757,
+        20.47690860074991,
+        28.976460715677945,
+        9.31647816591834,
+        0.0
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        85.12930507049776,
+        101.25946027231822,
+        100.6709115553316,
+        102.36294399198249
+      ],
+      "interface_gap_m": [
+        0.0003487918410614049,
+        0.0003487484843582859,
+        8.410259007894158e-07,
+        0.00034927208689621074,
+        0.0003526825221251576,
+        0.6592535344167748
+      ],
+      "peak_other_load_N": 85.12930507049776,
+      "peak_actual_torque_Nm": 8.374764577130236,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.0032194897990642734,
+      "failure": ""
+    },
+    {
+      "time_s": 19.523000000000877,
+      "phase": "UNFOLD",
+      "connection": 6,
+      "q_rad": [
+        -0.011614818520237186,
+        -0.021595171742772947,
+        -0.0005307323613550638,
+        0.0010481269426066736,
+        0.055506878876019246,
+        0.0013660937373062428
+      ],
+      "dq_rad_s": [
+        0.030380430491011037,
+        0.00350146771924388,
+        -0.003385259395265187,
+        0.004529063129915332,
+        -0.09617958132473017,
+        -0.0024926517487088296
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "loads_N": [
+        3.1761058925850625,
+        9.342296528549445,
+        13.253822216118193,
+        12.548699102940201,
+        4.228291404479661,
+        0.0
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        85.12930507049776,
+        101.25946027231822,
+        100.6709115553316,
+        102.36294399198249
+      ],
+      "interface_gap_m": [
+        0.00034829078496474995,
+        0.00034817100823305116,
+        6.881334202001883e-08,
+        0.0003480559514755082,
+        0.0003488213985419389,
+        0.659874832609082
+      ],
+      "peak_other_load_N": 85.12930507049776,
+      "peak_actual_torque_Nm": 8.374764577130236,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.0015746092968715597,
+      "failure": ""
+    },
+    {
+      "time_s": 20.02300000000149,
+      "phase": "UNFOLD",
+      "connection": 6,
+      "q_rad": [
+        -0.002724434166719602,
+        -0.014108361839772687,
+        -7.911313942846908e-05,
+        0.001237708697805014,
+        0.022561594752952104,
+        0.0016309700865428263
+      ],
+      "dq_rad_s": [
+        0.009610144317124742,
+        0.010174444012238645,
+        -0.0013607856207607373,
+        -0.003102343301824779,
+        -0.02804891414621583,
+        0.0020673549119457533
+      ],
+      "connected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "registrations": [
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "loads_N": [
+        2.939934023486509,
+        4.8533982266791496,
+        6.777534353647628,
+        6.268181728607939,
+        3.2054410284257266,
+        0.0
+      ],
+      "peak_loads_N": [
+        101.45456068234827,
+        101.24109469066376,
+        85.12930507049776,
+        101.25946027231822,
+        100.6709115553316,
+        102.36294399198249
+      ],
+      "interface_gap_m": [
+        0.00034832944604004044,
+        0.00034805330823308616,
+        7.490542857565262e-08,
+        0.00034796665020380915,
+        0.00034850879713395783,
+        0.6599769168536235
+      ],
+      "peak_other_load_N": 85.12930507049776,
+      "peak_actual_torque_Nm": 8.374764577130236,
+      "max_module_penetration_m": 0.00045456389793186147,
+      "max_ground_penetration_m": 0.0007036248989854624,
+      "worst_module_pair": [
+        "module_1/b2_geom",
+        "module_2/a3_geom"
+      ],
+      "worst_ground_pair": [
+        "terrain",
+        "module_4/a5_geom"
+      ],
+      "root_collinearity_error_m": 0.0007731832512343813,
+      "failure": ""
+    }
+  ],
+  "scope": "Actual CPU dynamics; physical qpos/root poses written only at initialization; load-triggered releases are passive at 80N.",
+  "phase_active_loads": {
+    "INITIAL_STRAIGHT_HOLD": {
+      "load_N": 1.0539503655997702,
+      "face": 5,
+      "time_s": 0.2600000000000002
+    },
+    "CURL": {
+      "load_N": 31.786593294474244,
+      "face": 2,
+      "time_s": 1.8459999999999075
+    },
+    "CAPTURE_HEADTAIL": {
+      "load_N": 20.090284536866324,
+      "face": 3,
+      "time_s": 5.601000000000205
+    },
+    "SETTLE_HEADTAIL": {
+      "load_N": 19.816817406943635,
+      "face": 3,
+      "time_s": 5.621000000000212
+    },
+    "LOAD": {
+      "load_N": 48.50366245831831,
+      "face": 2,
+      "time_s": 11.180999999999242
+    },
+    "SEPARATE": {
+      "load_N": 74.4282968057264,
+      "face": 3,
+      "time_s": 7.278000000000765
+    },
+    "APPROACH": {
+      "load_N": 45.361594215087955,
+      "face": 3,
+      "time_s": 8.248000000000868
+    },
+    "SETTLE": {
+      "load_N": 27.269241396971697,
+      "face": 5,
+      "time_s": 10.460999999999641
+    },
+    "LOAD_HEADTAIL": {
+      "load_N": 63.04455697951133,
+      "face": 2,
+      "time_s": 15.680999999996748
+    },
+    "HEADTAIL_BREAK_HOLD": {
+      "load_N": 19.51522351767517,
+      "face": 2,
+      "time_s": 15.707999999996733
+    },
+    "UNFOLD": {
+      "load_N": 85.12930507049776,
+      "face": 3,
+      "time_s": 18.300999999999384
+    },
+    "FINAL_STRAIGHT_HOLD": {
+      "load_N": 5.643721235986115,
+      "face": 3,
+      "time_s": 20.141000000001632
+    }
+  },
+  "max_abs_joint_angle_rad": 3.7559464598077867,
+  "angle_deg": 90,
+  "order_1_based": [
+    1,
+    2,
+    4,
+    5
+  ],
+  "branch_q": [
+    -0.7151050279933058,
+    2.663656161069831,
+    2.341859434055353,
+    -1.093611347372558,
+    1.8997523394142295,
+    -2.8300742095870532
+  ],
+  "wall_time_s": 8.615603357960936,
+  "stopped_after_capture": false
+}
